@@ -1,0 +1,11 @@
+[tool.pytest.ini_options]
+testpaths = ["desktop_app/tests"]
+python_files = "test_*.py"
+python_classes = "Test*"
+python_functions = "test_*"
+markers = [
+    "slow: marks tests as slow",
+    "widget: marks tests requiring Qt",
+    "smoke: marks smoke tests",
+]
+qt_api = "pyside6"
