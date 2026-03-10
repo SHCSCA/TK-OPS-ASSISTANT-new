@@ -104,11 +104,35 @@ def _px_token(name: str, fallback: int) -> int:
     return int(digits) if digits else fallback
 
 
+def _color_with_alpha(color: str, alpha: float, fallback: str) -> str:
+    """将十六进制或 rgb 颜色转换为 rgba。"""
+
+    normalized = color.strip()
+    if normalized.startswith("#"):
+        hex_color = normalized[1:]
+        if len(hex_color) == 3:
+            hex_color = "".join(channel * 2 for channel in hex_color)
+        if len(hex_color) == 6:
+            red = int(hex_color[0:2], 16)
+            green = int(hex_color[2:4], 16)
+            blue = int(hex_color[4:6], 16)
+            return f"rgba({red},{green},{blue},{alpha:.2f})"
+
+    if normalized.startswith("rgb(") and normalized.endswith(")"):
+        values = normalized[4:-1].strip()
+        return f"rgba({values},{alpha:.2f})"
+
+    return fallback
+
+
 STATUS_BAR_HEIGHT = 32
+SPACING_XS = _px_token("spacing.xs", 4)
 SPACING_SM = _px_token("spacing.sm", 6)
 SPACING_MD = _px_token("spacing.md", 8)
 SPACING_LG = _px_token("spacing.lg", 12)
 RADIUS_MD = _px_token("radius.md", 8)
+RADIUS_LG = _px_token("radius.lg", 12)
+PANEL_HEIGHT = STATUS_BAR_HEIGHT - (SPACING_SM * 2)
 ALIGN_LEFT = getattr(getattr(Qt, "AlignmentFlag", Qt), "AlignLeft", 0)
 
 
@@ -132,8 +156,9 @@ class StatusBar(QWidget):
         self._connection_host = QWidget(self)
         _set_object_name(self._connection_host, "statusBarConnection")
         connection_layout = QHBoxLayout(self._connection_host)
-        connection_layout.setContentsMargins(0, 0, 0, 0)
-        connection_layout.setSpacing(SPACING_SM)
+        connection_layout.setContentsMargins(SPACING_MD, 0, SPACING_MD, 0)
+        connection_layout.setSpacing(SPACING_XS)
+        _call(self._connection_host, "setMinimumHeight", PANEL_HEIGHT)
 
         self._connection_dot = QLabel("●", self._connection_host)
         _set_object_name(self._connection_dot, "statusBarConnectionDot")
@@ -146,12 +171,14 @@ class StatusBar(QWidget):
         self._message_label = QLabel(self._message, self)
         _set_object_name(self._message_label, "statusBarMessage")
         _call(self._message_label, "setAlignment", ALIGN_LEFT)
+        _call(self._message_label, "setMinimumHeight", PANEL_HEIGHT)
 
         self._right_host = QWidget(self)
         _set_object_name(self._right_host, "statusBarMeta")
         right_layout = QHBoxLayout(self._right_host)
-        right_layout.setContentsMargins(0, 0, 0, 0)
-        right_layout.setSpacing(SPACING_LG)
+        right_layout.setContentsMargins(SPACING_MD, 0, SPACING_MD, 0)
+        right_layout.setSpacing(SPACING_MD)
+        _call(self._right_host, "setMinimumHeight", PANEL_HEIGHT)
 
         self._task_label = QLabel("任务 0", self._right_host)
         _set_object_name(self._task_label, "statusBarTaskCount")
@@ -209,6 +236,13 @@ class StatusBar(QWidget):
         success = _token("status.success")
         error = _token("status.error")
         dot_color = success if self._connected else error
+        neutral_panel = _color_with_alpha(text_secondary, 0.08, surface)
+        neutral_panel_border = _color_with_alpha(text_secondary, 0.18, border)
+        neutral_divider = _color_with_alpha(text_secondary, 0.24, border)
+        connection_panel = _color_with_alpha(dot_color, 0.10, surface)
+        connection_border = _color_with_alpha(dot_color, 0.30, border)
+        message_panel = _color_with_alpha(text_secondary, 0.05, surface)
+        message_border = _color_with_alpha(text_secondary, 0.16, border)
 
         _set_stylesheet(
             self,
@@ -217,28 +251,51 @@ class StatusBar(QWidget):
                 f"background-color: {surface};"
                 f"border-top: 1px solid {border};"
                 "}"
+                "QWidget#statusBarConnection {"
+                f"background-color: {connection_panel};"
+                f"border: 1px solid {connection_border};"
+                f"border-radius: {RADIUS_LG}px;"
+                "}"
                 "QLabel#statusBarConnectionDot {"
                 f"color: {dot_color};"
                 f"font-size: {STATIC_TOKENS['font.size.sm']};"
+                f"font-weight: {STATIC_TOKENS['font.weight.bold']};"
                 "background: transparent;"
-                "padding-right: 2px;"
+                "padding: 0 1px 0 0;"
                 "}"
-                "QLabel#statusBarConnectionLabel, QLabel#statusBarTaskCount, QLabel#statusBarClock {"
+                "QLabel#statusBarConnectionLabel {"
+                f"color: {text_primary};"
+                f"font-size: {STATIC_TOKENS['font.size.sm']};"
+                f"font-weight: {STATIC_TOKENS['font.weight.semibold']};"
+                "background: transparent;"
+                "}"
+                "QWidget#statusBarMeta {"
+                f"background-color: {neutral_panel};"
+                f"border: 1px solid {neutral_panel_border};"
+                f"border-radius: {RADIUS_LG}px;"
+                "}"
+                "QLabel#statusBarTaskCount {"
                 f"color: {text_secondary};"
                 f"font-size: {STATIC_TOKENS['font.size.sm']};"
                 "background: transparent;"
+                f"padding-right: {SPACING_MD}px;"
+                f"border-right: 1px solid {neutral_divider};"
                 "}"
-                "QLabel#statusBarMessage {"
+                "QLabel#statusBarClock {"
                 f"color: {text_primary};"
                 f"font-size: {STATIC_TOKENS['font.size.sm']};"
                 f"font-weight: {STATIC_TOKENS['font.weight.medium']};"
                 "background: transparent;"
-                f"padding: 0 {SPACING_MD}px;"
+                f"padding-left: {SPACING_XS}px;"
                 "}"
-                "QWidget#statusBarConnection, QWidget#statusBarMeta {"
-                "background: transparent;"
-                "border: none;"
+                "QLabel#statusBarMessage {"
+                f"background-color: {message_panel};"
+                f"color: {text_primary};"
+                f"font-size: {STATIC_TOKENS['font.size.sm']};"
+                f"font-weight: {STATIC_TOKENS['font.weight.medium']};"
+                f"border: 1px solid {message_border};"
                 f"border-radius: {RADIUS_MD}px;"
+                f"padding: 0 {SPACING_LG}px;"
                 "}"
             ),
         )

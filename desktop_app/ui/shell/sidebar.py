@@ -68,6 +68,12 @@ def _set_property(widget: object, name: str, value: object) -> None:
     _call(widget, "setProperty", name, value)
 
 
+def _set_alignment(widget: object, alignment: int) -> None:
+    """安全设置对齐方式。"""
+
+    _call(widget, "setAlignment", alignment)
+
+
 def _clear_layout(layout: object) -> None:
     """清空布局中的所有子项。"""
 
@@ -147,6 +153,27 @@ def _sidebar_icon(icon_name: str) -> str:
     return icon_map.get(icon_name, "•")
 
 
+def _color_with_alpha(color: str, alpha: float, fallback: str) -> str:
+    """将十六进制或 rgb 颜色转为带透明度的 rgba。"""
+
+    normalized = color.strip()
+    if normalized.startswith("#"):
+        hex_color = normalized[1:]
+        if len(hex_color) == 3:
+            hex_color = "".join(channel * 2 for channel in hex_color)
+        if len(hex_color) == 6:
+            red = int(hex_color[0:2], 16)
+            green = int(hex_color[2:4], 16)
+            blue = int(hex_color[4:6], 16)
+            return f"rgba({red},{green},{blue},{alpha:.2f})"
+
+    if normalized.startswith("rgb(") and normalized.endswith(")"):
+        values = normalized[4:-1].strip()
+        return f"rgba({values},{alpha:.2f})"
+
+    return fallback
+
+
 SPACING_XS = _px_token("spacing.xs", 4)
 SPACING_SM = _px_token("spacing.sm", 6)
 SPACING_MD = _px_token("spacing.md", 8)
@@ -155,6 +182,8 @@ SPACING_XL = _px_token("spacing.xl", 16)
 SPACING_2XL = _px_token("spacing.2xl", 24)
 RADIUS_MD = _px_token("radius.md", 8)
 RADIUS_LG = _px_token("radius.lg", 12)
+RADIUS_XL = _px_token("radius.xl", 16)
+BUTTON_HEIGHT_SM = _px_token("button.height.sm", 36)
 FONT_SIZE_SM = STATIC_TOKENS["font.size.sm"]
 FONT_SIZE_MD = STATIC_TOKENS["font.size.md"]
 FONT_WEIGHT_MEDIUM = STATIC_TOKENS["font.weight.medium"]
@@ -163,17 +192,26 @@ FONT_WEIGHT_BOLD = STATIC_TOKENS["font.weight.bold"]
 SIDEBAR_WIDTH_EXPANDED = 216
 SIDEBAR_WIDTH_COLLAPSED = 56
 SIDEBAR_BACKGROUND = TOKENS["brand.secondary"].light
-SIDEBAR_PANEL = "rgba(255,255,255,0.04)"
+SIDEBAR_PANEL_SOFT = "rgba(255,255,255,0.03)"
+SIDEBAR_PANEL = "rgba(255,255,255,0.05)"
+SIDEBAR_PANEL_ELEVATED = "rgba(255,255,255,0.08)"
 SIDEBAR_BORDER = "rgba(255,255,255,0.08)"
+SIDEBAR_BORDER_STRONG = "rgba(255,255,255,0.14)"
 SIDEBAR_TEXT = TOKENS["text.primary"].dark
 SIDEBAR_MUTED = TOKENS["text.secondary"].dark
 SIDEBAR_DIM = TOKENS["text.tertiary"].dark
 SIDEBAR_ACCENT = TOKENS["brand.primary"].light
-SIDEBAR_HOVER = "rgba(0,242,234,0.10)"
-SIDEBAR_ACTIVE = "rgba(0,242,234,0.16)"
+SIDEBAR_HOVER = "rgba(0,242,234,0.12)"
+SIDEBAR_ACTIVE = "rgba(0,242,234,0.18)"
+SIDEBAR_ACTIVE_STRONG = "rgba(0,242,234,0.24)"
 SIDEBAR_CONTEXT = "rgba(255,255,255,0.06)"
+SIDEBAR_CONTEXT_STRONG = "rgba(255,255,255,0.09)"
+SIDEBAR_DIVIDER = "rgba(255,255,255,0.05)"
+SIDEBAR_GLOW = "rgba(0,242,234,0.22)"
 DEFAULT_GROUP_COLOR = TOKENS["brand.accent"].light
 POINTING_CURSOR = getattr(Qt, "PointingHandCursor", getattr(getattr(Qt, "CursorShape", Qt), "PointingHandCursor", 0))
+ALIGN_LEFT = getattr(getattr(Qt, "AlignmentFlag", Qt), "AlignLeft", 0)
+ALIGN_CENTER = getattr(getattr(Qt, "AlignmentFlag", Qt), "AlignCenter", 0)
 
 
 class _RouteMeta:
@@ -352,41 +390,54 @@ class _SidebarSection(QWidget):
         return visit(self.group.items)
 
     def _apply_header_style(self) -> None:
-        hover_background = "rgba(255,255,255,0.04)"
+        header_background = _color_with_alpha(self._group_color, 0.10, SIDEBAR_PANEL)
+        header_hover_background = _color_with_alpha(self._group_color, 0.16, SIDEBAR_PANEL_ELEVATED)
+        header_border = _color_with_alpha(self._group_color, 0.28, SIDEBAR_BORDER_STRONG)
         _set_stylesheet(
             self._header_button,
             (
                 "QPushButton#sidebarGroupHeader {"
-                "background-color: transparent;"
-                "border: none;"
+                f"background-color: {header_background};"
+                f"border: 1px solid {header_border};"
                 f"border-left: 3px solid {self._group_color};"
-                f"padding: {SPACING_SM}px {SPACING_LG}px;"
-                f"border-radius: {RADIUS_MD}px;"
+                f"padding: {SPACING_SM}px {SPACING_LG}px {SPACING_SM}px {SPACING_XL}px;"
+                f"border-radius: {RADIUS_LG}px;"
                 f"color: {self._group_color};"
                 f"font-size: {FONT_SIZE_SM};"
-                f"font-weight: {FONT_WEIGHT_BOLD};"
+                f"font-weight: {FONT_WEIGHT_SEMIBOLD};"
                 "text-align: left;"
                 "}"
                 "QPushButton#sidebarGroupHeader:hover {"
-                f"background-color: {hover_background};"
+                f"background-color: {header_hover_background};"
+                f"border-color: {self._group_color};"
+                "}"
+                "QPushButton#sidebarGroupHeader:pressed {"
+                f"background-color: {SIDEBAR_CONTEXT_STRONG};"
                 "}"
             ),
         )
 
     def _apply_compact_marker_style(self) -> None:
+        marker_color = _color_with_alpha(self._group_color, 0.92, self._group_color)
         _set_stylesheet(
             self._compact_marker,
-            f"QFrame#sidebarCompactMarker {{ background-color: {self._group_color}; border-radius: 1px; }}",
+            f"QFrame#sidebarCompactMarker {{ background-color: {marker_color}; border-radius: 1px; }}",
         )
 
     def _apply_nav_button_style(self, button: QPushButton, depth: int, is_active: bool, is_parent_active: bool) -> None:
-        left_padding = SPACING_XL if self._sidebar_collapsed else SPACING_XL + (depth * SPACING_LG)
-        background = SIDEBAR_ACTIVE if is_active else SIDEBAR_CONTEXT if is_parent_active else "transparent"
-        text_color = SIDEBAR_ACCENT if is_active else SIDEBAR_TEXT if depth == 0 else SIDEBAR_MUTED
-        border_color = SIDEBAR_ACCENT if is_active else self._group_color if is_parent_active else "transparent"
-        font_weight = FONT_WEIGHT_BOLD if is_active else FONT_WEIGHT_SEMIBOLD if depth == 0 else FONT_WEIGHT_MEDIUM
-        hover_text = SIDEBAR_TEXT if not is_active else SIDEBAR_ACCENT
-        min_height = 38 if depth == 0 else 32
+        left_padding = SPACING_LG if self._sidebar_collapsed else SPACING_XL + (depth * SPACING_MD)
+        right_padding = SPACING_MD if self._sidebar_collapsed else SPACING_LG
+        parent_background = _color_with_alpha(self._group_color, 0.10, SIDEBAR_CONTEXT)
+        parent_border = _color_with_alpha(self._group_color, 0.24, SIDEBAR_BORDER)
+        inactive_background = SIDEBAR_PANEL_SOFT if depth == 0 and not self._sidebar_collapsed else "transparent"
+        hover_background = SIDEBAR_HOVER if depth == 0 else _color_with_alpha(self._group_color, 0.12, SIDEBAR_CONTEXT_STRONG)
+        background = SIDEBAR_ACTIVE if is_active else parent_background if is_parent_active else inactive_background
+        text_color = SIDEBAR_ACCENT if is_active else SIDEBAR_TEXT if depth == 0 or is_parent_active else SIDEBAR_MUTED
+        border_color = SIDEBAR_ACCENT if is_active else parent_border if is_parent_active else SIDEBAR_DIVIDER if depth == 0 and not self._sidebar_collapsed else "transparent"
+        font_weight = FONT_WEIGHT_BOLD if is_active else FONT_WEIGHT_SEMIBOLD if depth == 0 or is_parent_active else FONT_WEIGHT_MEDIUM
+        hover_text = SIDEBAR_ACCENT if is_active else SIDEBAR_TEXT
+        min_height = 40 if depth == 0 else 30
+        font_size = FONT_SIZE_MD if depth == 0 or self._sidebar_collapsed else FONT_SIZE_SM
 
         _set_stylesheet(
             button,
@@ -397,19 +448,19 @@ class _SidebarSection(QWidget):
                 f"border: 1px solid {SIDEBAR_BORDER};"
                 f"border-left: 3px solid {border_color};"
                 f"border-radius: {RADIUS_LG}px;"
-                f"padding: {SPACING_SM}px {SPACING_LG}px {SPACING_SM}px {left_padding}px;"
-                f"font-size: {FONT_SIZE_MD};"
+                f"padding: {SPACING_SM}px {right_padding}px {SPACING_SM}px {left_padding}px;"
+                f"font-size: {font_size};"
                 f"font-weight: {font_weight};"
                 f"min-height: {min_height}px;"
                 f"text-align: {'center' if self._sidebar_collapsed else 'left'};"
                 "}"
                 "QPushButton#sidebarNavButton:hover {"
-                f"background-color: {SIDEBAR_HOVER};"
+                f"background-color: {hover_background};"
                 f"color: {hover_text};"
                 f"border-color: {SIDEBAR_ACCENT};"
                 "}"
                 "QPushButton#sidebarNavButton:pressed {"
-                "background-color: rgba(0,242,234,0.20);"
+                f"background-color: {SIDEBAR_ACTIVE_STRONG};"
                 "}"
             ),
         )
@@ -440,13 +491,13 @@ class Sidebar(QWidget):
         _set_fixed_width(self, SIDEBAR_WIDTH_EXPANDED)
 
         self._root_layout = QVBoxLayout(self)
-        self._root_layout.setContentsMargins(SPACING_LG, SPACING_LG, SPACING_LG, SPACING_LG)
+        self._root_layout.setContentsMargins(SPACING_LG, SPACING_XL, SPACING_LG, SPACING_LG)
         self._root_layout.setSpacing(SPACING_LG)
 
         self._brand = QWidget(self)
         _set_object_name(self._brand, "sidebarBrand")
         self._brand_layout = QVBoxLayout(self._brand)
-        self._brand_layout.setContentsMargins(SPACING_SM, SPACING_SM, SPACING_SM, SPACING_SM)
+        self._brand_layout.setContentsMargins(SPACING_MD, SPACING_MD, SPACING_MD, SPACING_SM)
         self._brand_layout.setSpacing(SPACING_XS)
 
         self._brand_title = QLabel("TK-OPS", self._brand)
@@ -472,7 +523,7 @@ class Sidebar(QWidget):
         self._footer = QWidget(self)
         _set_object_name(self._footer, "sidebarFooter")
         self._footer_layout = QVBoxLayout(self._footer)
-        self._footer_layout.setContentsMargins(0, 0, 0, 0)
+        self._footer_layout.setContentsMargins(0, SPACING_SM, 0, 0)
         self._footer_layout.setSpacing(SPACING_SM)
 
         self._settings_button = QPushButton("⚙  设置", self._footer)
@@ -540,27 +591,32 @@ class Sidebar(QWidget):
             (
                 "QWidget#sidebar {"
                 f"background-color: {SIDEBAR_BACKGROUND};"
-                f"border-right: 1px solid {SIDEBAR_BORDER};"
+                f"border-right: 1px solid {SIDEBAR_BORDER_STRONG};"
                 "}"
                 "QWidget#sidebarBrand {"
-                f"background-color: {SIDEBAR_PANEL};"
-                f"border: 1px solid {SIDEBAR_BORDER};"
-                f"border-radius: {RADIUS_LG}px;"
+                f"background-color: {SIDEBAR_PANEL_ELEVATED};"
+                f"border: 1px solid {SIDEBAR_BORDER_STRONG};"
+                f"border-top: 1px solid {SIDEBAR_GLOW};"
+                f"border-radius: {RADIUS_XL}px;"
                 "}"
                 "QLabel#sidebarBrandTitle {"
                 f"color: {SIDEBAR_ACCENT};"
-                f"font-size: {STATIC_TOKENS['font.size.lg']};"
+                f"font-size: {STATIC_TOKENS['font.size.xl']};"
                 f"font-weight: {FONT_WEIGHT_BOLD};"
                 "background: transparent;"
                 "}"
                 "QLabel#sidebarBrandSubtitle {"
-                f"color: {SIDEBAR_MUTED};"
+                f"color: {SIDEBAR_DIM};"
                 f"font-size: {FONT_SIZE_SM};"
                 "background: transparent;"
                 "}"
-                "QScrollArea#sidebarScroll, QWidget#sidebarScrollContent, QWidget#sidebarFooter {"
+                "QWidget#sidebarSection, QWidget#sidebarSectionBody, QScrollArea#sidebarScroll, QWidget#sidebarScrollContent {"
                 "background: transparent;"
                 "border: none;"
+                "}"
+                "QWidget#sidebarFooter {"
+                "background: transparent;"
+                f"border-top: 1px solid {SIDEBAR_DIVIDER};"
                 "}"
             ),
         )
@@ -581,7 +637,8 @@ class Sidebar(QWidget):
         )
 
     def _apply_footer_button_style(self, button: QPushButton, *, object_name: str, active: bool, accent: str) -> None:
-        background = SIDEBAR_ACTIVE if active else SIDEBAR_PANEL
+        background = SIDEBAR_ACTIVE if active else SIDEBAR_PANEL_ELEVATED
+        hover_background = SIDEBAR_ACTIVE_STRONG if active else SIDEBAR_CONTEXT_STRONG
         text = SIDEBAR_ACCENT if active else SIDEBAR_TEXT
         border = accent if active else SIDEBAR_BORDER
         _set_stylesheet(
@@ -591,15 +648,19 @@ class Sidebar(QWidget):
                 f"background-color: {background};"
                 f"color: {text};"
                 f"border: 1px solid {border};"
-                f"border-radius: {RADIUS_LG}px;"
+                f"border-radius: {RADIUS_XL}px;"
                 f"padding: {SPACING_MD}px {SPACING_LG}px;"
                 f"font-size: {FONT_SIZE_MD};"
                 f"font-weight: {FONT_WEIGHT_SEMIBOLD};"
+                f"min-height: {BUTTON_HEIGHT_SM}px;"
                 f"text-align: {'center' if self._collapsed else 'left'};"
                 "}"
                 f"QPushButton#{object_name}:hover {{"
-                f"background-color: {SIDEBAR_HOVER};"
+                f"background-color: {hover_background};"
                 f"border-color: {accent};"
+                "}"
+                f"QPushButton#{object_name}:pressed {{"
+                f"background-color: {SIDEBAR_ACTIVE_STRONG};"
                 "}"
             ),
         )
@@ -613,6 +674,15 @@ class Sidebar(QWidget):
         _set_text(self._settings_button, "⚙" if self._collapsed else "⚙  设置")
         _set_text(self._collapse_button, "»" if self._collapsed else "«  收起导航")
         _set_tooltip(self._collapse_button, "展开导航" if self._collapsed else "收起导航")
+        _set_alignment(self._brand_title, ALIGN_CENTER if self._collapsed else ALIGN_LEFT)
+        _set_alignment(self._brand_subtitle, ALIGN_CENTER if self._collapsed else ALIGN_LEFT)
+
+        if self._collapsed:
+            self._brand_layout.setContentsMargins(SPACING_XS, SPACING_LG, SPACING_XS, SPACING_LG)
+            self._brand_layout.setSpacing(0)
+        else:
+            self._brand_layout.setContentsMargins(SPACING_MD, SPACING_MD, SPACING_MD, SPACING_SM)
+            self._brand_layout.setSpacing(SPACING_XS)
 
         for section in self._sections:
             section.set_sidebar_collapsed(self._collapsed)
