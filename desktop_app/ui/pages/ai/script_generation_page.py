@@ -33,6 +33,7 @@ from ...components import (
     ThemedScrollArea,
     ThemedTextEdit,
 )
+from ...components.layouts import label_text_style, panel_frame_style, rgba_color
 from ...components.tags import BadgeTone
 from ...components.inputs import (
     SPACING_SM,
@@ -52,13 +53,6 @@ from ...components.inputs import (
 from ..base_page import BasePage
 
 
-ACCENT = "#00F2EA"
-ACCENT_SOFT = "rgba(0, 242, 234, 0.10)"
-ACCENT_STRONG = "rgba(0, 242, 234, 0.18)"
-SUCCESS = "#22C55E"
-WARNING = "#F59E0B"
-ERROR = "#EF4444"
-INFO = "#38BDF8"
 DESKTOP_PAGE_MAX_WIDTH = 1920
 
 
@@ -523,45 +517,6 @@ def _clear_layout(layout: object) -> None:
         items.clear()
 
 
-def _frame_style(*, highlight: bool = False, dashed: bool = False) -> str:
-    """局部卡片样式。"""
-
-    border = ACCENT if highlight else "palette(midlight)"
-    border_style = "dashed" if dashed else "solid"
-    background = ACCENT_SOFT if highlight else "palette(base)"
-    return f"""
-        QFrame {{
-            background: {background};
-            border: 1px {border_style} {border};
-            border-radius: 14px;
-        }}
-        QLabel {{
-            background: transparent;
-        }}
-        QPushButton {{
-            border-radius: 10px;
-        }}
-    """
-
-
-def _title_label_style() -> str:
-    """标题文案样式。"""
-
-    return "color: palette(text); background: transparent; font-size: 16px; font-weight: 700;"
-
-
-def _muted_label_style() -> str:
-    """辅助文案样式。"""
-
-    return "color: palette(mid); background: transparent; font-size: 12px;"
-
-
-def _section_hint_style() -> str:
-    """强调文案样式。"""
-
-    return f"color: {ACCENT}; background: transparent; font-size: 12px; font-weight: 700;"
-
-
 class ScriptGenerationPage(BasePage):
     """AI 驱动的脚本生成工作台。"""
 
@@ -682,21 +637,21 @@ class ScriptGenerationPage(BasePage):
         section = ContentSection("脚本类型切换", icon="◈", parent=self)
 
         intro = QFrame(section)
-        intro.setStyleSheet(_frame_style(highlight=True))
+        intro.setStyleSheet(panel_frame_style(variant="highlight"))
         intro_layout = QVBoxLayout(intro)
         intro_layout.setContentsMargins(16, 14, 16, 14)
         intro_layout.setSpacing(8)
 
         title = QLabel("当前脚本方向", intro)
-        title.setStyleSheet(_title_label_style())
+        title.setStyleSheet(label_text_style(size_token="font.size.lg", weight_token="font.weight.bold"))
         self._current_type_summary_label = QLabel("种草脚本 · 适合用真实体验建立信任感。", intro)
         current_type_summary_label = self._current_type_summary_label
         if current_type_summary_label is not None:
-            current_type_summary_label.setStyleSheet(_section_hint_style())
+            current_type_summary_label.setStyleSheet(label_text_style(tone="accent", size_token="font.size.sm", weight_token="font.weight.bold"))
         self._current_type_hint_label = QLabel("推荐结构：开场共鸣 → 卖点体验 → 情绪收口 → 收藏 CTA", intro)
         current_type_hint_label = self._current_type_hint_label
         if current_type_hint_label is not None:
-            current_type_hint_label.setStyleSheet(_muted_label_style())
+            current_type_hint_label.setStyleSheet(label_text_style(tone="muted", size_token="font.size.sm"))
             _call(current_type_hint_label, "setWordWrap", True)
         intro_layout.addWidget(title)
         if current_type_summary_label is not None:
@@ -718,7 +673,7 @@ class ScriptGenerationPage(BasePage):
         root.setSpacing(12)
 
         hero = QFrame(host)
-        hero.setStyleSheet(_frame_style())
+        hero.setStyleSheet(panel_frame_style())
         hero_layout = QVBoxLayout(hero)
         hero_layout.setContentsMargins(16, 16, 16, 16)
         hero_layout.setSpacing(10)
@@ -732,13 +687,13 @@ class ScriptGenerationPage(BasePage):
         hero_row.addStretch(1)
 
         hook = QLabel(profile.hook, hero)
-        hook.setStyleSheet(_title_label_style())
+        hook.setStyleSheet(label_text_style(size_token="font.size.lg", weight_token="font.weight.bold"))
         _call(hook, "setWordWrap", True)
         structure = QLabel(f"结构建议：{profile.structure}", hero)
-        structure.setStyleSheet(_muted_label_style())
+        structure.setStyleSheet(label_text_style(tone="muted", size_token="font.size.sm"))
         _call(structure, "setWordWrap", True)
         scene = QLabel(f"适用场景：{profile.scene}", hero)
-        scene.setStyleSheet(_muted_label_style())
+        scene.setStyleSheet(label_text_style(tone="muted", size_token="font.size.sm"))
         _call(scene, "setWordWrap", True)
 
         hero_layout.addLayout(hero_row)
@@ -758,13 +713,13 @@ class ScriptGenerationPage(BasePage):
 
         for tip in profile.tips:
             tip_frame = QFrame(host)
-            tip_frame.setStyleSheet(_frame_style(dashed=True))
+            tip_frame.setStyleSheet(panel_frame_style(variant="dashed"))
             tip_layout = QHBoxLayout(tip_frame)
             tip_layout.setContentsMargins(12, 10, 12, 10)
             tip_layout.setSpacing(10)
             tip_layout.addWidget(StatusBadge("执行提示", tone="warning", parent=tip_frame))
             tip_label = QLabel(tip, tip_frame)
-            tip_label.setStyleSheet(_muted_label_style())
+            tip_label.setStyleSheet(label_text_style(tone="muted", size_token="font.size.sm"))
             _call(tip_label, "setWordWrap", True)
             tip_layout.addWidget(tip_label, 1)
             root.addWidget(tip_frame)
@@ -789,7 +744,7 @@ class ScriptGenerationPage(BasePage):
         root.setSpacing(14)
 
         summary = QFrame(panel)
-        summary.setStyleSheet(_frame_style(highlight=True))
+        summary.setStyleSheet(panel_frame_style(variant="highlight"))
         summary_layout = QVBoxLayout(summary)
         summary_layout.setContentsMargins(16, 16, 16, 16)
         summary_layout.setSpacing(10)
@@ -798,7 +753,7 @@ class ScriptGenerationPage(BasePage):
         header.setContentsMargins(0, 0, 0, 0)
         header.setSpacing(8)
         title = QLabel("创作输入摘要", summary)
-        title.setStyleSheet(_title_label_style())
+        title.setStyleSheet(label_text_style(size_token="font.size.lg", weight_token="font.weight.bold"))
         header.addWidget(title)
         header.addStretch(1)
         header.addWidget(StatusBadge("可直接生成", tone="success", parent=summary))
@@ -856,12 +811,12 @@ class ScriptGenerationPage(BasePage):
         root.addWidget(self._keywords_input)
 
         pulse_box = QFrame(panel)
-        pulse_box.setStyleSheet(_frame_style())
+        pulse_box.setStyleSheet(panel_frame_style())
         pulse_layout = QVBoxLayout(pulse_box)
         pulse_layout.setContentsMargins(16, 14, 16, 14)
         pulse_layout.setSpacing(10)
         pulse_title = QLabel("今日可直接带入的热点词", pulse_box)
-        pulse_title.setStyleSheet(_title_label_style())
+        pulse_title.setStyleSheet(label_text_style(size_token="font.size.lg", weight_token="font.weight.bold"))
         pulse_layout.addWidget(pulse_title)
 
         pulse_row = QWidget(pulse_box)
@@ -872,16 +827,16 @@ class ScriptGenerationPage(BasePage):
             button = QPushButton(f"{pulse.keyword} {pulse.direction}", pulse_row)
             _call(button, "setStyleSheet", f"""
                 QPushButton {{
-                    background: {ACCENT_SOFT};
-                    color: {ACCENT};
-                    border: 1px solid {ACCENT_STRONG};
+                    background: {rgba_color(_token('brand.primary'), 0.10)};
+                    color: {_token('brand.primary')};
+                    border: 1px solid {rgba_color(_token('brand.primary'), 0.18)};
                     border-radius: 16px;
                     padding: 8px 12px;
                     font-size: 12px;
                     font-weight: 700;
                 }}
                 QPushButton:hover {{
-                    background: rgba(0, 242, 234, 0.16);
+                    background: {rgba_color(_token('brand.primary'), 0.16)};
                 }}
             """)
             _connect(button.clicked, lambda word=pulse.keyword: self._append_keyword(word))
@@ -891,26 +846,26 @@ class ScriptGenerationPage(BasePage):
         root.addWidget(pulse_box)
 
         tips_box = QFrame(panel)
-        tips_box.setStyleSheet(_frame_style())
+        tips_box.setStyleSheet(panel_frame_style())
         tips_layout = QVBoxLayout(tips_box)
         tips_layout.setContentsMargins(16, 14, 16, 14)
         tips_layout.setSpacing(10)
         tips_title = QLabel("生成前检查", tips_box)
-        tips_title.setStyleSheet(_title_label_style())
+        tips_title.setStyleSheet(label_text_style(size_token="font.size.lg", weight_token="font.weight.bold"))
         tips_layout.addWidget(tips_title)
         for note in STRATEGY_NOTES:
             item = QFrame(tips_box)
-            item.setStyleSheet(_frame_style(dashed=True))
+            item.setStyleSheet(panel_frame_style(variant="dashed"))
             item_layout = QVBoxLayout(item)
             item_layout.setContentsMargins(12, 10, 12, 10)
             item_layout.setSpacing(4)
             head = QLabel(note.title, item)
-            head.setStyleSheet(_section_hint_style())
+            head.setStyleSheet(label_text_style(tone="accent", size_token="font.size.sm", weight_token="font.weight.bold"))
             body = QLabel(note.detail, item)
-            body.setStyleSheet(_muted_label_style())
+            body.setStyleSheet(label_text_style(tone="muted", size_token="font.size.sm"))
             _call(body, "setWordWrap", True)
             tail = QLabel(note.highlight, item)
-            tail.setStyleSheet(f"color: {ACCENT}; background: transparent; font-size: 12px;")
+            tail.setStyleSheet(label_text_style(tone="accent", size_token="font.size.sm"))
             _call(tail, "setWordWrap", True)
             item_layout.addWidget(head)
             item_layout.addWidget(body)
@@ -929,18 +884,18 @@ class ScriptGenerationPage(BasePage):
         root.addWidget(self._ai_config_panel)
 
         config_summary = QFrame(panel)
-        config_summary.setStyleSheet(_frame_style(highlight=True))
+        config_summary.setStyleSheet(panel_frame_style(variant="highlight"))
         config_layout = QVBoxLayout(config_summary)
         config_layout.setContentsMargins(16, 14, 16, 14)
         config_layout.setSpacing(8)
         title = QLabel("模型摘要", config_summary)
-        title.setStyleSheet(_title_label_style())
+        title.setStyleSheet(label_text_style(size_token="font.size.lg", weight_token="font.weight.bold"))
         self._model_summary_label = QLabel("OpenAI · gpt-4o · 脚本创作者 · 温度 0.7", config_summary)
         model_summary_label = self._model_summary_label
         if model_summary_label is not None:
-            model_summary_label.setStyleSheet(_section_hint_style())
+            model_summary_label.setStyleSheet(label_text_style(tone="accent", size_token="font.size.sm", weight_token="font.weight.bold"))
         desc = QLabel("当前配置适合生成首版脚本；若要做结构修订，可适度降低温度让表达更稳。", config_summary)
-        desc.setStyleSheet(_muted_label_style())
+        desc.setStyleSheet(label_text_style(tone="muted", size_token="font.size.sm"))
         _call(desc, "setWordWrap", True)
         config_layout.addWidget(title)
         if model_summary_label is not None:
@@ -963,28 +918,28 @@ class ScriptGenerationPage(BasePage):
         root.addLayout(action_row)
 
         selected_box = QFrame(panel)
-        selected_box.setStyleSheet(_frame_style())
+        selected_box.setStyleSheet(panel_frame_style())
         selected_layout = QVBoxLayout(selected_box)
         selected_layout.setContentsMargins(16, 14, 16, 14)
         selected_layout.setSpacing(8)
         selected_head = QLabel("当前推荐脚本", selected_box)
-        selected_head.setStyleSheet(_title_label_style())
+        selected_head.setStyleSheet(label_text_style(size_token="font.size.lg", weight_token="font.weight.bold"))
         self._selected_title_label = QLabel("生成后自动显示最佳脚本标题", selected_box)
         selected_title_label = self._selected_title_label
         if selected_title_label is not None:
-            selected_title_label.setStyleSheet(_section_hint_style())
+            selected_title_label.setStyleSheet(label_text_style(tone="accent", size_token="font.size.sm", weight_token="font.weight.bold"))
         self._selected_cta_label = QLabel("CTA：先生成内容后查看", selected_box)
         selected_cta_label = self._selected_cta_label
         if selected_cta_label is not None:
-            selected_cta_label.setStyleSheet(_muted_label_style())
+            selected_cta_label.setStyleSheet(label_text_style(tone="muted", size_token="font.size.sm"))
         self._selected_score_label = QLabel("质量分：--", selected_box)
         selected_score_label = self._selected_score_label
         if selected_score_label is not None:
-            selected_score_label.setStyleSheet(_muted_label_style())
+            selected_score_label.setStyleSheet(label_text_style(tone="muted", size_token="font.size.sm"))
         self._selected_hint_label = QLabel("建议：优先输出真实使用场景与一条结论。", selected_box)
         selected_hint_label = self._selected_hint_label
         if selected_hint_label is not None:
-            selected_hint_label.setStyleSheet(_muted_label_style())
+            selected_hint_label.setStyleSheet(label_text_style(tone="muted", size_token="font.size.sm"))
             _call(selected_hint_label, "setWordWrap", True)
         if selected_cta_label is not None:
             _call(selected_cta_label, "setWordWrap", True)
@@ -1015,7 +970,7 @@ class ScriptGenerationPage(BasePage):
         self._script_count_label = QLabel("共 0 条脚本", section)
         script_count_label = self._script_count_label
         if script_count_label is not None:
-            script_count_label.setStyleSheet(_section_hint_style())
+            script_count_label.setStyleSheet(label_text_style(tone="accent", size_token="font.size.sm", weight_token="font.weight.bold"))
             controls.addWidget(script_count_label)
         section.content_layout.addLayout(controls)
 
@@ -1040,7 +995,7 @@ class ScriptGenerationPage(BasePage):
         self._history_count_label = QLabel("共 10 条记录", section)
         history_count_label = self._history_count_label
         if history_count_label is not None:
-            history_count_label.setStyleSheet(_section_hint_style())
+            history_count_label.setStyleSheet(label_text_style(tone="accent", size_token="font.size.sm", weight_token="font.weight.bold"))
             controls.addWidget(history_count_label)
         section.content_layout.addLayout(controls)
 
@@ -1060,7 +1015,7 @@ class ScriptGenerationPage(BasePage):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(10)
         tip = QLabel("建议先选择脚本类型，再补商品信息与人群词，最后生成 2-4 条脚本做结构筛选。", footer)
-        tip.setStyleSheet(_muted_label_style())
+        tip.setStyleSheet(label_text_style(tone="muted", size_token="font.size.sm"))
         _call(tip, "setWordWrap", True)
         fab = FloatingActionButton("✚", "创建新脚本实验", footer)
         layout.addWidget(tip, 1)
@@ -1237,14 +1192,14 @@ class ScriptGenerationPage(BasePage):
             self._script_count_label.setText(f"共 {len(filtered)} 条脚本")
         if not filtered:
             empty = QFrame(self)
-            empty.setStyleSheet(_frame_style(dashed=True))
+            empty.setStyleSheet(panel_frame_style(variant="dashed"))
             empty_layout = QVBoxLayout(empty)
             empty_layout.setContentsMargins(18, 18, 18, 18)
             empty_layout.setSpacing(8)
             title = QLabel("当前条件下没有匹配脚本", empty)
-            title.setStyleSheet(_title_label_style())
+            title.setStyleSheet(label_text_style(size_token="font.size.lg", weight_token="font.weight.bold"))
             detail = QLabel("试试切换脚本类型、清空搜索词，或点击“再来一组”重新生成。", empty)
-            detail.setStyleSheet(_muted_label_style())
+            detail.setStyleSheet(label_text_style(tone="muted", size_token="font.size.sm"))
             _call(detail, "setWordWrap", True)
             empty_layout.addWidget(title)
             empty_layout.addWidget(detail)
@@ -1255,7 +1210,7 @@ class ScriptGenerationPage(BasePage):
 
     def _build_script_card(self, script: ScriptTemplate) -> QWidget:
         frame = QFrame(self)
-        frame.setStyleSheet(_frame_style(highlight=script.title == self._selected_script_title))
+        frame.setStyleSheet(panel_frame_style(variant="highlight" if script.title == self._selected_script_title else "default"))
         layout = QVBoxLayout(frame)
         layout.setContentsMargins(16, 16, 16, 16)
         layout.setSpacing(10)
@@ -1264,7 +1219,7 @@ class ScriptGenerationPage(BasePage):
         top.setContentsMargins(0, 0, 0, 0)
         top.setSpacing(8)
         title = QLabel(script.title, frame)
-        title.setStyleSheet(_title_label_style())
+        title.setStyleSheet(label_text_style(size_token="font.size.lg", weight_token="font.weight.bold"))
         top.addWidget(title)
         top.addWidget(StatusBadge(script.estimated_duration, tone="info", parent=frame))
         top.addWidget(StatusBadge(f"质量分 {script.quality_score}", tone=_tone_badge(script.tone), parent=frame))
@@ -1281,26 +1236,26 @@ class ScriptGenerationPage(BasePage):
         layout.addLayout(top)
 
         summary = QLabel(script.summary, frame)
-        summary.setStyleSheet(_muted_label_style())
+        summary.setStyleSheet(label_text_style(tone="muted", size_token="font.size.sm"))
         _call(summary, "setWordWrap", True)
         layout.addWidget(summary)
 
         hook_box = QFrame(frame)
-        hook_box.setStyleSheet(_frame_style(dashed=True))
+        hook_box.setStyleSheet(panel_frame_style(variant="dashed"))
         hook_layout = QVBoxLayout(hook_box)
         hook_layout.setContentsMargins(12, 10, 12, 10)
         hook_layout.setSpacing(6)
         hook_title = QLabel("开场钩子", hook_box)
-        hook_title.setStyleSheet(_section_hint_style())
+        hook_title.setStyleSheet(label_text_style(tone="accent", size_token="font.size.sm", weight_token="font.weight.bold"))
         hook_text = QLabel(script.opening_hook, hook_box)
-        hook_text.setStyleSheet(_muted_label_style())
+        hook_text.setStyleSheet(label_text_style(tone="muted", size_token="font.size.sm"))
         _call(hook_text, "setWordWrap", True)
         hook_layout.addWidget(hook_title)
         hook_layout.addWidget(hook_text)
         layout.addWidget(hook_box)
 
         body = QLabel(script.script_text, frame)
-        body.setStyleSheet("color: palette(text); background: transparent; font-size: 13px; line-height: 1.7;")
+        body.setStyleSheet(label_text_style(size_token="font.size.sm", line_height="1.7"))
         _call(body, "setWordWrap", True)
         layout.addWidget(body)
 
@@ -1325,7 +1280,7 @@ class ScriptGenerationPage(BasePage):
         layout.addWidget(tags_row)
 
         cta = QLabel(f"收口 CTA：{script.cta}", frame)
-        cta.setStyleSheet(_section_hint_style())
+        cta.setStyleSheet(label_text_style(tone="accent", size_token="font.size.sm", weight_token="font.weight.bold"))
         _call(cta, "setWordWrap", True)
         layout.addWidget(cta)
         return frame

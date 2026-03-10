@@ -29,6 +29,7 @@ from ...components import (
     ThemedScrollArea,
     ToggleSwitch,
 )
+from ...components.layouts import qss_label_rule, qss_panel_rule
 from ..base_page import BasePage
 
 
@@ -1307,26 +1308,14 @@ class AIProviderPage(BasePage):
                     border: 1px solid {border_color};
                     border-radius: {RADIUS_XL}px;
                 }}
-                QLabel#providerCardName {{
-                    color: {accent_text};
-                    font-size: {STATIC_TOKENS['font.size.lg']};
-                    font-weight: {STATIC_TOKENS['font.weight.bold']};
-                    background: transparent;
-                }}
-                QLabel#providerCardSubtitle {{
-                    color: {_token('text.secondary')};
-                    font-size: {STATIC_TOKENS['font.size.sm']};
-                    background: transparent;
-                }}
-                QLabel#providerCardDescription,
-                QLabel#providerCardMeta,
-                QLabel#providerCardNote,
-                QLabel#providerCardToggleHint,
-                QLabel#providerCardDefaultHint {{
-                    color: {_token('text.secondary')};
-                    font-size: {STATIC_TOKENS['font.size.sm']};
-                    background: transparent;
-                }}
+                {qss_label_rule('QLabel#providerCardName', size_token='font.size.lg', weight_token='font.weight.bold')}
+                QLabel#providerCardName {{ color: {accent_text}; }}
+                {qss_label_rule('QLabel#providerCardSubtitle', tone='muted', size_token='font.size.sm')}
+                {qss_label_rule('QLabel#providerCardDescription', tone='muted', size_token='font.size.sm')}
+                {qss_label_rule('QLabel#providerCardMeta', tone='muted', size_token='font.size.sm')}
+                {qss_label_rule('QLabel#providerCardNote', tone='muted', size_token='font.size.sm')}
+                {qss_label_rule('QLabel#providerCardToggleHint', tone='muted', size_token='font.size.sm')}
+                {qss_label_rule('QLabel#providerCardDefaultHint', tone='muted', size_token='font.size.sm')}
                 QLabel#providerCardSelected {{
                     color: {_token('text.inverse')};
                     background-color: {_token('brand.primary')};
@@ -1860,68 +1849,26 @@ class AIProviderPage(BasePage):
             QWidget#aiProviderPage {{
                 background-color: {_token('surface.primary')};
             }}
-            QWidget#aiProviderPage QFrame#contentSection {{
-                background-color: {_token('surface.secondary')};
-                border: 1px solid {_token('border.default')};
-                border-radius: {RADIUS_XL}px;
-            }}
-            QFrame#aiProviderNotice {{
-                background-color: {_rgba(_token('status.warning'), 0.12)};
-                border: 1px solid {_rgba(_token('status.warning'), 0.28)};
-                border-radius: {RADIUS_XL}px;
-            }}
+            {qss_panel_rule('QWidget#aiProviderPage QFrame#contentSection', radius_token='radius.xl')}
+            {qss_panel_rule('QFrame#aiProviderNotice', variant='warning', radius_token='radius.xl')}
+            {qss_panel_rule('QFrame#aiProviderStatTile', radius_token='radius.xl')}
+            {qss_panel_rule('QWidget#aiProviderToolbar', radius_token='radius.xl')}
+            {qss_panel_rule('QWidget#aiProviderSummaryStrip', radius_token='radius.xl')}
+            {qss_panel_rule('QFrame#aiProviderHero', radius_token='radius.xl')}
+            {qss_panel_rule('QFrame#aiProviderValidationBar', radius_token='radius.xl')}
+            {qss_label_rule('QLabel#aiProviderNoticeTitle', size_token='font.size.md', weight_token='font.weight.bold')}
+            {qss_label_rule('QLabel#aiProviderNoticeBody', tone='muted', size_token='font.size.sm')}
+            {qss_label_rule('QLabel#aiProviderStatTitle', tone='muted', size_token='font.size.sm')}
+            {qss_label_rule('QLabel#aiProviderStatValue', size_token='font.size.xxl', weight_token='font.weight.bold')}
+            {qss_label_rule('QLabel#aiProviderStatDesc', tone='muted', size_token='font.size.sm')}
+            {qss_label_rule('QLabel#aiProviderToolbarHint', tone='muted', size_token='font.size.sm')}
+            {qss_label_rule('QLabel#aiProviderSectionIntro', tone='muted', size_token='font.size.sm')}
+            {qss_label_rule('QLabel#aiProviderBulletBody', tone='muted', size_token='font.size.sm')}
+            {qss_label_rule('QLabel#aiProviderValidationTitle', tone='muted', size_token='font.size.sm')}
+            {qss_label_rule('QLabel#aiProviderValidationValue', size_token='font.size.md', weight_token='font.weight.semibold')}
             QLabel#aiProviderNoticeIcon {{
                 color: {_token('status.warning')};
                 font-size: {STATIC_TOKENS['font.size.xl']};
-                background: transparent;
-            }}
-            QLabel#aiProviderNoticeTitle {{
-                color: {_token('text.primary')};
-                font-size: {STATIC_TOKENS['font.size.md']};
-                font-weight: {STATIC_TOKENS['font.weight.bold']};
-                background: transparent;
-            }}
-            QLabel#aiProviderNoticeBody {{
-                color: {_token('text.secondary')};
-                font-size: {STATIC_TOKENS['font.size.sm']};
-                background: transparent;
-            }}
-            QFrame#aiProviderStatTile {{
-                background-color: {_token('surface.secondary')};
-                border: 1px solid {_token('border.default')};
-                border-radius: {RADIUS_XL}px;
-            }}
-            QLabel#aiProviderStatTitle {{
-                color: {_token('text.secondary')};
-                font-size: {STATIC_TOKENS['font.size.sm']};
-                background: transparent;
-            }}
-            QLabel#aiProviderStatValue {{
-                color: {_token('text.primary')};
-                font-size: {STATIC_TOKENS['font.size.xxl']};
-                font-weight: {STATIC_TOKENS['font.weight.bold']};
-                background: transparent;
-            }}
-            QLabel#aiProviderStatDesc {{
-                color: {_token('text.secondary')};
-                font-size: {STATIC_TOKENS['font.size.sm']};
-                background: transparent;
-            }}
-            QLabel#aiProviderToolbarHint {{
-                color: {_token('text.secondary')};
-                font-size: {STATIC_TOKENS['font.size.sm']};
-                background: transparent;
-            }}
-            QWidget#aiProviderToolbar,
-            QWidget#aiProviderSummaryStrip {{
-                background-color: {_token('surface.secondary')};
-                border: 1px solid {_token('border.default')};
-                border-radius: {RADIUS_XL}px;
-            }}
-            QLabel#aiProviderSectionIntro,
-            QLabel#aiProviderBulletBody {{
-                color: {_token('text.secondary')};
-                font-size: {STATIC_TOKENS['font.size.sm']};
                 background: transparent;
             }}
             QLabel#aiProviderBullet {{
@@ -1929,59 +1876,20 @@ class AIProviderPage(BasePage):
                 font-size: {STATIC_TOKENS['font.size.md']};
                 background: transparent;
             }}
-            QFrame#aiProviderHero {{
-                background-color: {_token('surface.secondary')};
-                border: 1px solid {_token('border.default')};
-                border-radius: {RADIUS_XL}px;
-            }}
-            QFrame#aiProviderValidationBar {{
-                background-color: {_token('surface.secondary')};
-                border: 1px solid {_token('border.default')};
-                border-radius: {RADIUS_XL}px;
-            }}
-            QLabel#aiProviderValidationTitle {{
-                color: {_token('text.secondary')};
-                font-size: {STATIC_TOKENS['font.size.sm']};
-                background: transparent;
-            }}
-            QLabel#aiProviderValidationValue {{
-                color: {_token('text.primary')};
-                font-size: {STATIC_TOKENS['font.size.md']};
-                font-weight: {STATIC_TOKENS['font.weight.semibold']};
-                background: transparent;
-            }}
             QFrame#aiProviderDivider,
             QFrame#aiProviderVerticalDivider {{
                 background-color: {_token('border.default')};
                 border: none;
             }}
-            QLabel#aiProviderSelectedModelsTitle {{
-                color: {_token('text.primary')};
-                font-size: {STATIC_TOKENS['font.size.sm']};
-                font-weight: {STATIC_TOKENS['font.weight.semibold']};
-                background: transparent;
-            }}
-            QFrame#aiProviderModelRow,
-            QFrame#aiProviderPresetRow {{
-                background-color: {_token('surface.secondary')};
-                border: 1px solid {_token('border.default')};
-                border-radius: {RADIUS_LG}px;
-            }}
-            QLabel#aiProviderModelRowTitle,
-            QLabel#aiProviderPresetTitle {{
-                color: {_token('text.primary')};
-                font-size: {STATIC_TOKENS['font.size.md']};
-                font-weight: {STATIC_TOKENS['font.weight.bold']};
-                background: transparent;
-            }}
-            QLabel#aiProviderModelRowMeta,
-            QLabel#aiProviderModelRowDesc,
-            QLabel#aiProviderPresetDesc,
-            QLabel#aiProviderPresetMeta {{
-                color: {_token('text.secondary')};
-                font-size: {STATIC_TOKENS['font.size.sm']};
-                background: transparent;
-            }}
+            {qss_label_rule('QLabel#aiProviderSelectedModelsTitle', size_token='font.size.sm', weight_token='font.weight.semibold')}
+            {qss_panel_rule('QFrame#aiProviderModelRow')}
+            {qss_panel_rule('QFrame#aiProviderPresetRow')}
+            {qss_label_rule('QLabel#aiProviderModelRowTitle', size_token='font.size.md', weight_token='font.weight.bold')}
+            {qss_label_rule('QLabel#aiProviderPresetTitle', size_token='font.size.md', weight_token='font.weight.bold')}
+            {qss_label_rule('QLabel#aiProviderModelRowMeta', tone='muted', size_token='font.size.sm')}
+            {qss_label_rule('QLabel#aiProviderModelRowDesc', tone='muted', size_token='font.size.sm')}
+            {qss_label_rule('QLabel#aiProviderPresetDesc', tone='muted', size_token='font.size.sm')}
+            {qss_label_rule('QLabel#aiProviderPresetMeta', tone='muted', size_token='font.size.sm')}
             """,
         )
 

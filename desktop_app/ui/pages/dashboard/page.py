@@ -14,7 +14,6 @@ from ...components.cards import KPICard
 from ...components.charts import ChartWidget
 from ...components.inputs import (
     BUTTON_HEIGHT,
-    RADIUS_LG,
     SPACING_LG,
     SPACING_MD,
     SPACING_XL,
@@ -24,11 +23,9 @@ from ...components.inputs import (
     _call,
     _connect,
     _input_style,
-    _palette,
-    _static_token,
     _token,
 )
-from ...components.layouts import ContentSection, PageContainer
+from ...components.layouts import ContentSection, PageContainer, qss_label_rule, qss_panel_rule
 from ...components.tables import DataTable
 from ...components.tags import StatusBadge, TagChip
 from ..base_page import BasePage
@@ -139,7 +136,6 @@ class DashboardPage(BasePage):
     def setup_ui(self) -> None:
         """构建完整交互式 Dashboard 布局。"""
 
-        colors = _palette()
         _call(self, "setObjectName", "dashboardPage")
         self.layout.setContentsMargins(0, 0, 0, 0)
         self.layout.setSpacing(0)
@@ -311,42 +307,16 @@ class DashboardPage(BasePage):
             QWidget#dashboardSelectionLabel {{
                 background: transparent;
             }}
-            QFrame#dashboardActionBar {{
-                background-color: {colors.surface};
-                border: 1px solid {colors.border};
-                border-radius: {RADIUS_LG}px;
-            }}
-            QFrame#dashboardFilterRow,
-            QFrame#dashboardOrderMeta,
-            QFrame#dashboardInsightStrip {{
-                background-color: {colors.surface_alt};
-                border: 1px solid {colors.border};
-                border-radius: {RADIUS_LG}px;
-            }}
-            QLabel#dashboardSummaryLabel,
-            QLabel#dashboardPanelMeta,
-            QLabel#dashboardHintLabel {{
-                color: {colors.text_muted};
-                font-size: {_static_token('font.size.sm')};
-                background: transparent;
-            }}
-            QLabel#dashboardSelectionLabel {{
-                color: {colors.text};
-                font-size: {_static_token('font.size.sm')};
-                font-weight: {_static_token('font.weight.semibold')};
-                background: transparent;
-            }}
-            QFrame#dashboardChartPanel {{
-                background-color: {colors.surface};
-                border: 1px solid {colors.border};
-                border-radius: {RADIUS_LG}px;
-            }}
-            QLabel#dashboardPanelTitle {{
-                color: {colors.text};
-                font-size: {_static_token('font.size.lg')};
-                font-weight: {_static_token('font.weight.bold')};
-                background: transparent;
-            }}
+            {qss_panel_rule('QFrame#dashboardActionBar')}
+            {qss_panel_rule('QFrame#dashboardChartPanel')}
+            {qss_panel_rule('QFrame#dashboardFilterRow', variant='subtle')}
+            {qss_panel_rule('QFrame#dashboardOrderMeta', variant='subtle')}
+            {qss_panel_rule('QFrame#dashboardInsightStrip', variant='subtle')}
+            {qss_label_rule('QLabel#dashboardSummaryLabel', tone='muted', size_token='font.size.sm')}
+            {qss_label_rule('QLabel#dashboardPanelMeta', tone='muted', size_token='font.size.sm')}
+            {qss_label_rule('QLabel#dashboardHintLabel', tone='muted', size_token='font.size.sm')}
+            {qss_label_rule('QLabel#dashboardSelectionLabel', size_token='font.size.sm', weight_token='font.weight.semibold')}
+            {qss_label_rule('QLabel#dashboardPanelTitle', size_token='font.size.lg', weight_token='font.weight.bold')}
             QComboBox#dashboardViewCombo,
             QComboBox#dashboardTrendCombo,
             QComboBox#dashboardCategoryCombo {{
