@@ -4,11 +4,12 @@ from __future__ import annotations
 
 """页面级可复用布局原语组件。"""
 
-from typing import Final, Sequence, cast
+from typing import Final, Literal, Sequence, cast
 
 from ...core import qt
-from ...core.qt import QFrame, QHBoxLayout, QLabel, QPushButton, QStackedWidget, QVBoxLayout, QWidget, Signal
-from ...core.theme.tokens import STATIC_TOKENS, TOKENS
+from ...core.qt import QApplication, QFrame, QHBoxLayout, QLabel, QPushButton, QStackedWidget, QVBoxLayout, QWidget, Signal
+from ...core.theme.tokens import STATIC_TOKENS, TOKENS, get_token_value
+from ...core.types import ThemeMode
 
 
 def _px_token(name: str, fallback: int) -> int:
@@ -17,6 +18,142 @@ def _px_token(name: str, fallback: int) -> int:
     raw_value = STATIC_TOKENS.get(name, f"{fallback}px")
     digits = "".join(character for character in raw_value if character.isdigit())
     return int(digits) if digits else fallback
+
+
+def _coerce_mode(value: object) -> ThemeMode:
+    """将运行时主题值规整为 ThemeMode。"""
+
+    if isinstance(value, ThemeMode):
+        return value
+    if isinstance(value, str) and value.lower() == ThemeMode.DARK.value:
+        return ThemeMode.DARK
+    return ThemeMode.LIGHT
+
+
+def _theme_mode() -> ThemeMode:
+    """尽量从应用实例中读取当前主题模式。"""
+
+    app = QApplication.instance() if hasattr(QApplication, "instance") else None
+    if app is not None:
+        property_reader = getattr(app, "property", None)
+        if callable(property_reader):
+            for key in ("theme.mode", "theme_mode", "themeMode"):
+                resolved = property_reader(key)
+                if resolved is not None:
+                    return _coerce_mode(resolved)
+    return ThemeMode.LIGHT
+
+
+def _token(name: str) -> str:
+    """解析当前主题下的语义 token。"""
+
+    return get_token_value(name, _theme_mode())
+
+
+def rgba_color(hex_color: str, alpha: float) -> str:
+    """将十六进制颜色转换为 rgba 字符串。"""
+
+    color = hex_color.strip().lstrip("#")
+    if len(color) != 6:
+        return hex_color
+    red = int(color[0:2], 16)
+    green = int(color[2:4], 16)
+    blue = int(color[4:6], 16)
+    return f"rgba({red},{green},{blue},{alpha:.2f})"
+
+
+LabelTone = Literal["default", "muted", "accent", "success", "warning", "error", "info", "inverse"]
+PanelVariant = Literal["default", "subtle", "highlight", "warning", "dashed"]
+
+
+def qss_label_rule(
+    selector: str,
+    *,
+    tone: LabelTone = "default",
+    size_token: str = "font.size.md",
+    weight_token: str | None = None,
+    line_height: str | None = None,
+) -> str:
+    """生成统一文本规则，减少页面级重复标题/说明样式。"""
+
+    color = {
+        "default": _token("text.primary"),
+        "muted": _token("text.secondary"),
+        "accent": _token("brand.primary"),
+        "success": _token("status.success"),
+        "warning": _token("status.warning"),
+        "error": _token("status.error"),
+        "info": _token("status.info"),
+        "inverse": _token("text.inverse"),
+    }[tone]
+    declarations = [
+        f"color: {color};",
+        f"font-size: {STATIC_TOKENS[size_token]};",
+        "background: transparent;",
+    ]
+    if weight_token is not None:
+        declarations.append(f"font-weight: {STATIC_TOKENS[weight_token]};")
+    if line_height is not None:
+        declarations.append(f"line-height: {line_height};")
+    return f"{selector} {{ {' '.join(declarations)} }}"
+
+
+def label_text_style(
+    *,
+    tone: LabelTone = "default",
+    size_token: str = "font.size.md",
+    weight_token: str | None = None,
+    line_height: str | None = None,
+) -> str:
+    """生成可直接应用在 QLabel 上的统一文本样式。"""
+
+    return qss_label_rule(
+        "QLabel",
+        tone=tone,
+        size_token=size_token,
+        weight_token=weight_token,
+        line_height=line_height,
+    )
+
+
+def qss_panel_rule(
+    selector: str,
+    *,
+    variant: PanelVariant = "default",
+    radius_token: str = "radius.lg",
+) -> str:
+    """生成统一面板壳层规则，集中管理关键页面卡片风格。"""
+
+    background = _token("surface.secondary")
+    border_color = _token("border.default")
+    border_style = "solid"
+
+    if variant == "subtle":
+        background = _token("surface.sunken")
+    elif variant == "highlight":
+        brand = _token("brand.primary")
+        background = rgba_color(brand, 0.08)
+        border_color = rgba_color(brand, 0.24)
+    elif variant == "warning":
+        warning = _token("status.warning")
+        background = rgba_color(warning, 0.12)
+        border_color = rgba_color(warning, 0.28)
+    elif variant == "dashed":
+        border_style = "dashed"
+
+    return (
+        f"{selector} {{"
+        f"background-color: {background};"
+        f"border: 1px {border_style} {border_color};"
+        f"border-radius: {STATIC_TOKENS[radius_token]};"
+        "}"
+    )
+
+
+def panel_frame_style(*, variant: PanelVariant = "default", radius_token: str = "radius.lg") -> str:
+    """生成可直接应用在 QFrame 上的统一面板样式。"""
+
+    return qss_panel_rule("QFrame", variant=variant, radius_token=radius_token)
 
 
 def _call_if_available(target: object, method_name: str, *args: object) -> object | None:
@@ -735,4 +872,9 @@ __all__ = [
     "SplitPanel",
     "TabBar",
     "ThemedScrollArea",
+    "label_text_style",
+    "panel_frame_style",
+    "qss_label_rule",
+    "qss_panel_rule",
+    "rgba_color",
 ]
