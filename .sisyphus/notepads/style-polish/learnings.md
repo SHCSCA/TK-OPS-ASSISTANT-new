@@ -1,0 +1,11 @@
+- MainWindow still hardcodes shell surface colors instead of fully reading theme tokens.
+- Shared layout primitives exist, but several key pages still duplicate local frame/title/muted text styling helpers.
+- The app already has theme tokens and QSS generation, so style work should prefer centralization over ad hoc page CSS.
+- Shell chrome now resolves window/body/text/border colors through dedicated shell theme tokens and a ThemeEngine helper, keeping light/dark propagation unchanged while removing MainWindow hardcoded surfaces.
+- Shared label/panel helper rules were centralized in `desktop_app/ui/components/layouts.py` so key page typography and card shells reuse the same QSS primitives.
+- `dashboard/page.py`, `ai/script_generation_page.py`, and `system/ai_provider_page.py` now consume those shared helpers instead of repeating page-local label/frame style helpers and duplicated stylesheet fragments.
+- Python 3.8 test compatibility may require importing `Callable`/generic aliases from `typing`, and tests can locally patch a module's `Mapping` alias to `typing.Mapping` when production code uses subscripted mapping casts with a `collections.abc.Mapping` import.
+- For Python 3.8 pytest collection compatibility, keep test-side `Callable` type aliases based on `typing` generics (`Dict`, `Optional`) instead of builtin generic syntax inside `cast(...)` signatures.
+- Title bar polish landed best by framing brand, page title, and right actions as token-driven subpanels instead of a flat utility row, which made the shell read closer to a mature desktop product without changing behavior.
+- Reusing existing surface/border/brand tokens plus restrained accent alpha states was enough to upgrade search, utility buttons, and avatar presence while keeping the shell crisp and consistent with the refined sidebar.
+- Status bar polish works best when connection, message, and meta zones are framed as low-contrast token-driven subpanels with slightly stronger emphasis on live state and time, preserving behavior while making the shell footer feel intentionally segmented.

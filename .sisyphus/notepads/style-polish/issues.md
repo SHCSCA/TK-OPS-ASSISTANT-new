@@ -1,0 +1,3 @@
+- Critical scope: keep changes limited to style system, shell, and key page UI/code cleanup.
+- Avoid expanding into unrelated feature work or backend behavior changes.
+- Verification must include diagnostics plus desktop-app tests/build commands.

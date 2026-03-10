@@ -1,0 +1,2 @@
+- Large repository size means verification should stay targeted where possible before broad checks.
+- Some pages use inline/local setStyleSheet heavily, so cleanup must preserve current UX while consolidating patterns.

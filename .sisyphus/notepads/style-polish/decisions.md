@@ -1,0 +1,4 @@
+- Start with shared theme and shell polish before page-level cleanup.
+- Focus page cleanup on key visible pages first: dashboard, AI script generation, AI provider settings.
+- Remove duplication only where it improves maintainability without changing feature behavior.
+- Sidebar polish should stay behavior-identical while upgrading hierarchy through layered dark panels, softer dividers, and token-aligned accent emphasis on brand, group headers, nav states, and footer utilities.
