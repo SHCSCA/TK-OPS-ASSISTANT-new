@@ -29,12 +29,15 @@ _THEMED_TOKENS: dict[str, TokenValue] = {
     "surface.tertiary": TokenValue(light="#F8FAFC", dark="#1E293B"),
     "surface.elevated": TokenValue(light="#FFFFFF", dark="#0F172A"),
     "surface.sunken": TokenValue(light="#F1F5F9", dark="#1E293B"),
+    "shell.surface.window": TokenValue(light="#F4F7FB", dark="#071521"),
+    "shell.surface.body": TokenValue(light="#F7FAFC", dark="#0B1D2A"),
     # Text
     "text.primary": TokenValue(light="#0F172A", dark="#F1F5F9"),
     "text.secondary": TokenValue(light="#64748B", dark="#94A3B8"),
     "text.tertiary": TokenValue(light="#94A3B8", dark="#64748B"),
     "text.disabled": TokenValue(light="#CBD5E1", dark="#475569"),
     "text.inverse": TokenValue(light="#0F2323", dark="#0F2323"),
+    "shell.text.primary": TokenValue(light="#10233F", dark="#EAF4FF"),
     # Brand
     "brand.primary": TokenValue(light="#00F2EA", dark="#00F2EA"),
     "brand.primary_hover": TokenValue(light="rgba(0,242,234,0.90)", dark="rgba(0,242,234,0.90)"),
@@ -54,6 +57,7 @@ _THEMED_TOKENS: dict[str, TokenValue] = {
     "border.default": TokenValue(light="#E2E8F0", dark="#1E293B"),
     "border.strong": TokenValue(light="#CBD5E1", dark="#334155"),
     "border.focus": TokenValue(light="rgba(0,242,234,0.50)", dark="rgba(0,242,234,0.50)"),
+    "shell.border.default": TokenValue(light="#D9E4EF", dark="#173245"),
     "tag.color.neutral": TokenValue(light="#F1F5F9", dark="#1E293B"),
     # Shadows
     "shadow.sm": TokenValue(light="0 1px 2px rgba(0,0,0,0.05)", dark="0 1px 2px rgba(0,0,0,0.18)"),

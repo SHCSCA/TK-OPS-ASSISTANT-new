@@ -107,10 +107,7 @@ class MainWindow(QMainWindow):
                 set_property("theme_mode", palette_mode)
                 set_property("themeMode", palette_mode)
 
-        surface = "#071521" if resolved == ThemeMode.DARK else "#F4F7FB"
-        body_surface = "#0B1D2A" if resolved == ThemeMode.DARK else "#F7FAFC"
-        text = "#EAF4FF" if resolved == ThemeMode.DARK else "#10233F"
-        border = "#173245" if resolved == ThemeMode.DARK else "#D9E4EF"
+        surface, body_surface, text, border = self._shell_surface_palette(resolved)
         if self._central is not None:
             set_style = getattr(self._central, "setStyleSheet", None)
             if callable(set_style):
@@ -119,6 +116,25 @@ class MainWindow(QMainWindow):
             set_style = getattr(self._body, "setStyleSheet", None)
             if callable(set_style):
                 set_style(f"background-color: {body_surface}; border-top: 1px solid {border}; border-bottom: 1px solid {border};")
+
+    def _shell_surface_palette(self, resolved: ThemeMode) -> tuple[str, str, str, str]:
+        palette_resolver = getattr(self.theme_engine, "get_shell_surface_palette", None)
+        if callable(palette_resolver):
+            palette = palette_resolver()
+            return (palette.window_surface, palette.body_surface, palette.text_color, palette.border_color)
+
+        token_resolver = getattr(self.theme_engine, "get_token", None)
+        if callable(token_resolver):
+            return (
+                str(token_resolver("shell.surface.window")),
+                str(token_resolver("shell.surface.body")),
+                str(token_resolver("shell.text.primary")),
+                str(token_resolver("shell.border.default")),
+            )
+
+        if resolved == ThemeMode.DARK:
+            return ("#071521", "#0B1D2A", "#EAF4FF", "#173245")
+        return ("#F4F7FB", "#F7FAFC", "#10233F", "#D9E4EF")
 
     def _mount_routes(self) -> None:
         for definition in self.route_registry.definitions():

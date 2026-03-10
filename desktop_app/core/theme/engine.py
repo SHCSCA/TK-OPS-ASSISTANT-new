@@ -118,6 +118,16 @@ class ThemeEngine:
 
         return generate_qss(mode)
 
+    def get_shell_surface_palette(self) -> ShellSurfacePalette:
+        """Return resolved shell surfaces for the active theme mode."""
+
+        return ShellSurfacePalette(
+            window_surface=self.get_token("shell.surface.window"),
+            body_surface=self.get_token("shell.surface.body"),
+            text_color=self.get_token("shell.text.primary"),
+            border_color=self.get_token("shell.border.default"),
+        )
+
     def _on_config_mode_changed(self, mode_value: str) -> None:
         normalized_mode = self._coerce_mode(mode_value)
         with self._lock:
@@ -173,6 +183,17 @@ class _FallbackColor:
     value: str
 
 
+@final
+@dataclass(frozen=True)
+class ShellSurfacePalette:
+    """Resolved shell surface colors for window-level chrome."""
+
+    window_surface: str
+    body_surface: str
+    text_color: str
+    border_color: str
+
+
 def _load_qt_module(module_name: str) -> object | None:
     try:
         return import_module(module_name)
@@ -201,4 +222,4 @@ def _get_qcolor_type() -> _ColorFactory | None:
     return None
 
 
-__all__ = ["ThemeEngine"]
+__all__ = ["ShellSurfacePalette", "ThemeEngine"]
