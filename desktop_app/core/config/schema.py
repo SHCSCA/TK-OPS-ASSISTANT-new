@@ -8,7 +8,7 @@ from copy import deepcopy
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Iterable, cast
+from typing import Iterable, Union, cast
 
 from ..types import ConfigKey, ThemeMode
 
@@ -68,14 +68,14 @@ def coerce_config_value(value: object, type_hint: type[object]) -> object:
             raise ValueError("Boolean values are not valid ints for config fields.")
         if not isinstance(value, (int, float, str)):
             raise ValueError(f"Cannot coerce {value!r} to int.")
-        return int(cast(int | float | str, value))
+        return int(cast(Union[int, float, str], value))
 
     if type_hint is float:
         if isinstance(value, bool):
             raise ValueError("Boolean values are not valid floats for config fields.")
         if not isinstance(value, (int, float, str)):
             raise ValueError(f"Cannot coerce {value!r} to float.")
-        return float(cast(int | float | str, value))
+        return float(cast(Union[int, float, str], value))
 
     if type_hint is str:
         return str(value)

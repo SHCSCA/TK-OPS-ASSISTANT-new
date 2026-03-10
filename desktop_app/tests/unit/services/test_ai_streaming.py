@@ -1,21 +1,19 @@
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping
-from typing import cast
+from typing import Callable, Dict, Mapping, Optional, cast
 
 from ....services.ai import streaming as streaming_module
 from ....services.ai.streaming import StreamingAIRuntime
 
+setattr(streaming_module, "Mapping", Mapping)
+
+UsageDict = Dict[str, int]
+UsageExtractor = Callable[[Mapping[str, object]], Optional[UsageDict]]
+
 coerce_int = cast(Callable[[object], int], getattr(streaming_module, "_coerce_int"))
-empty_usage = cast(Callable[[], dict[str, int]], getattr(streaming_module, "_empty_usage"))
-extract_usage = cast(
-    Callable[[Mapping[str, object]], dict[str, int] | None],
-    getattr(streaming_module, "_extract_usage"),
-)
-normalize_usage = cast(
-    Callable[[Mapping[str, object]], dict[str, int] | None],
-    getattr(streaming_module, "_normalize_usage"),
-)
+empty_usage = cast(Callable[[], UsageDict], getattr(streaming_module, "_empty_usage"))
+extract_usage = cast(UsageExtractor, getattr(streaming_module, "_extract_usage"))
+normalize_usage = cast(UsageExtractor, getattr(streaming_module, "_normalize_usage"))
 
 
 def test_streaming_runtime_instantiates() -> None:

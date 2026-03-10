@@ -3,10 +3,9 @@ from __future__ import annotations
 import json
 import threading
 import unittest
-from collections.abc import Mapping
 from pathlib import Path
 from types import MappingProxyType
-from typing import cast
+from typing import Mapping, Tuple, cast
 
 from ....core.config.bus import ConfigBus
 from ....core.types import ConfigKey, ThemeMode
@@ -85,7 +84,7 @@ def test_snapshot_is_immutable(tmp_config_dir: Path) -> None:
     assert isinstance(snapshot.values, MappingProxyType)
     assert isinstance(nested, MappingProxyType)
     inner = cast(Mapping[str, object], nested["nested"])
-    items = cast(tuple[int, ...], inner["items"])
+    items = cast(Tuple[int, ...], inner["items"])
     assert isinstance(items, tuple)
     assert items == (1, 2, 3)
 
