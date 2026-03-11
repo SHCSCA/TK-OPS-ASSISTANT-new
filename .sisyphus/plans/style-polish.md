@@ -1,3 +1,3 @@
 - [x] Unify shared theme tokens and shell surface styling
 - [x] Polish key page UI style and remove repeated local styling helpers
-- [ ] Run diagnostics, tests, and build verification for style polish
+- [x] Run diagnostics, tests, and build verification for style polish

@@ -65,10 +65,19 @@ except ImportError:  # pragma: no cover - fallback path
         """Fallback QWidget."""
 
         def __init__(self, *_args: object, **_kwargs: object) -> None:
-            pass
+            self._object_name: str = ""
 
         def show(self) -> None:
             return None
+
+        def setStyleSheet(self, _qss: str) -> None:
+            return None
+
+        def setObjectName(self, name: str) -> None:
+            self._object_name = name
+
+        def objectName(self) -> str:
+            return self._object_name
 
 
     class QApplication:
@@ -100,9 +109,15 @@ except ImportError:  # pragma: no cover - fallback path
         def setText(self, text: str) -> None:
             self._text = text
 
+        def setToolTip(self, _text: str) -> None:
+            return None
+
 
     class QFrame(QWidget):
         """Fallback QFrame."""
+
+        def setStyleSheet(self, _qss: str) -> None:
+            return None
 
 
     class QPushButton(QWidget):
@@ -145,6 +160,19 @@ except ImportError:  # pragma: no cover - fallback path
         def setCentralWidget(self, _widget: QWidget) -> None:
             return None
 
+        def setMinimumSize(self, _width: int, _height: int) -> None:
+            return None
+
+
+    class _FakeLayoutItem:
+        """Fallback layout item wrapper."""
+
+        def __init__(self, widget: QWidget | None = None) -> None:
+            self._widget = widget
+
+        def widget(self) -> QWidget | None:
+            return self._widget
+
 
     class _BaseLayout:
         """Fallback layout base."""
@@ -163,6 +191,27 @@ except ImportError:  # pragma: no cover - fallback path
 
         def addStretch(self, *_args: int) -> None:
             return None
+
+        def addLayout(self, layout: object, _stretch: int = 0) -> None:
+            self._items.append(layout)
+
+        def addSpacing(self, _size: int) -> None:
+            return None
+
+        def count(self) -> int:
+            return len(self._items)
+
+        def itemAt(self, index: int) -> object | None:
+            if 0 <= index < len(self._items):
+                item = self._items[index]
+                if isinstance(item, QWidget):
+                    return _FakeLayoutItem(item)
+                return _FakeLayoutItem(None)
+            return None
+
+        def removeWidget(self, widget: QWidget) -> None:
+            if widget in self._items:
+                self._items.remove(widget)
 
 
     class QVBoxLayout(_BaseLayout):

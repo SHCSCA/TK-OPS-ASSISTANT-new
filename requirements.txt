@@ -1,0 +1,22 @@
+# TK-OPS Desktop Application 依赖清单
+# 使用方法：pip install -r requirements.txt
+
+# GUI 框架
+PySide6
+
+# 数据库与 ORM
+SQLAlchemy
+aiosqlite
+
+# 数据验证与配置
+Pydantic
+
+# AI 集成
+OpenAI
+
+# 网络请求
+httpx
+
+# 测试依赖
+pytest
+pytest-qt

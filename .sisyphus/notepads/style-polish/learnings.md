@@ -9,3 +9,37 @@
 - Title bar polish landed best by framing brand, page title, and right actions as token-driven subpanels instead of a flat utility row, which made the shell read closer to a mature desktop product without changing behavior.
 - Reusing existing surface/border/brand tokens plus restrained accent alpha states was enough to upgrade search, utility buttons, and avatar presence while keeping the shell crisp and consistent with the refined sidebar.
 - Status bar polish works best when connection, message, and meta zones are framed as low-contrast token-driven subpanels with slightly stronger emphasis on live state and time, preserving behavior while making the shell footer feel intentionally segmented.
+
+## Qt Fallback Implementation Completion
+
+### Task Completed
+Completed supplementing `desktop_app/core/qt.py` with missing Qt fallback methods to resolve smoke test failures.
+
+### Changes Made
+1. **Added to `QWidget` class:**
+   - `_object_name: str` field to track widget names
+   - `setObjectName(name: str)` method - stores the widget name
+   - `objectName() -> str` method - returns the stored widget name
+
+2. **Added to `_BaseLayout` class:**
+   - `count() -> int` method - returns number of items in layout
+   - `itemAt(index: int) -> object | None` method - returns layout item at index wrapped in `_FakeLayoutItem`
+   - `removeWidget(widget: QWidget) -> None` method - removes widget from layout
+
+3. **Created new `_FakeLayoutItem` class:**
+   - Wrapper for layout items with `widget() -> QWidget | None` method
+   - Enables proper layout item querying
+
+### Implementation Pattern
+Followed existing fallback convention:
+- No-op implementations return None or safe defaults
+- Methods store state internally in private attributes
+- Type annotations match real Qt API signatures
+
+### Test Results
+- `test_blue_ocean_page_instantiates` - PASSED (was failing with AttributeError: 'QHBoxLayout' object has no attribute 'count')
+- `test_dashboard_page_instantiates` - PASSED
+- All related smoke tests functional
+
+### Why This Works
+The fallback implementation only needs to satisfy the Python API contract that pages call. Since pages in this environment have PySide6 installed during test runs, the real Qt classes are used. The fallback implementations are only used in non-GUI test environments (like import checks in CI) and in minimal smoke test scenarios where layout queries occur.
