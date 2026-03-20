@@ -1,0 +1,486 @@
+   Batch 6 — generation-studio 家族样式
+   ═══════════════════════════════════════════════ */
+.generation-studio-shell {
+    display: grid;
+    grid-template-columns: 380px 1fr;
+    gap: var(--space-4);
+    align-items: start;
+}
+.gen-input-panel {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+.gen-output-panel {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    min-width: 0;
+}
+.gen-output-actions {
+    display: flex;
+    gap: var(--space-2);
+}
+
+.viral-title-page,
+.asset-center-page,
+.script-extractor-page,
+.product-title-page,
+.ai-copy-page,
+.aicf-page {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+}
+
+.title-template-strip,
+.title-metric-grid,
+.extractor-capability-grid,
+.copy-action-grid,
+.aicf-batch-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--space-3);
+}
+
+.template-showcase-card,
+.mini-metric-card,
+.variant-card,
+.workflow-stage-card,
+.copy-score-card,
+.product-saved-card,
+.extractor-result-row {
+    padding: 16px 18px;
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-lg);
+    background: color-mix(in srgb, var(--surface-secondary) 96%, transparent);
+}
+
+.template-showcase-card,
+.mini-metric-card,
+.variant-card,
+.workflow-stage-card,
+.copy-score-card {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.template-showcase-card.is-highlight,
+.variant-card.is-best,
+.workflow-stage-card.is-active,
+.template-card.is-active {
+    border-color: color-mix(in srgb, var(--brand-primary) 42%, var(--border-default));
+    background: color-mix(in srgb, var(--brand-primary) 10%, var(--surface-secondary));
+}
+
+.title-creation-editor,
+.product-input-panel,
+.product-result-board,
+.aicf-toolbar-panel,
+.aicf-workflow-canvas {
+    gap: var(--space-3);
+}
+
+.title-editor-tags,
+.product-chip-row,
+.extractor-tabs,
+.copy-tone-list,
+.aicf-node-palette,
+.aicf-toolbar-meta,
+.product-nav-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+}
+
+.title-editor-tags span,
+.product-chip-row span,
+.extractor-tabs span,
+.copy-tone-list button,
+.aicf-node-palette button,
+.product-nav-list button,
+.aicf-toolbar-meta span {
+    padding: 8px 12px;
+    border: 1px solid var(--border-default);
+    border-radius: 999px;
+    background: var(--surface-secondary);
+    color: var(--text-secondary);
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.extractor-tabs span.is-selected,
+.copy-tone-list button.is-active,
+.product-nav-list button.is-active {
+    border-color: color-mix(in srgb, var(--brand-primary) 42%, var(--border-default));
+    background: color-mix(in srgb, var(--brand-primary) 10%, var(--surface-secondary));
+    color: var(--text-primary);
+}
+
+.title-editor-textarea,
+.extractor-url-field input,
+.product-input-row input,
+.copy-settings-column textarea,
+.copy-settings-column input,
+.aicf-config-column input,
+.aicf-config-column select {
+    width: 100%;
+    min-height: 52px;
+    padding: 14px 16px;
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-lg);
+    background: var(--surface-secondary);
+    color: var(--text-primary);
+}
+
+.title-editor-textarea,
+.copy-settings-column textarea {
+    min-height: 136px;
+    resize: vertical;
+}
+
+.title-editor-actions,
+.extractor-progress-row,
+.variant-card__head,
+.product-input-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+}
+
+.variant-list,
+.product-template-grid,
+.extractor-result-table,
+.product-insight-grid {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+.title-creation-shell,
+.asset-center-shell,
+.extractor-workspace,
+.product-title-shell,
+.copywriter-shell,
+.aicf-shell {
+    display: grid;
+    gap: var(--space-4);
+    align-items: start;
+}
+
+.title-creation-shell {
+    grid-template-columns: minmax(0, 1fr);
+}
+
+.extractor-workspace {
+    grid-template-columns: 320px minmax(0, 1fr);
+}
+
+.asset-center-shell {
+    grid-template-columns: 220px minmax(0, 1fr);
+}
+
+.product-title-shell {
+    grid-template-columns: 240px minmax(0, 1fr);
+}
+
+.copywriter-shell {
+    grid-template-columns: 300px minmax(0, 1fr) 300px;
+}
+
+.aicf-shell {
+    grid-template-columns: 240px minmax(0, 1fr) 300px;
+}
+
+.extractor-preview-column,
+.extractor-results-column,
+.asset-category-column,
+.asset-library-column,
+.asset-ops-column,
+.product-control-column,
+.product-main-column,
+.copy-settings-column,
+.copy-results-column,
+.copy-compliance-column,
+.aicf-library-column,
+.aicf-canvas-column,
+.aicf-config-column {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    min-width: 0;
+}
+
+.extractor-config-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 2fr) repeat(3, minmax(140px, 1fr));
+    gap: var(--space-3);
+}
+
+.extractor-video-stage {
+    min-height: 220px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px dashed color-mix(in srgb, var(--border-strong) 78%, transparent);
+    border-radius: var(--radius-lg);
+    background: linear-gradient(180deg, rgba(2, 10, 12, 0.18), rgba(2, 10, 12, 0.72)), #111d20;
+}
+
+.extractor-stat-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-2);
+}
+
+.extractor-stat-grid article,
+.copy-score-card,
+.product-saved-card,
+.mini-metric-card {
+    background: color-mix(in srgb, var(--surface-primary) 72%, transparent);
+}
+
+.extractor-result-row {
+    display: grid;
+    grid-template-columns: 88px minmax(0, 1fr) 56px;
+    align-items: start;
+    gap: var(--space-3);
+}
+
+.extractor-result-row span,
+.extractor-result-row em {
+    font-size: 12px;
+    font-weight: 800;
+    color: var(--text-secondary);
+    font-style: normal;
+}
+
+.extractor-result-row strong {
+    display: block;
+    margin-bottom: 4px;
+}
+
+.product-nav-list,
+.aicf-node-palette {
+    flex-direction: column;
+}
+
+.asset-library-toolbar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: var(--space-3);
+    align-items: end;
+}
+
+.asset-search-field {
+    min-width: 0;
+}
+
+.asset-filter-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    align-items: center;
+}
+
+.asset-filter-row span,
+.asset-category-item {
+    padding: 10px 12px;
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-md);
+    background: var(--surface-secondary);
+    color: var(--text-secondary);
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.asset-filter-row span.is-active,
+.asset-category-item.is-active {
+    border-color: color-mix(in srgb, var(--brand-primary) 42%, var(--border-default));
+    background: color-mix(in srgb, var(--brand-primary) 10%, var(--surface-secondary));
+    color: var(--text-primary);
+}
+
+.asset-category-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.asset-category-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    text-align: left;
+}
+
+.asset-source-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.asset-pack-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--space-3);
+}
+
+.product-nav-list button,
+.asset-category-item,
+.aicf-node-palette button,
+.copy-tone-list button {
+    border-radius: var(--radius-md);
+    text-align: left;
+}
+
+.product-saved-value,
+.copy-score-card strong {
+    font-size: 34px;
+    line-height: 1;
+    color: var(--text-primary);
+}
+
+.product-template-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.workflow-arrow {
+    align-self: center;
+    font-size: 22px;
+    font-weight: 800;
+    color: var(--text-tertiary);
+}
+
+.aicf-workflow-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    align-items: center;
+}
+
+.workflow-stage-card {
+    flex: 1 1 148px;
+    min-width: 148px;
+    min-height: 112px;
+    justify-content: center;
+}
+
+.workflow-stage-card strong,
+.workflow-stage-card small {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    line-height: 1.45;
+}
+
+.ai-side-config-root {
+    gap: var(--space-4);
+}
+
+.ai-side-config-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--space-3);
+}
+
+.ai-side-config-root .form-field textarea {
+    min-height: 132px;
+}
+
+.ai-side-config-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-3);
+    margin-top: var(--space-3);
+}
+
+.copy-score-card {
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+}
+
+/* ═══════════════════════════════════════════════
+   Batch 7-8 — tool-console 家族样式
+   ═══════════════════════════════════════════════ */
+.tool-console-shell {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+}
+.tool-status-strip {
+    display: flex;
+    gap: var(--space-3);
+    overflow-x: auto;
+}
+.tool-console-body {
+    display: grid;
+    grid-template-columns: 1fr 280px;
+    gap: var(--space-4);
+    align-items: start;
+}
+.tool-main-area {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    min-width: 0;
+}
+.tool-operation-area {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+.tool-side-panel {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+/* ═══════════════════════════════════════════════
+   家族响应式适配
+   ═══════════════════════════════════════════════ */
+@media (max-width: 959px) {
+    .tool-console-body {
+        grid-template-columns: 1fr;
+    }
+    .generation-studio-shell {
+        grid-template-columns: 1fr;
+    }
+    .asset-center-shell,
+    .extractor-workspace,
+    .product-title-shell,
+    .copywriter-shell,
+    .aicf-shell,
+    .extractor-config-grid,
+    .product-template-grid,
+    .title-template-strip,
+    .title-metric-grid,
+    .extractor-capability-grid,
+    .copy-action-grid,
+    .asset-pack-grid,
+    .aicf-batch-grid,
+    .product-insight-grid {
+        grid-template-columns: 1fr;
+    }
+    .asset-library-toolbar,
+    .asset-source-grid,
+    .ai-side-config-actions {
+        grid-template-columns: 1fr;
+    }
+    .task-filter-bar {
+        gap: var(--space-1);
+    }
+    .task-view-toggles {
+        margin-left: 0;
+        width: 100%;
+        justify-content: flex-end;
+    }
+    .list-toolbar__search {
+        min-width: 0;
+        width: 100%;
+    }
+}
+
+/* ═══════════════════════════════════════════════

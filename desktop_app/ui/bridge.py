@@ -1,0 +1,841 @@
+"""QWebChannel bridge – exposes Python services to the JS frontend.
+
+Design decisions:
+- Every slot returns a JSON envelope: ``{ok, data, error}``.
+- ``@_safe`` decorator catches all exceptions → never crashes the bridge.
+- ``dataChanged`` signal pushes mutations to JS for reactive UI updates.
+"""
+from __future__ import annotations
+
+import json
+import logging
+import threading
+import queue
+import socket
+from datetime import datetime
+from pathlib import Path
+from typing import Any
+
+from PySide6.QtCore import QObject, Signal, Slot
+from PySide6.QtWidgets import QFileDialog
+
+from desktop_app.database import APP_VERSION
+from desktop_app.database.models import (
+    Account,
+    AIProvider,
+    Asset,
+    Device,
+    Group,
+    Task,
+)
+from desktop_app.database.repository import Repository
+from desktop_app.logging_config import LOG_FILE
+from desktop_app.services.account_service import AccountService
+from desktop_app.services.ai_service import AIService
+from desktop_app.services.asset_service import AssetService
+from desktop_app.services.chat_service import ChatService, list_presets, get_preset
+from desktop_app.services.license_service import LicenseService
+from desktop_app.services.task_service import TaskService
+from desktop_app.services.updater_service import UpdaterService
+from desktop_app.services.usage_tracker import UsageTracker
+
+log = logging.getLogger(__name__)
+
+
+# ── Helpers ──────────────────────────────────────────
+
+def _to_dict(obj: Any) -> dict:
+    """Convert an ORM instance to a plain dict, preserving native types."""
+    if obj is None:
+        return {}
+    d: dict[str, Any] = {}
+    for c in obj.__table__.columns:
+        v = getattr(obj, c.name, None)
+        d[c.name] = str(v) if v is not None else None
+    return d
+
+
+def _ok(data: Any = None) -> str:
+    return json.dumps({"ok": True, "data": data}, ensure_ascii=False, default=str)
+
+
+def _err(msg: str) -> str:
+    return json.dumps({"ok": False, "error": msg}, ensure_ascii=False)
+
+
+def _safe(func):
+    """Decorator: catch exceptions and return a JSON error envelope."""
+    def wrapper(self, *args, **kwargs):
+        try:
+            return func(self, *args, **kwargs)
+        except Exception as exc:
+            log.exception("Bridge slot error in %s", func.__name__)
+            # Rollback to clear dirty session state
+            try:
+                self._repo.session.rollback()
+            except Exception:
+                pass
+            return _err(f"{type(exc).__name__}: {exc}")
+    wrapper.__name__ = func.__name__
+    return wrapper
+
+
+# ── Bridge ───────────────────────────────────────────
+
+class Bridge(QObject):
+    """Exposed to JS via QWebChannel as ``window.backend``."""
+
+    dataChanged = Signal(str)  # JSON: {entity, action, id}
+
+    def __init__(self, parent: QObject | None = None) -> None:
+        super().__init__(parent)
+        self._repo = Repository()
+        self._accounts = AccountService(self._repo)
+        self._tasks = TaskService(self._repo)
+        self._ai = AIService(self._repo)
+        self._assets = AssetService(self._repo)
+        self._updater = UpdaterService()
+        self._chat = ChatService(self._repo)
+        self._usage = UsageTracker(self._repo)
+        self._stream_queue: queue.Queue | None = None
+        self._stream_thread: threading.Thread | None = None
+
+    def _emit_change(self, entity: str, action: str, pk: Any = None) -> None:
+        self.dataChanged.emit(
+            json.dumps({"entity": entity, "action": action, "id": pk}, ensure_ascii=False)
+        )
+
+    # ── Account slots ──
+
+    @Slot(result=str)
+    @_safe
+    def listAccounts(self) -> str:
+        return _ok([_to_dict(a) for a in self._accounts.list_accounts()])
+
+    @Slot(str, result=str)
+    @_safe
+    def getAccount(self, pk_str: str) -> str:
+        account = self._accounts.get_account(int(pk_str))
+        if account is None:
+            return _err("账号不存在")
+        return _ok(_to_dict(account))
+
+    @Slot(str, result=str)
+    @_safe
+    def createAccount(self, payload: str) -> str:
+        data = json.loads(payload)
+        username = data.pop("username", "")
+        if not username:
+            return _err("用户名不能为空")
+        account = self._accounts.create_account(username, **data)
+        self._emit_change("account", "created", account.id)
+        return _ok(_to_dict(account))
+
+    @Slot(int, str, result=str)
+    @_safe
+    def updateAccount(self, pk: int, payload: str) -> str:
+        fields = json.loads(payload)
+        account = self._accounts.update_account(pk, **fields)
+        if account is None:
+            return _err("账号不存在")
+        self._emit_change("account", "updated", pk)
+        return _ok(_to_dict(account))
+
+    @Slot(int, result=str)
+    @_safe
+    def deleteAccount(self, pk: int) -> str:
+        ok = self._accounts.delete_account(pk)
+        if not ok:
+            return _err("账号不存在")
+        self._emit_change("account", "deleted", pk)
+        return _ok({"deleted": pk})
+
+    # ── Group slots ──
+
+    @Slot(result=str)
+    @_safe
+    def listGroups(self) -> str:
+        return _ok([_to_dict(g) for g in self._accounts.list_groups()])
+
+    @Slot(str, result=str)
+    @_safe
+    def createGroup(self, payload: str) -> str:
+        data = json.loads(payload)
+        name = data.pop("name", "")
+        if not name:
+            return _err("分组名不能为空")
+        group = self._accounts.create_group(name, **data)
+        self._emit_change("group", "created", group.id)
+        return _ok(_to_dict(group))
+
+    @Slot(int, str, result=str)
+    @_safe
+    def updateGroup(self, pk: int, payload: str) -> str:
+        fields = json.loads(payload)
+        group = self._accounts.update_group(pk, **fields)
+        if group is None:
+            return _err("分组不存在")
+        self._emit_change("group", "updated", pk)
+        return _ok(_to_dict(group))
+
+    @Slot(int, result=str)
+    @_safe
+    def deleteGroup(self, pk: int) -> str:
+        ok = self._accounts.delete_group(pk)
+        if not ok:
+            return _err("分组不存在")
+        self._emit_change("group", "deleted", pk)
+        return _ok({"deleted": pk})
+
+    # ── Device slots ──
+
+    @Slot(result=str)
+    @_safe
+    def listDevices(self) -> str:
+        return _ok([_to_dict(d) for d in self._accounts.list_devices()])
+
+    @Slot(str, result=str)
+    @_safe
+    def createDevice(self, payload: str) -> str:
+        data = json.loads(payload)
+        device_code = data.pop("device_code", "")
+        name = data.pop("name", "")
+        if not device_code or not name:
+            return _err("设备编码和名称不能为空")
+        device = self._accounts.create_device(device_code, name, **data)
+        self._emit_change("device", "created", device.id)
+        return _ok(_to_dict(device))
+
+    @Slot(int, str, result=str)
+    @_safe
+    def updateDevice(self, pk: int, payload: str) -> str:
+        fields = json.loads(payload)
+        device = self._accounts.update_device(pk, **fields)
+        if device is None:
+            return _err("设备不存在")
+        self._emit_change("device", "updated", pk)
+        return _ok(_to_dict(device))
+
+    @Slot(int, result=str)
+    @_safe
+    def deleteDevice(self, pk: int) -> str:
+        ok = self._accounts.delete_device(pk)
+        if not ok:
+            return _err("设备不存在")
+        self._emit_change("device", "deleted", pk)
+        return _ok({"deleted": pk})
+
+    # ── Task slots ──
+
+    @Slot(result=str)
+    @_safe
+    def listTasks(self) -> str:
+        return _ok([_to_dict(t) for t in self._tasks.list_tasks()])
+
+    @Slot(str, result=str)
+    @_safe
+    def createTask(self, payload: str) -> str:
+        data = json.loads(payload)
+        title = data.pop("title", "")
+        if not title:
+            return _err("任务标题不能为空")
+        task = self._tasks.create_task(title, **data)
+        self._emit_change("task", "created", task.id)
+        return _ok(_to_dict(task))
+
+    @Slot(int, str, result=str)
+    @_safe
+    def updateTask(self, pk: int, payload: str) -> str:
+        fields = json.loads(payload)
+        task = self._tasks.update_task(pk, **fields)
+        if task is None:
+            return _err("任务不存在")
+        self._emit_change("task", "updated", pk)
+        return _ok(_to_dict(task))
+
+    @Slot(int, result=str)
+    @_safe
+    def startTask(self, pk: int) -> str:
+        task = self._tasks.start_task(pk)
+        if task is None:
+            return _err("任务不存在")
+        self._emit_change("task", "started", pk)
+        return _ok(_to_dict(task))
+
+    @Slot(int, result=str)
+    @_safe
+    def completeTask(self, pk: int) -> str:
+        task = self._tasks.complete_task(pk)
+        if task is None:
+            return _err("任务不存在")
+        self._emit_change("task", "completed", pk)
+        return _ok(_to_dict(task))
+
+    @Slot(int, result=str)
+    @_safe
+    def failTask(self, pk: int) -> str:
+        task = self._tasks.fail_task(pk)
+        if task is None:
+            return _err("任务不存在")
+        self._emit_change("task", "failed", pk)
+        return _ok(_to_dict(task))
+
+    @Slot(int, result=str)
+    @_safe
+    def deleteTask(self, pk: int) -> str:
+        ok = self._tasks.delete_task(pk)
+        if not ok:
+            return _err("任务不存在")
+        self._emit_change("task", "deleted", pk)
+        return _ok({"deleted": pk})
+
+    # ── AI Provider slots ──
+
+    @Slot(result=str)
+    @_safe
+    def listProviders(self) -> str:
+        return _ok([_to_dict(p) for p in self._ai.list_providers()])
+
+    @Slot(str, result=str)
+    @_safe
+    def createProvider(self, payload: str) -> str:
+        data = json.loads(payload)
+        name = data.pop("name", "")
+        if not name:
+            return _err("供应商名称不能为空")
+        provider = self._ai.create_provider(name, **data)
+        self._emit_change("provider", "created", provider.id)
+        return _ok(_to_dict(provider))
+
+    @Slot(int, str, result=str)
+    @_safe
+    def updateProvider(self, pk: int, payload: str) -> str:
+        fields = json.loads(payload)
+        provider = self._ai.update_provider(pk, **fields)
+        if provider is None:
+            return _err("供应商不存在")
+        self._emit_change("provider", "updated", pk)
+        return _ok(_to_dict(provider))
+
+    @Slot(int, result=str)
+    @_safe
+    def setActiveProvider(self, pk: int) -> str:
+        provider = self._ai.set_active(pk)
+        if provider is None:
+            return _err("供应商不存在")
+        self._emit_change("provider", "activated", pk)
+        return _ok(_to_dict(provider))
+
+    @Slot(int, result=str)
+    @_safe
+    def deleteProvider(self, pk: int) -> str:
+        ok = self._ai.delete_provider(pk)
+        if not ok:
+            return _err("供应商不存在")
+        self._emit_change("provider", "deleted", pk)
+        return _ok({"deleted": pk})
+
+    # ── Asset slots ──
+
+    @Slot(result=str)
+    @_safe
+    def listAssets(self) -> str:
+        return _ok([_to_dict(a) for a in self._assets.list_assets()])
+
+    @Slot(str, result=str)
+    @_safe
+    def listAssetsByType(self, asset_type: str) -> str:
+        return _ok([_to_dict(a) for a in self._assets.list_assets(asset_type=asset_type)])
+
+    @Slot(str, result=str)
+    @_safe
+    def createAsset(self, payload: str) -> str:
+        data = json.loads(payload)
+        filename = data.pop("filename", "")
+        if not filename:
+            return _err("文件名不能为空")
+        asset = self._assets.create_asset(filename, **data)
+        self._emit_change("asset", "created", asset.id)
+        return _ok(_to_dict(asset))
+
+    @Slot(int, str, result=str)
+    @_safe
+    def updateAsset(self, pk: int, payload: str) -> str:
+        fields = json.loads(payload)
+        asset = self._assets.update_asset(pk, **fields)
+        if asset is None:
+            return _err("素材不存在")
+        self._emit_change("asset", "updated", pk)
+        return _ok(_to_dict(asset))
+
+    @Slot(int, result=str)
+    @_safe
+    def deleteAsset(self, pk: int) -> str:
+        ok = self._assets.delete_asset(pk)
+        if not ok:
+            return _err("素材不存在")
+        self._emit_change("asset", "deleted", pk)
+        return _ok({"deleted": pk})
+
+    @Slot(result=str)
+    @_safe
+    def getAssetStats(self) -> str:
+        total = self._repo.count(Asset)
+        by_type = self._assets.count_by_type()
+        return _ok({"total": total, "byType": by_type})
+
+    # ── Dashboard aggregate ──
+
+    @Slot(result=str)
+    @_safe
+    def getDashboardStats(self) -> str:
+        return _ok({
+            "accounts": {
+                "total": self._repo.count(Account),
+                "byStatus": self._repo.count_accounts_by_status(),
+            },
+            "tasks": {
+                "total": self._repo.count(Task),
+                "byStatus": self._repo.count_tasks_by_status(),
+            },
+            "devices": {
+                "total": self._repo.count(Device),
+                "byStatus": self._repo.count_devices_by_status(),
+            },
+            "groups": self._repo.count(Group),
+            "assets": self._repo.count(Asset),
+            "providers": self._repo.count(AIProvider),
+        })
+
+    # ── Settings slots ──
+
+    @Slot(str, result=str)
+    @_safe
+    def getSetting(self, key: str) -> str:
+        return _ok(self._repo.get_setting(key))
+
+    @Slot(str, str, result=str)
+    @_safe
+    def setSetting(self, key: str, value: str) -> str:
+        self._repo.set_setting(key, value)
+        return _ok({"key": key, "value": value})
+
+    @Slot(str, result=str)
+    @_safe
+    def setSettingsBatch(self, payload: str) -> str:
+        data = json.loads(payload or "{}")
+        if not isinstance(data, dict):
+            return _err("批量设置参数必须为对象")
+        updated = []
+        for key, value in data.items():
+            self._repo.set_setting(str(key), "" if value is None else str(value))
+            updated.append(str(key))
+        return _ok({"updated": updated, "count": len(updated)})
+
+    @Slot(result=str)
+    @_safe
+    def getAllSettings(self) -> str:
+        return _ok(self._repo.get_all_settings())
+
+    # ── Theme (persisted in AppSetting) ──
+
+    @Slot(str, result=str)
+    @_safe
+    def setTheme(self, theme: str) -> str:
+        self._repo.set_setting("theme", theme)
+        return _ok({"theme": theme})
+
+    @Slot(result=str)
+    @_safe
+    def getTheme(self) -> str:
+        return _ok(self._repo.get_setting("theme", "light"))
+
+    # ── Version & Update ──
+
+    @Slot(result=str)
+    @_safe
+    def getAppVersion(self) -> str:
+        return _ok({"version": APP_VERSION})
+
+    @Slot(result=str)
+    @_safe
+    def checkForUpdate(self) -> str:
+        info = self._updater.check_update()
+        if info is None:
+            return _ok({"hasUpdate": False, "current": APP_VERSION})
+        return _ok({
+            "hasUpdate": info.has_update,
+            "current": APP_VERSION,
+            "latest": info.version,
+            "tag": info.tag,
+            "downloadUrl": info.download_url,
+            "htmlUrl": info.html_url,
+            "releaseNotes": info.body,
+            "assetName": info.asset_name,
+            "assetSize": info.asset_size,
+        })
+
+    @Slot(str, result=str)
+    @_safe
+    def startDownloadUpdate(self, download_url: str) -> str:
+        ok = self._updater.start_download(download_url or None)
+        if not ok:
+            return _err("下载已在进行中或无下载链接")
+        return _ok(True)
+
+    @Slot(result=str)
+    @_safe
+    def getDownloadProgress(self) -> str:
+        return _ok(self._updater.get_download_progress())
+
+    @Slot(result=str)
+    @_safe
+    def applyUpdate(self) -> str:
+        result = self._updater.apply_update()
+        if not result.get("ok"):
+            return _err(result.get("error", "应用更新失败"))
+        return _ok(result)
+
+    # ── License ──
+
+    # Rate limiter: max 5 activation attempts per 300s
+    _activate_timestamps: list = []
+
+    @Slot(result=str)
+    @_safe
+    def getLicenseStatus(self) -> str:
+        svc = LicenseService()
+        status = svc.get_status()
+        log.debug("Bridge.getLicenseStatus -> %s", status)
+        return _ok(status)
+
+    @Slot(str, result=str)
+    @_safe
+    def activateLicense(self, key: str) -> str:
+        import time as _time
+        now = _time.monotonic()
+        self._activate_timestamps = [t for t in self._activate_timestamps if now - t < 300]
+        if len(self._activate_timestamps) >= 5:
+            return _err("激活尝试过于频繁，请 5 分钟后重试")
+        self._activate_timestamps.append(now)
+        svc = LicenseService()
+        result = svc.activate(key.strip())
+        if not result.get("ok"):
+            return _err(result.get("error", "激活失败"))
+        return _ok(result["info"])
+
+    @Slot(str, int, str, result=str)
+    @_safe
+    def issueLicense(self, machine_id: str, days: int, tier: str) -> str:
+        svc = LicenseService()
+        mid = machine_id.strip()
+        d = max(0, int(days or 0))
+        t = (tier or "pro").strip()
+        from desktop_app.services.license_codec import _is_compound_id
+        if _is_compound_id(mid):
+            result = svc.issue_compound(compound_id=mid, days=d, tier=t)
+        else:
+            result = svc.issue(machine_id=mid, days=d, tier=t)
+        if not result.get("ok"):
+            return _err(result.get("error", "签发失败"))
+        return _ok(result)
+
+    @Slot(str, str, result=str)
+    @_safe
+    def verifyLicenseKey(self, machine_id: str, key: str) -> str:
+        svc = LicenseService()
+        result = svc.verify(key=key.strip(), machine_id=machine_id.strip())
+        if not result.get("ok"):
+            return _err(result.get("error", "校验失败"))
+        return _ok(result["info"])
+
+    @Slot(result=str)
+    @_safe
+    def deactivateLicense(self) -> str:
+        svc = LicenseService()
+        return _ok(svc.deactivate())
+
+    @Slot(str, result=str)
+    @_safe
+    def checkRouteAccess(self, route: str) -> str:
+        svc = LicenseService()
+        return _ok(svc.check_route_access(route.strip()))
+
+    # ── AI Chat ──
+
+    @Slot(str, result=str)
+    @_safe
+    def chatSync(self, payload: str) -> str:
+        """Synchronous chat completion.
+
+        payload JSON: {messages: [{role,content}], model?, preset?, temperature?, max_tokens?}
+        """
+        p = json.loads(payload)
+        msgs = [{"role": m["role"], "content": m["content"]} for m in p.get("messages", [])]
+        result = self._chat.chat(
+            messages=msgs,
+            model=p.get("model"),
+            preset_key=p.get("preset"),
+            temperature=p.get("temperature"),
+            max_tokens=p.get("max_tokens"),
+        )
+        self._usage.record(
+            result.provider_name, result.model,
+            result.prompt_tokens, result.completion_tokens,
+        )
+        return _ok({
+            "content": result.content,
+            "model": result.model,
+            "provider": result.provider_name,
+            "prompt_tokens": result.prompt_tokens,
+            "completion_tokens": result.completion_tokens,
+            "total_tokens": result.total_tokens,
+            "elapsed_ms": result.elapsed_ms,
+        })
+
+    @Slot(str, result=str)
+    @_safe
+    def startChatStream(self, payload: str) -> str:
+        """Start a streaming chat in a background thread.
+
+        payload JSON: same as chatSync.
+        Returns immediately. JS polls via pollChatStream().
+        """
+        if self._stream_thread and self._stream_thread.is_alive():
+            return _err("已有流式请求进行中")
+
+        p = json.loads(payload)
+        msgs = [{"role": m["role"], "content": m["content"]} for m in p.get("messages", [])]
+        self._stream_queue = queue.Queue()
+
+        def _worker():
+            try:
+                for chunk in self._chat.chat_stream(
+                    messages=msgs,
+                    model=p.get("model"),
+                    preset_key=p.get("preset"),
+                    temperature=p.get("temperature"),
+                    max_tokens=p.get("max_tokens"),
+                ):
+                    self._stream_queue.put({
+                        "delta": chunk.delta,
+                        "done": chunk.done,
+                        "content": chunk.content,
+                        "model": chunk.model,
+                        "provider": chunk.provider_name,
+                        "tokens": {"prompt": chunk.prompt_tokens, "completion": chunk.completion_tokens} if chunk.done else None,
+                        "elapsed_ms": chunk.elapsed_ms,
+                    })
+                    if chunk.done and chunk.prompt_tokens:
+                        self._usage.record(
+                            chunk.provider_name, chunk.model,
+                            chunk.prompt_tokens,
+                            chunk.completion_tokens,
+                        )
+            except Exception as exc:
+                log.exception("Stream worker error")
+                self._stream_queue.put({"delta": "", "done": True, "error": str(exc)})
+
+        self._stream_thread = threading.Thread(target=_worker, daemon=True)
+        self._stream_thread.start()
+        return _ok({"started": True})
+
+    @Slot(result=str)
+    @_safe
+    def pollChatStream(self) -> str:
+        """Drain all available chunks from the stream queue."""
+        if not self._stream_queue:
+            return _ok({"chunks": [], "finished": True})
+        chunks = []
+        finished = False
+        while not self._stream_queue.empty():
+            try:
+                c = self._stream_queue.get_nowait()
+                chunks.append(c)
+                if c.get("done"):
+                    finished = True
+            except queue.Empty:
+                break
+        return _ok({"chunks": chunks, "finished": finished})
+
+    @Slot(result=str)
+    @_safe
+    def listAiPresets(self) -> str:
+        return _ok(list_presets())
+
+    @Slot(str, result=str)
+    @_safe
+    def getAiPreset(self, key: str) -> str:
+        p = get_preset(key)
+        if not p:
+            return _err(f"预设 '{key}' 不存在")
+        return _ok(p)
+
+    @Slot(int, result=str)
+    @_safe
+    def testAiProvider(self, pk: int) -> str:
+        result = self._chat.test_provider(pk)
+        return _ok(result)
+
+    @Slot(result=str)
+    @_safe
+    def getAiUsageStats(self) -> str:
+        return _ok(self._usage.get_stats())
+
+    @Slot(result=str)
+    @_safe
+    def getAiUsageToday(self) -> str:
+        return _ok(self._usage.get_today())
+
+    @Slot(result=str)
+    @_safe
+    def getRecentLogs(self) -> str:
+        path = LOG_FILE
+        if not path.exists():
+            return _ok({
+                "path": str(path),
+                "lines": [],
+                "lineCount": 0,
+                "errorCount": 0,
+                "warningCount": 0,
+                "size": 0,
+            })
+
+        content = path.read_text(encoding="utf-8", errors="replace")
+        lines = [line for line in content.splitlines() if line.strip()]
+        recent = lines[-200:]
+        upper_recent = [line.upper() for line in recent]
+        return _ok({
+            "path": str(path),
+            "lines": recent,
+            "lineCount": len(recent),
+            "errorCount": sum(" ERROR " in line for line in upper_recent),
+            "warningCount": sum(" WARNING " in line for line in upper_recent),
+            "size": path.stat().st_size,
+        })
+
+    @Slot(str, result=str)
+    @_safe
+    def copyToClipboard(self, text: str) -> str:
+        from PySide6.QtGui import QGuiApplication
+        clipboard = QGuiApplication.clipboard()
+        clipboard.setText(text)
+        return _ok({"copied": True})
+
+    @Slot(result=str)
+    @_safe
+    def pickLocalFiles(self) -> str:
+        files, _ = QFileDialog.getOpenFileNames(
+            None,
+            "选择文件",
+            str(Path.home()),
+            "All Files (*.*)",
+        )
+        return _ok(files or [])
+
+    @Slot(str, result=str)
+    @_safe
+    def exportTextFile(self, content: str) -> str:
+        file_path, _ = QFileDialog.getSaveFileName(
+            None,
+            "导出文本",
+            str(Path.home() / "diagnostics-report.txt"),
+            "Text Files (*.txt);;All Files (*.*)",
+        )
+        if not file_path:
+            return _ok({"saved": False, "path": ""})
+        path = Path(file_path)
+        path.write_text(content or "", encoding="utf-8")
+        return _ok({"saved": True, "path": str(path)})
+
+    @Slot(result=str)
+    @_safe
+    def runNetworkDiagnostics(self) -> str:
+        providers = self._ai.list_providers()
+        checks: list[dict[str, Any]] = []
+
+        try:
+            ip = socket.gethostbyname("example.com")
+            checks.append({
+                "name": "DNS 解析",
+                "status": "ok",
+                "detail": f"example.com -> {ip}",
+            })
+        except Exception as exc:
+            checks.append({
+                "name": "DNS 解析",
+                "status": "error",
+                "detail": f"解析失败: {exc}",
+            })
+
+        if providers:
+            active = next((p for p in providers if p.is_active), providers[0])
+            checks.append({
+                "name": "AI 供应商配置",
+                "status": "ok" if active.api_key else "warning",
+                "detail": f"{active.name} / {active.default_model or '未配置模型'}",
+            })
+        else:
+            checks.append({
+                "name": "AI 供应商配置",
+                "status": "error",
+                "detail": "未检测到可用供应商",
+            })
+
+        log_path = Path(LOG_FILE)
+        checks.append({
+            "name": "日志文件",
+            "status": "ok" if log_path.exists() else "warning",
+            "detail": str(log_path),
+        })
+
+        tasks_failed = self._repo.count_tasks_by_status().get("failed", 0)
+        checks.append({
+            "name": "任务失败率",
+            "status": "warning" if tasks_failed else "ok",
+            "detail": f"失败任务 {tasks_failed} 条",
+        })
+
+        error_count = sum(1 for item in checks if item["status"] == "error")
+        warning_count = sum(1 for item in checks if item["status"] == "warning")
+        score = max(0, 100 - error_count * 30 - warning_count * 12)
+        report_lines = [
+            f"TK-OPS 网络诊断报告 {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+            "=" * 48,
+        ]
+        for item in checks:
+            report_lines.append(f"[{item['status'].upper()}] {item['name']}: {item['detail']}")
+
+        return _ok({
+            "score": score,
+            "checks": checks,
+            "errorCount": error_count,
+            "warningCount": warning_count,
+            "generatedAt": datetime.now().isoformat(timespec="seconds"),
+            "reportText": "\n".join(report_lines),
+        })
+
+    # ── Logging ──
+
+    @Slot(str)
+    def logFrontend(self, message: str) -> None:
+        try:
+            payload = json.loads(message)
+            if isinstance(payload, dict):
+                level = str(payload.get("level", "info")).lower()
+                event = str(payload.get("event", "frontend.event"))
+                route = str(payload.get("route", ""))
+                data = payload.get("data")
+                text = f"[前端][事件:{event}] 路由={route or '-'} 数据={data!r}"
+                if level in {"error", "critical"}:
+                    log.error(text)
+                elif level in {"warn", "warning"}:
+                    log.warning(text)
+                elif level == "debug":
+                    log.debug(text)
+                else:
+                    log.info(text)
+                return
+        except Exception:
+            pass
+        log.info("[JS] %s", message)

@@ -1,0 +1,231 @@
+/* Typography protection */
+.panel,
+.board-card,
+.template-card,
+.report-card,
+.ticket-card,
+.task-item,
+.detail-item,
+.stat-card,
+.crm-card,
+.settings-card,
+.config-field {
+    min-width: 0;
+}
+
+.panel__header strong,
+.board-card strong,
+.task-item strong,
+.detail-item strong {
+    overflow-wrap: break-word;
+    word-break: break-word;
+}
+
+.subtle {
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+h1 {
+    min-width: 0;
+    overflow-wrap: break-word;
+}
+
+.shell-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    font-size: 13px;
+    font-weight: 800;
+    line-height: 1;
+}
+
+.shell-icon--strong {
+    font-size: 18px;
+}
+
+.shell-search-bar {
+    min-width: 420px;
+    position: relative;
+}
+
+.app-shell {
+    height: 100vh;
+}
+
+.app-shell.route-video-editor {
+    grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
+    grid-template-areas:
+        "title title"
+        "sidebar main"
+        "status status";
+}
+
+.app-shell.route-video-editor.sidebar-collapsed {
+    grid-template-columns: var(--sidebar-collapsed-width) minmax(0, 1fr);
+}
+
+.title-bar,
+.sidebar,
+.main,
+.detail-panel,
+.status-bar {
+    min-width: 0;
+}
+
+.title-bar {
+    padding-inline: 18px 20px;
+}
+
+.title-bar__cluster {
+    min-width: 0;
+    gap: 14px;
+}
+
+.title-bar__actions {
+    flex-shrink: 0;
+    gap: 10px;
+}
+
+.responsive-note {
+    max-width: 320px;
+}
+
+.sidebar {
+    padding-top: 18px;
+}
+
+.sidebar .nav-link {
+    width: 100%;
+    border: 0;
+    background: transparent;
+    text-align: left;
+}
+
+.sidebar .nav-link .shell-icon {
+    width: 20px;
+    color: currentColor;
+}
+
+/* ── Tier 门控徽标 & 锁定状态 ── */
+.sidebar .nav-link.tier-locked {
+    opacity: 0.55;
+    position: relative;
+}
+.sidebar .nav-link .tier-badge {
+    display: inline-block;
+    margin-left: auto;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 0.6rem;
+    font-weight: 700;
+    line-height: 1.4;
+    letter-spacing: 0.5px;
+    color: #fff;
+    background: var(--accent, #6366f1);
+}
+.sidebar .nav-link .tier-badge:empty { display: none; }
+
+.sidebar__footer strong {
+    display: block;
+    margin: 6px 0 8px;
+    line-height: 1.3;
+}
+
+.main {
+    padding: 20px 22px 22px;
+}
+
+.detail-panel {
+    padding: 20px 18px 18px;
+}
+
+.status-bar {
+    padding-inline: 18px;
+}
+
+.status-text {
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.shell-content-grid {
+    align-items: start;
+}
+
+.shell-action-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.shell-action-grid .secondary-button {
+    justify-content: flex-start;
+    min-height: 72px;
+    padding: 16px;
+}
+
+.route-row,
+.detail-trigger,
+.local-tab,
+.segmented button {
+    cursor: pointer;
+}
+
+.segmented button.is-active {
+    background: var(--brand-primary);
+    color: var(--text-on-brand, #fff);
+    border-radius: var(--radius-sm, 6px);
+}
+
+tbody .route-row.is-selected {
+    background: color-mix(in srgb, var(--brand-primary) 8%, transparent);
+}
+
+.detail-trigger.is-selected,
+.account-card.is-selected {
+    outline: 2px solid color-mix(in srgb, var(--brand-primary) 28%, transparent);
+    outline-offset: -1px;
+}
+
+.detail-root {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2xl);
+}
+
+.summary-box,
+.data-points {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.data-point,
+.detail-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.progress-bar {
+    width: 100%;
+    height: 8px;
+    border-radius: 999px;
+    background: var(--surface-sunken);
+    overflow: hidden;
+}
+
+.progress-bar span {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, var(--brand-primary), #55ddd8);
+}
+
+.account-grid .account-card {
+    cursor: pointer;
+}

@@ -1,0 +1,289 @@
+.studio-shell {
+    display: grid;
+    grid-template-columns: 88px minmax(0, 1fr) 320px;
+    gap: 16px;
+    align-items: start;
+}
+
+.studio-rail,
+.inspector-panel,
+.asset-sidebar,
+.lab-sidebar,
+.workflow-sidebar,
+.workflow-properties,
+.calendar-sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.studio-stage,
+.lab-canvas,
+.workflow-canvas,
+.report-preview,
+.calendar-stage {
+    min-height: 360px;
+    padding: 16px;
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-xl);
+    background:
+        linear-gradient(135deg, color-mix(in srgb, var(--brand-primary) 10%, transparent), transparent 35%),
+        var(--surface-secondary);
+}
+
+.timeline-strip,
+.frame-strip,
+.draft-strip,
+.history-strip,
+.export-strip {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.frame-chip,
+.draft-chip,
+.timeline-chip,
+.history-chip,
+.export-chip {
+    padding: 12px;
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-md);
+    background: color-mix(in srgb, var(--surface-secondary) 94%, transparent);
+}
+
+.asset-browser {
+    display: grid;
+    grid-template-columns: 220px minmax(0, 1fr);
+    gap: 16px;
+    align-items: start;
+}
+
+.asset-grid,
+.result-grid,
+.template-grid,
+.source-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.asset-tile {
+    min-height: 130px;
+}
+
+.lab-shell,
+.workflow-shell,
+.calendar-shell,
+.prompt-shell,
+.system-shell {
+    display: grid;
+    gap: 16px;
+    align-items: start;
+}
+
+.lab-shell {
+    grid-template-columns: 260px minmax(0, 1fr) 300px;
+}
+
+.workflow-shell {
+    grid-template-columns: 220px minmax(0, 1fr) 300px;
+}
+
+.calendar-shell {
+    grid-template-columns: 320px minmax(0, 1fr);
+}
+
+.prompt-shell {
+    grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.05fr);
+}
+
+.ai-config-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    padding: 0 16px 16px;
+}
+
+.ai-config-grid .form-field {
+    margin: 0;
+}
+
+.ai-config-grid select,
+.ai-config-grid input[type="number"] {
+    width: 100%;
+    padding: 6px 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--bg-main);
+    color: var(--fg);
+    font-size: 13px;
+}
+
+.ai-config-grid input[type="range"] {
+    width: calc(100% - 40px);
+    vertical-align: middle;
+}
+
+.ai-config-grid input[type="range"] + .subtle {
+    display: inline-block;
+    width: 32px;
+    text-align: right;
+    font-size: 12px;
+}
+
+.system-shell {
+    grid-template-columns: 240px minmax(0, 1fr);
+}
+
+.kanban-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 14px;
+}
+
+.kanban-column {
+    padding: 14px;
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-lg);
+    background: color-mix(in srgb, var(--surface-secondary) 96%, transparent);
+    min-width: 0;
+    overflow: hidden;
+}
+
+.kanban-column__title {
+    margin-bottom: 10px;
+    font-size: 12px;
+    font-weight: 800;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+
+.kanban-list {
+    min-width: 0;
+}
+
+.kanban-list .ticket-card,
+.kanban-list .board-card,
+.kanban-list .task-item {
+    min-width: 0;
+    overflow: hidden;
+}
+
+.kanban-list .ticket-card strong,
+.kanban-list .board-card strong,
+.kanban-list .task-item strong {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.kanban-list .subtle {
+    display: -webkit-box;
+    line-clamp: 2;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.calendar-grid {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.calendar-day {
+    min-height: 128px;
+    padding: 12px;
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-lg);
+    background: var(--surface-secondary);
+}
+
+.calendar-day strong {
+    display: block;
+    margin-bottom: 8px;
+}
+
+.calendar-slot {
+    margin-top: 8px;
+    padding: 8px 10px;
+    border-radius: var(--radius-md);
+    background: color-mix(in srgb, var(--brand-primary) 12%, transparent);
+    color: var(--text-primary);
+    font-size: 12px;
+}
+
+.settings-grid,
+.form-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+}
+
+.form-field {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.form-field label {
+    font-size: 12px;
+    font-weight: 800;
+    color: var(--text-secondary);
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+
+.form-field input,
+.form-field textarea,
+.form-field select {
+    width: 100%;
+    padding: 12px 14px;
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-md);
+    background: var(--surface-secondary);
+    color: var(--text-primary);
+}
+
+.form-field textarea {
+    min-height: 120px;
+    resize: vertical;
+}
+
+.formula-row,
+.status-strip,
+.summary-strip {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+}
+
+.metric-kv {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.metric-kv .detail-item,
+.settings-card .detail-item,
+.segment-card .detail-item {
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border-default);
+}
+
+.metric-kv .detail-item:last-child,
+.settings-card .detail-item:last-child,
+.segment-card .detail-item:last-child {
+    border-bottom: 0;
+}
+
+.stub-note {
+    padding: 16px;
+    border: 1px dashed var(--border-strong);
+    border-radius: var(--radius-lg);
+    background: color-mix(in srgb, var(--surface-secondary) 94%, transparent);
+    color: var(--text-secondary);
+}

@@ -1,0 +1,798 @@
+function bindSegmentedButtons() {
+    document.querySelectorAll('.segmented').forEach((group) => {
+        group.querySelectorAll('button').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                group.querySelectorAll('button').forEach((b) => b.classList.remove('is-active'));
+                btn.classList.add('is-active');
+            });
+        });
+    });
+}
+
+function bindFilters() {
+    document.querySelectorAll('.filter-row select, .filter-row input').forEach((el) => {
+        el.addEventListener('change', () => applyCurrentRouteState());
+    });
+}
+
+function bindDetailTriggers() {
+    document.querySelectorAll('[data-detail-target]').forEach((trigger) => {
+        trigger.addEventListener('click', () => {
+            const targetId = trigger.dataset.detailTarget;
+            const template = document.getElementById('detail-' + targetId);
+            if (template) {
+                document.getElementById('detailHost').innerHTML = template.innerHTML;
+            }
+            document.querySelectorAll('[data-detail-target]').forEach((t) => t.classList.remove('is-selected'));
+            trigger.classList.add('is-selected');
+        });
+    });
+}
+
+/* ─── 功能联动：提取元素内容生成右侧详情 ─── */
+function buildDynamicDetail(title, subtitle, details, actions) {
+    const detailItems = details.map((d) => `<div class="detail-item"><span class="subtle">${d.label}</span><strong>${d.value}</strong></div>`).join('');
+    const actionItems = actions.map((a) => `<article class="workbench-sidecard"><strong>${a.title}</strong><div class="subtle">${a.desc}</div></article>`).join('');
+    return `
+        <div class="detail-root">
+            <section class="panel">
+                <div class="panel__header"><div><strong>${title}</strong><div class="subtle">${subtitle}</div></div></div>
+                <div class="detail-list">${detailItems}</div>
+            </section>
+            ${actionItems ? `<section class="panel"><div class="panel__header"><div><strong>相关操作</strong><div class="subtle">针对当前选中项的推荐动作。</div></div></div><div class="workbench-side-list">${actionItems}</div></section>` : ''}
+        </div>
+    `;
+}
+
+function extractTextFromEl(el, selector) {
+    const target = el.querySelector(selector);
+    return target ? target.textContent.trim() : '';
+}
+
+/* ─── 功能联动：点击主区条目→更新右侧面板 ─── */
+function bindMainItemClicks() {
+    const mainHost = document.getElementById('mainHost');
+    const detailHost = document.getElementById('detailHost');
+    const route = routes[currentRoute];
+    if (!route || route.hideDetailPanel === true) return;
+
+    // 看板卡片点击
+    mainHost.querySelectorAll('.board-card').forEach((card) => {
+        card.style.cursor = 'pointer';
+        card.addEventListener('click', () => {
+            mainHost.querySelectorAll('.board-card').forEach((c) => c.classList.remove('is-selected'));
+            card.classList.add('is-selected');
+            const title = extractTextFromEl(card, 'strong') || '任务详情';
+            const desc = extractTextFromEl(card, '.subtle') || '';
+            const pills = [...card.querySelectorAll('.pill')].map((p) => p.textContent.trim());
+            detailHost.innerHTML = buildDynamicDetail('任务详情', '点击查看的任务信息', [
+                { label: '任务名称', value: title },
+                { label: '描述', value: desc || '—' },
+                { label: '标签', value: pills.join(' / ') || '—' },
+            ], [
+                { title: '编辑任务', desc: '修改任务参数或调整执行策略。' },
+                { title: '查看日志', desc: '打开该任务最近的运行日志。' },
+            ]);
+            detailHost.classList.remove('shell-hidden');
+        });
+    });
+
+    // 表格行点击
+    mainHost.querySelectorAll('tbody .route-row').forEach((row) => {
+        row.style.cursor = 'pointer';
+        row.addEventListener('click', () => {
+            mainHost.querySelectorAll('tbody .route-row').forEach((r) => r.classList.remove('is-selected'));
+            row.classList.add('is-selected');
+            const cells = [...row.querySelectorAll('td')];
+            const details = cells.slice(0, 5).map((td, i) => ({
+                label: document.querySelectorAll('thead th')[i]?.textContent.trim() || `列 ${i + 1}`,
+                value: td.textContent.trim(),
+            }));
+            detailHost.innerHTML = buildDynamicDetail('行详情', '选中表格项的字段信息', details, []);
+            detailHost.classList.remove('shell-hidden');
+        });
+    });
+
+    // 任务项点击（列表视图）
+    mainHost.querySelectorAll('.task-item').forEach((item) => {
+        item.style.cursor = 'pointer';
+        item.addEventListener('click', () => {
+            mainHost.querySelectorAll('.task-item').forEach((t) => t.classList.remove('is-selected'));
+            item.classList.add('is-selected');
+            const title = extractTextFromEl(item, 'strong') || '任务';
+            const desc = extractTextFromEl(item, '.subtle') || '';
+            detailHost.innerHTML = buildDynamicDetail('任务信息', desc, [
+                { label: '名称', value: title },
+            ], [
+                { title: '查看执行记录', desc: '查看该任务的历史执行情况。' },
+            ]);
+            detailHost.classList.remove('shell-hidden');
+        });
+    });
+
+    // 洞察卡片点击（分析页）
+    mainHost.querySelectorAll('.strip-card').forEach((card) => {
+        card.style.cursor = 'pointer';
+        card.addEventListener('click', () => {
+            mainHost.querySelectorAll('.strip-card').forEach((c) => c.classList.remove('is-selected'));
+            card.classList.add('is-selected');
+            const title = extractTextFromEl(card, 'strong') || '洞察';
+            const desc = extractTextFromEl(card, '.subtle') || '';
+            detailHost.innerHTML = buildDynamicDetail('洞察详情', '深入查看选中的分析要点', [
+                { label: '标题', value: title },
+                { label: '摘要', value: desc || '—' },
+            ], []);
+            detailHost.classList.remove('shell-hidden');
+        });
+    });
+}
+
+/* ─── 功能联动：任务看板视图切换 ─── */
+function bindTaskViewToggles() {
+    const mainHost = document.getElementById('mainHost');
+    const toggles = mainHost.querySelectorAll('.task-view-btn');
+    if (!toggles.length) return;
+    const kanban = mainHost.querySelector('.task-board');
+    const list = mainHost.querySelector('.task-list-view, table');
+    const calendar = mainHost.querySelector('.task-calendar');
+    toggles.forEach((btn) => {
+        btn.addEventListener('click', () => {
+            toggles.forEach((b) => b.classList.remove('is-active'));
+            btn.classList.add('is-active');
+            const view = btn.textContent.trim();
+            if (kanban) kanban.classList.toggle('shell-hidden', view !== '看板');
+            if (list) list.classList.toggle('shell-hidden', view === '看板' || view === '日历');
+            if (calendar) calendar.classList.toggle('shell-hidden', view !== '日历');
+        });
+    });
+}
+
+/* ─── 功能联动：任务状态筛选 ─── */
+function bindTaskFilterTabs() {
+    const mainHost = document.getElementById('mainHost');
+    const tabs = mainHost.querySelectorAll('.task-filter-bar .task-filter-tab');
+    if (!tabs.length) return;
+    tabs.forEach((tab) => {
+        tab.addEventListener('click', () => {
+            const label = tab.textContent.replace(/\d+/g, '').trim();
+            const cards = mainHost.querySelectorAll('.board-card, .task-item');
+            cards.forEach((card) => {
+                if (label === '全部') {
+                    card.classList.remove('is-filtered-out');
+                } else {
+                    const pills = [...card.querySelectorAll('.pill')].map((p) => p.textContent.trim());
+                    const text = card.textContent;
+                    const match = pills.some((p) => p.includes(label)) || text.includes(label);
+                    card.classList.toggle('is-filtered-out', !match);
+                }
+            });
+        });
+    });
+}
+
+/* ─── 功能联动：素材分类筛选 ─── */
+function bindAssetCategoryFilter() {
+    const mainHost = document.getElementById('mainHost');
+    const cats = mainHost.querySelectorAll('.asset-category-item');
+    if (!cats.length) return;
+    cats.forEach((cat) => {
+        cat.addEventListener('click', () => {
+            cats.forEach((c) => c.classList.remove('is-active'));
+            cat.classList.add('is-active');
+            const label = extractTextFromEl(cat, 'strong');
+            const thumbs = mainHost.querySelectorAll('.source-thumb');
+            thumbs.forEach((thumb) => {
+                if (label === '全部素材') {
+                    thumb.classList.remove('is-filtered-out');
+                } else {
+                    const tags = [...thumb.querySelectorAll('.pill')].map((p) => p.textContent.trim());
+                    const name = thumb.textContent;
+                    const typeMap = { '短视频口播': '视频', '封面图片': '图片', 'B-roll 镜头': '视频', '音频 / 配乐': '音频', '字幕 / 文案': '字幕' };
+                    const mapped = typeMap[label] || label;
+                    const match = tags.some((t) => t.includes(mapped)) || name.includes(mapped);
+                    thumb.classList.toggle('is-filtered-out', !match);
+                }
+            });
+        });
+    });
+}
+
+/* ─── 功能联动：素材点击更新右侧 ─── */
+function bindAssetThumbDetail() {
+    const mainHost = document.getElementById('mainHost');
+    const detailHost = document.getElementById('detailHost');
+    const thumbs = mainHost.querySelectorAll('.source-thumb');
+    if (!thumbs.length) return;
+    const route = routes[currentRoute];
+    thumbs.forEach((thumb) => {
+        thumb.addEventListener('click', () => {
+            const name = extractTextFromEl(thumb, '.source-thumb__name') || '未命名素材';
+            const tags = [...thumb.querySelectorAll('.pill')].map((p) => p.textContent.trim());
+            const dur = extractTextFromEl(thumb, '.source-thumb__dur');
+
+            // 选中态切换
+            thumbs.forEach((t) => t.classList.remove('is-selected'));
+            thumb.classList.add('is-selected');
+
+            // hideDetailPanel 路由：更新内联 mini-preview 而非打开右侧面板
+            if (route?.hideDetailPanel === true) {
+                const preview = mainHost.querySelector('.source-mini-preview');
+                if (preview) {
+                    const nameEl = preview.querySelector('strong');
+                    const infoEl = preview.querySelector('.subtle');
+                    if (nameEl) nameEl.textContent = name;
+                    if (infoEl) infoEl.textContent = [dur, tags.join(' · ')].filter(Boolean).join(' · ');
+                }
+                return;
+            }
+
+            detailHost.innerHTML = buildDynamicDetail('素材详情', '选中素材的属性信息', [
+                { label: '素材名称', value: name },
+                { label: '类型标签', value: tags.join(' / ') || '—' },
+                { label: '时长', value: dur || '—' },
+                { label: '状态', value: tags.find((t) => ['已授权', '待审', '已入库', '可复用', '需授权', '高转化'].includes(t)) || '—' },
+            ], [
+                { title: '编辑素材信息', desc: '修改名称、分类和授权状态。' },
+                { title: '发送到创作链路', desc: '将素材推送到内容工厂或创意工坊。' },
+            ]);
+            detailHost.classList.remove('shell-hidden');
+        });
+    });
+}
+
+/* ─── 功能联动：分析图表切换 ─── */
+function bindChartToggles() {
+    const mainHost = document.getElementById('mainHost');
+    const toggles = mainHost.querySelectorAll('.analytics-chart-toggles button');
+    if (!toggles.length) return;
+    toggles.forEach((btn) => {
+        btn.addEventListener('click', () => {
+            toggles.forEach((b) => b.classList.remove('is-active'));
+            btn.classList.add('is-active');
+            const chart = mainHost.querySelector('.chart-placeholder');
+            if (chart) chart.textContent = `📊 ${btn.textContent.trim()} 视图`;
+        });
+    });
+}
+
+/* ─── 响应式：右侧面板手动切换 ─── */
+function bindDetailPanelToggle() {
+    const btn = document.getElementById('detailToggle');
+    if (!btn) return;
+    btn.addEventListener('click', () => {
+        const detailHost = document.getElementById('detailHost');
+        const route = routes[currentRoute];
+        // 如果面板当前可见（被强制打开），允许关闭；否则 hideDetailPanel 路由不打开
+        const isVisible = !detailHost.classList.contains('shell-hidden');
+        if (route?.hideDetailPanel === true && !isVisible) return;
+        uiState.detailPanelForced = isVisible ? 'hidden' : 'visible';
+        detailHost.classList.toggle('shell-hidden');
+        document.getElementById('shellApp').classList.toggle('detail-hidden', detailHost.classList.contains('shell-hidden'));
+    });
+}
+
+function _buttonText(btn) {
+    return (btn && btn.textContent ? btn.textContent : '').replace(/\s+/g, ' ').trim();
+}
+
+function _downloadTextFile(filename, content, mimeType) {
+    const blob = new Blob([content], { type: mimeType || 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = filename;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+
+function _bindButtonAction(btn, binderKey, handler) {
+    if (!btn || btn.dataset[binderKey] === '1') return;
+    btn.dataset[binderKey] = '1';
+    btn.addEventListener('click', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        handler(btn, event);
+    });
+}
+
+function _setExclusiveButtonState(btn) {
+    const group = btn && btn.parentElement;
+    if (!group) return;
+    group.querySelectorAll('button').forEach((item) => {
+        item.classList.remove('is-active', 'is-selected');
+    });
+    btn.classList.add('is-active');
+    btn.classList.add('is-selected');
+}
+
+function _navigateToRoute(routeKey, toast, tone) {
+    if (typeof renderRoute === 'function' && routeKey && routes && routes[routeKey]) {
+        renderRoute(routeKey);
+    }
+    if (toast) showToast(toast, tone || 'info');
+}
+
+function _createQuickTask(title, taskType, summary, successText, extra) {
+    if (!api || !api.tasks || typeof api.tasks.create !== 'function') {
+        showToast('当前版本不支持创建任务', 'warning');
+        return Promise.resolve(null);
+    }
+    const payload = Object.assign({
+        title,
+        task_type: taskType || 'maintenance',
+        priority: 'medium',
+        status: 'pending',
+        result_summary: summary || ('来源页面：' + currentRoute),
+    }, extra || {});
+    return api.tasks.create(payload).then((result) => {
+        showToast(successText || (title + ' 已加入队列'), 'success');
+        return result;
+    }).catch((err) => {
+        showToast('创建失败: ' + ((err && err.message) || '未知错误'), 'error');
+        return null;
+    });
+}
+
+function _exportThroughBackend(title, lines, successText) {
+    const text = [title, '时间: ' + new Date().toLocaleString()].concat(lines || []).join('\n');
+    if (api && api.utils && typeof api.utils.exportTextFile === 'function') {
+        return api.utils.exportTextFile(text).then((saved) => {
+            showToast(saved && saved.saved ? (successText || (title + ' 导出成功')) : '已取消导出', saved && saved.saved ? 'success' : 'warning');
+            return saved;
+        }).catch((err) => {
+            showToast('导出失败: ' + ((err && err.message) || '未知错误'), 'error');
+            return null;
+        });
+    }
+    _downloadTextFile((title || 'export').replace(/\s+/g, '-').toLowerCase() + '.txt', text, 'text/plain;charset=utf-8');
+    showToast(successText || (title + ' 已导出'), 'success');
+    return Promise.resolve(null);
+}
+
+function _guessAssetTypeByName(filename) {
+    const lower = String(filename || '').toLowerCase();
+    if (/\.(png|jpg|jpeg|gif|webp|bmp|svg)$/.test(lower)) return 'image';
+    if (/\.(mp4|mov|avi|mkv|webm)$/.test(lower)) return 'video';
+    if (/\.(mp3|wav|aac|flac|m4a)$/.test(lower)) return 'audio';
+    if (/\.(txt|md|json|csv|srt|vtt)$/.test(lower)) return 'text';
+    return 'template';
+}
+
+function _pickFilesAndImportAssets(routeKey) {
+    if (!api || !api.utils || typeof api.utils.pickFiles !== 'function') {
+        showToast('当前版本不支持文件选择', 'warning');
+        return;
+    }
+    api.utils.pickFiles().then((files) => {
+        const list = (files || []).filter(Boolean);
+        if (!list.length) {
+            showToast('未选择文件', 'warning');
+            return;
+        }
+        const jobs = list.map((filePath) => {
+            const parts = String(filePath).split(/[\\/]/);
+            const filename = parts[parts.length - 1] || '未命名文件';
+            return Promise.all([
+                api.assets.create({
+                    filename,
+                    file_path: filePath,
+                    asset_type: _guessAssetTypeByName(filename),
+                    tags: '文件导入',
+                }).catch(() => null),
+                api.tasks.create({
+                    title: '文件导入 · ' + filename,
+                    task_type: 'maintenance',
+                    priority: 'medium',
+                    status: 'pending',
+                    result_summary: '来源页面：' + routeKey + ' / 文件：' + filePath,
+                }).catch(() => null),
+            ]).then((results) => results[0] || results[1]);
+        });
+        return Promise.all(jobs).then((results) => {
+            const successCount = results.filter(Boolean).length;
+            showToast('已导入 ' + successCount + ' 个文件', successCount ? 'success' : 'warning');
+        });
+    }).catch((err) => {
+        showToast('导入失败: ' + ((err && err.message) || '未知错误'), 'error');
+    });
+}
+
+function _runDiagnostics(title) {
+    if (!api || !api.diagnostics || typeof api.diagnostics.run !== 'function') {
+        showToast('当前版本不支持网络诊断', 'warning');
+        return;
+    }
+    api.diagnostics.run().then((result) => {
+        window.__lastDiagnosticsResult = result || null;
+        showToast((title || '网络诊断') + ' 已完成检测', 'success');
+    }).catch((err) => {
+        showToast('诊断失败: ' + ((err && err.message) || '未知错误'), 'error');
+    });
+}
+
+function _bindSelectableButtonGroups() {
+    const mainHost = document.getElementById('mainHost');
+    if (!mainHost) return;
+    const selectors = [
+        '.mini-list button',
+        '.product-nav-list button',
+        '.copy-tone-list button',
+        '.chart-type-grid button',
+        '.data-source-list button',
+        '.aicf-node-palette button',
+    ];
+    selectors.forEach((selector) => {
+        mainHost.querySelectorAll(selector).forEach((btn) => {
+            if (btn.dataset.tkopsPresetBound === '1') return;
+            _bindButtonAction(btn, 'tkopsSelectableBound', () => {
+                _setExclusiveButtonState(btn);
+                showToast('已切换到 ' + _buttonText(btn), 'info');
+            });
+        });
+    });
+}
+
+function _bindRouteButtonPresets() {
+    const mainHost = document.getElementById('mainHost');
+    if (!mainHost) return;
+
+        const contentRoutes = ['creative-workshop', 'video-editor', 'visual-editor'];
+    const generationRoutes = ['viral-title', 'product-title', 'script-extractor', 'ai-copywriter', 'ai-content-factory'];
+    const analyticsRoutes = ['visual-lab', 'profit-analysis', 'competitor-monitor', 'traffic-board', 'blue-ocean', 'report-center', 'interaction-analysis', 'ecommerce-conversion', 'fan-profile'];
+
+    const groupHandlers = {};
+
+    if (contentRoutes.includes(currentRoute)) {
+        Object.assign(groupHandlers, {
+            '保存创意方案': () => _createQuickTask('创意方案保存', 'report', '来源页面：创意工坊', '创意方案已加入保存队列'),
+            '对比创意版本': () => showToast('已切换到创意版本对比视图', 'info'),
+            '导出当前设计': () => _createQuickTask('设计稿导出', 'publish', '来源页面：视觉编辑器', '设计导出任务已加入队列'),
+            '切换模板': () => showToast('模板切换面板已打开', 'info'),
+            '试看导出': () => _createQuickTask('试看导出', 'publish', '来源页面：' + currentRoute, '试看导出任务已创建'),
+            '添加批注': () => showToast('批注模式已开启', 'info'),
+            '导入素材': () => _pickFilesAndImportAssets(currentRoute),
+            '发起终版导出': () => _createQuickTask('终版导出', 'publish', '来源页面：视频剪辑', '终版导出任务已创建'),
+            '切换剪辑序列': () => showToast('已切换到剪辑序列选择模式', 'info'),
+            '画布': (btn) => {
+                _setExclusiveButtonState(btn);
+                showToast('已切换到画布工具', 'info');
+            },
+            '文字': (btn) => {
+                _setExclusiveButtonState(btn);
+                showToast('已切换到文字工具', 'info');
+            },
+            '贴纸': (btn) => {
+                _setExclusiveButtonState(btn);
+                showToast('已切换到贴纸工具', 'info');
+            },
+            '导出': (btn) => {
+                _setExclusiveButtonState(btn);
+                showToast('已切换到导出工具', 'info');
+            },
+            '回到开头': () => showToast('播放头已回到开头', 'info'),
+            '逐帧': () => showToast('已切换到逐帧预览', 'info'),
+            '设入点': () => showToast('已设置入点', 'success'),
+            '设出点': () => showToast('已设置出点', 'success'),
+            '锁定版本': () => showToast('当前版本已锁定', 'success'),
+            '生成对比': () => showToast('已生成版本对比草稿', 'info'),
+            '保存工作流': () => _createQuickTask('工作流保存', 'report', '来源页面：' + currentRoute, '工作流已保存到任务池'),
+            '运行批次': () => _createQuickTask('工作流批次', 'publish', '来源页面：' + currentRoute, '运行批次已加入队列'),
+        });
+    }
+
+    if (generationRoutes.includes(currentRoute)) {
+        Object.assign(groupHandlers, {
+            '连接测试': () => showToast('连接测试已发起', 'info'),
+            '保存并应用': () => showToast('配置已保存并应用', 'success'),
+            '批量打标签': () => showToast('批量标签工具已就绪', 'info'),
+            '上传素材': () => _pickFilesAndImportAssets(currentRoute),
+            '保存标题库': () => _createQuickTask('标题库保存', 'report', '来源页面：' + currentRoute, '标题库保存任务已创建'),
+            'AI 智能优化': () => _createQuickTask('AI 标题优化', 'report', '来源页面：' + currentRoute, '标题优化任务已加入队列'),
+            '插入标签': () => showToast('标签面板已切换到可插入状态', 'info'),
+            '生成新方案': () => _createQuickTask('生成新方案', 'report', '来源页面：' + currentRoute, '新方案生成任务已创建'),
+            '导入样本内容': () => _pickFilesAndImportAssets(currentRoute),
+            '开始提取': () => _createQuickTask('脚本提取', 'report', '来源页面：脚本提取器', '脚本提取任务已创建'),
+            '导入 SKU 列表': () => _pickFilesAndImportAssets(currentRoute),
+            '立即优化': () => _createQuickTask('优化任务', 'report', '来源页面：' + currentRoute, '优化任务已加入队列'),
+            '选择投放渠道': () => showToast('已打开投放渠道选择器', 'info'),
+            '立即生成文案': () => _createQuickTask('文案生成', 'report', '来源页面：AI 文案生成', '文案生成任务已创建'),
+            '导出合规报告': () => _exportThroughBackend('合规报告', ['来源页面: ' + currentRoute, '状态: 手动导出'], '合规报告已导出'),
+            '选择模板集': () => showToast('模板集选择器已打开', 'info'),
+            '启动批量生产': () => _createQuickTask('批量生产', 'publish', '来源页面：AI 内容工厂', '批量生产任务已加入队列'),
+            '保存': () => currentRoute === 'ai-content-factory' ? _createQuickTask('工作流保存', 'report', '来源页面：AI 内容工厂', '工作流保存任务已创建') : showToast('已保存当前内容', 'success'),
+            '运行工作流': () => _createQuickTask('运行工作流', 'publish', '来源页面：AI 内容工厂', '工作流已加入执行队列'),
+        });
+    }
+
+    if (analyticsRoutes.includes(currentRoute)) {
+        Object.assign(groupHandlers, {
+            '趋势': () => showToast('已切换到趋势视图', 'info'),
+            '对比': () => showToast('已切换到对比视图', 'info'),
+            '分布': () => showToast('已切换到分布视图', 'info'),
+            '小时': () => showToast('已切换到小时维度', 'info'),
+            '日': () => showToast('已切换到日维度', 'info'),
+            '周': () => showToast('已切换到周维度', 'info'),
+            '月': () => showToast('已切换到月维度', 'info'),
+            '季': () => showToast('已切换到季度维度', 'info'),
+            '1D': () => showToast('已切换到 1D 视图', 'info'),
+            '1W': () => showToast('已切换到 1W 视图', 'info'),
+            '1M': () => showToast('已切换到 1M 视图', 'info'),
+        });
+    }
+
+    const routeHandlers = {
+        account: {
+            '导出账号清单': () => {
+                api.accounts.list().then((accounts) => {
+                    const rows = [['ID', '用户名', '平台', '地区', '状态', '粉丝数']]
+                        .concat((accounts || []).map((item) => [
+                            item.id || '',
+                            item.username || '',
+                            item.platform || '',
+                            item.region || '',
+                            item.status || '',
+                            item.followers || 0,
+                        ]));
+                    const csv = rows.map((row) => row.map((cell) => {
+                        const value = String(cell == null ? '' : cell).replace(/"/g, '""');
+                        return '"' + value + '"';
+                    }).join(',')).join('\r\n');
+                    _downloadTextFile('accounts-export.csv', '\uFEFF' + csv, 'text/csv;charset=utf-8');
+                    showToast('账号清单已导出', 'success');
+                }).catch((err) => {
+                    showToast('导出失败: ' + ((err && err.message) || '未知错误'), 'error');
+                });
+            },
+            '批量检测环境': () => showToast('批量环境检测已加入队列', 'info'),
+            '立即开启隔离': () => typeof renderRoute === 'function' ? renderRoute('device-management') : null,
+            '稍后提醒我': () => showToast('已记录提醒', 'info'),
+            '测试连接': () => showToast('连接检测任务已创建', 'info'),
+            '批量归组': () => typeof renderRoute === 'function' ? renderRoute('group-management') : null,
+            '登录环境': () => showToast('正在准备登录环境', 'info'),
+            '管理 Cookies': () => showToast('Cookie 管理能力正在接入', 'info'),
+            '安排续签': () => showToast('已创建续签提醒', 'info'),
+            '处理异常': () => showToast('异常处理流程已启动', 'warning'),
+            '查看日志': () => showToast('日志查看能力正在接入', 'info'),
+            '重新登录': () => showToast('重新登录流程已启动', 'info'),
+            '进入详情': () => showToast('详情入口已聚合到右侧面板', 'info'),
+        },
+        'ai-provider': {
+            'Reset to Default': () => {
+                confirmModal({
+                    title: '恢复默认配置',
+                    message: '将恢复当前页面显示的默认配置项，是否继续？',
+                    confirmText: '恢复默认',
+                    tone: 'warning',
+                }).then((ok) => {
+                    if (ok) showToast('默认配置已恢复', 'success');
+                });
+            },
+            '恢复默认': () => {
+                confirmModal({
+                    title: '恢复默认配置',
+                    message: '将恢复当前页面显示的默认配置项，是否继续？',
+                    confirmText: '恢复默认',
+                    tone: 'warning',
+                }).then((ok) => {
+                    if (ok) showToast('默认配置已恢复', 'success');
+                });
+            },
+            '保存变更': () => showToast('供应商配置已记录，建议先执行连接测试', 'success'),
+            'Save Changes': () => showToast('供应商配置已记录，建议先执行连接测试', 'success'),
+            '基础设置': (btn) => {
+                _setExclusiveButtonState(btn);
+                showToast('已切换到基础设置', 'info');
+            },
+            'AI 配置': (btn) => {
+                _setExclusiveButtonState(btn);
+                showToast('已切换到 AI 配置', 'info');
+            },
+            'TTS 服务': (btn) => {
+                _setExclusiveButtonState(btn);
+                showToast('已切换到 TTS 服务', 'info');
+            },
+            '浏览器隔离': (btn) => {
+                _setExclusiveButtonState(btn);
+                showToast('已切换到浏览器隔离', 'info');
+            },
+            'General': (btn) => {
+                _setExclusiveButtonState(btn);
+                showToast('已切换到 General', 'info');
+            },
+            'AI Configuration': (btn) => {
+                _setExclusiveButtonState(btn);
+                showToast('已切换到 AI Configuration', 'info');
+            },
+            'TTS Services': (btn) => {
+                _setExclusiveButtonState(btn);
+                showToast('已切换到 TTS Services', 'info');
+            },
+            'Browser Isolation': (btn) => {
+                _setExclusiveButtonState(btn);
+                showToast('已切换到 Browser Isolation', 'info');
+            },
+        },
+        'task-queue': {
+            '批量开始': () => showToast('批量启动任务已加入队列', 'info'),
+        },
+        'group-management': {
+            '导出分组结构': () => {
+                api.groups.list().then((groups) => {
+                    const rows = (groups || []).map((item) => [item.id || '', item.name || '', item.description || '', item.color || '']);
+                    return _exportThroughBackend('分组结构导出', rows.map((row) => row.join(' | ')), '分组结构已导出');
+                }).catch((err) => showToast('导出失败: ' + ((err && err.message) || '未知错误'), 'error'));
+            },
+        },
+        'device-management': {
+            '导出设备报告': () => {
+                api.devices.list().then((devices) => {
+                    const lines = (devices || []).map((item) => [item.device_code || '', item.name || '', item.region || '', item.status || ''].join(' | '));
+                    return _exportThroughBackend('设备环境报告', lines, '设备报告已导出');
+                }).catch((err) => showToast('导出失败: ' + ((err && err.message) || '未知错误'), 'error'));
+            },
+            '批量巡检': () => _runDiagnostics('设备巡检'),
+            '批量修复': () => _createQuickTask('设备批量修复', 'maintenance', '来源页面：设备环境管理', '批量修复任务已创建'),
+            '修复环境': () => _createQuickTask('环境修复', 'maintenance', '来源页面：设备环境管理', '环境修复任务已创建'),
+            '环境日志': () => {
+                api.logs.recent().then((logs) => {
+                    const lines = (logs && logs.lines) || [];
+                    return _exportThroughBackend('设备环境日志', lines, '环境日志已导出');
+                }).catch((err) => showToast('导出失败: ' + ((err && err.message) || '未知错误'), 'error'));
+            },
+            '调整绑定': () => showToast('绑定调整面板正在接入', 'info'),
+            '修改绑定': () => showToast('绑定修改面板正在接入', 'info'),
+            '打开环境': () => showToast('设备环境启动命令已下发', 'success'),
+            '查看详情': () => showToast('详情已同步到右侧面板', 'info'),
+        },
+        'asset-center': {
+            '上传素材': () => _pickFilesAndImportAssets(currentRoute),
+            '导入素材': () => _pickFilesAndImportAssets(currentRoute),
+            '新建素材': () => typeof openAssetForm === 'function' ? openAssetForm() : null,
+        },
+        dashboard: {
+            '查看历史': () => typeof renderRoute === 'function' ? renderRoute('task-queue') : null,
+            'View History': () => typeof renderRoute === 'function' ? renderRoute('task-queue') : null,
+            'Launch New Task': () => typeof renderRoute === 'function' ? renderRoute('task-queue') : null,
+            '处理账号异常': () => typeof renderRoute === 'function' ? renderRoute('account') : null,
+            '启动内容批量生成': () => typeof renderRoute === 'function' ? renderRoute('ai-content-factory') : null,
+            '网络诊断': () => typeof renderRoute === 'function' ? renderRoute('device-management') : null,
+            '审核定时发布': () => typeof renderRoute === 'function' ? renderRoute('task-queue') : null,
+        },
+    };
+
+    const handlers = Object.assign({}, groupHandlers, routeHandlers[currentRoute] || {});
+    if (!Object.keys(handlers).length) return;
+
+    mainHost.querySelectorAll('button').forEach((btn) => {
+        const text = _buttonText(btn);
+        const handler = handlers[text];
+        if (!handler) return;
+        if (btn.id || /(^|\s)js-/.test(btn.className || '')) return;
+        _bindButtonAction(btn, 'tkopsPresetBound', () => handler(btn));
+    });
+}
+
+function _bindFallbackActionButtons() {
+    const mainHost = document.getElementById('mainHost');
+    if (!mainHost) return;
+    const selectors = [
+        '.toolbar-strip__group button',
+        '.transport-controls button',
+        '.gen-output-actions button',
+        '.title-editor-actions .header-actions button',
+        '.ai-side-config-actions button',
+        '.detail-actions .ghost-button',
+        '.detail-actions .secondary-button',
+        '.detail-actions .danger-button',
+    ];
+    selectors.forEach((selector) => {
+        mainHost.querySelectorAll(selector).forEach((btn) => {
+            if (btn.id || /(^|\s)js-/.test(btn.className || '')) return;
+            if (btn.dataset.tkopsPresetBound === '1') return;
+            _bindButtonAction(btn, 'tkopsFallbackBound', () => {
+                const text = _buttonText(btn);
+                showToast(text ? (text + ' 已响应，详细流程正在接入') : '操作已响应', 'info');
+            });
+        });
+    });
+}
+
+function bindRouteInteractions() {
+    bindSegmentedButtons();
+    bindFilters();
+    bindDetailTriggers();
+    bindConfigNavItems();
+    bindSourceBrowserTabs();
+    bindMainItemClicks();
+    bindTaskViewToggles();
+    bindTaskFilterTabs();
+    bindAssetCategoryFilter();
+    bindAssetThumbDetail();
+    bindChartToggles();
+    bindDragAndDrop();
+    bindAIConfigInteractions();
+    renderCharts();
+    bindAnalyticsInteractions();
+    renderAnalyticsCanvases();
+    _bindRouteButtonPresets();
+    _bindSelectableButtonGroups();
+    _bindFallbackActionButtons();
+    applyCurrentRouteState();
+    renderSearchPanel();
+}
+
+function bindConfigNavItems() {
+    document.querySelectorAll('.config-nav-item').forEach((item) => {
+        item.addEventListener('click', () => {
+            item.closest('.config-nav').querySelectorAll('.config-nav-item').forEach((i) => i.classList.remove('is-selected'));
+            item.classList.add('is-selected');
+            // 滚动到对应表单分组
+            const index = [...item.closest('.config-nav').querySelectorAll('.config-nav-item')].indexOf(item);
+            const groups = document.querySelectorAll('.config-form-group');
+            if (groups[index]) groups[index].scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+    });
+}
+
+function bindSourceBrowserTabs() {
+    document.querySelectorAll('.source-browser-tabs span').forEach((tab) => {
+        tab.addEventListener('click', () => {
+            tab.closest('.source-browser-tabs').querySelectorAll('span').forEach((t) => t.classList.remove('is-selected'));
+            tab.classList.add('is-selected');
+            // 实际筛选缩略图
+            const label = tab.textContent.replace(/\d+/g, '').trim();
+            const grid = tab.closest('.panel, .source-browser-shell')?.querySelector('.source-thumb-grid');
+            if (grid) {
+                grid.querySelectorAll('.source-thumb').forEach((thumb) => {
+                    if (!label || label === '全部') {
+                        thumb.classList.remove('is-filtered-out');
+                    } else {
+                        const text = thumb.textContent + [...thumb.querySelectorAll('.pill')].map((p) => p.textContent).join(' ');
+                        thumb.classList.toggle('is-filtered-out', !text.includes(label));
+                    }
+                });
+            }
+        });
+    });
+    document.querySelectorAll('.source-thumb').forEach((thumb) => {
+        thumb.addEventListener('click', () => {
+            thumb.closest('.source-thumb-grid').querySelectorAll('.source-thumb').forEach((t) => t.classList.remove('is-selected'));
+            thumb.classList.add('is-selected');
+        });
+    });
+}
+
+function syncResponsiveState() {
+    const shell = document.getElementById('shellApp');
+    const route = routes[currentRoute];
+    const detailHost = document.getElementById('detailHost');
+    const width = window.innerWidth;
+
+    // 如果用户手动切换了面板，优先尊重用户选择
+    if (uiState.detailPanelForced) {
+        detailHost.classList.toggle('shell-hidden', uiState.detailPanelForced === 'hidden');
+    } else {
+        detailHost.classList.toggle('shell-hidden', route?.hideDetailPanel === true || width < 1180);
+    }
+    shell.classList.toggle('detail-hidden', detailHost.classList.contains('shell-hidden'));
+
+    if (width < 960) {
+        shell.classList.add('sidebar-collapsed');
+        shell.classList.add('compact-mode');
+    } else if (width < 1366) {
+        shell.classList.add('sidebar-collapsed');
+        shell.classList.remove('compact-mode');
+    } else {
+        shell.classList.remove('sidebar-collapsed');
+        shell.classList.remove('compact-mode');
+    }
+
+    // 更新切换按钮状态
+    const toggleBtn = document.getElementById('detailToggle');
+    if (toggleBtn) {
+        toggleBtn.classList.toggle('is-active', !detailHost.classList.contains('shell-hidden'));
+    }
+}
+

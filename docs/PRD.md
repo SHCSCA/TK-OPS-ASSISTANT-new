@@ -3,7 +3,7 @@
 ## 一、文档信息
 
 - 文档名称：TK-OPS 桌面应用产品需求文档
-- 文档版本：V1.0
+- 文档版本：V1.1
 - 文档状态：评审稿
 - 产品名称：TK-OPS，TikTok Shop 运营助手
 - 目标平台：Windows 10 与 Windows 11
@@ -779,6 +779,9 @@ ProviderAdapter 至少支持以下能力：
 - 使用 MVVM 管理页面状态与视图逻辑。
 - 使用 plugin shell 承载通用桌面结构。
 - 使用 typed Qt signals 保证后台任务与 UI 的稳定通信。
+- 使用依赖注入容器管理组件生命周期与依赖关系。
+- 使用 Protocol 定义跨层接口契约，保证可替换性。
+- 使用 Result 模式封装服务返回值，避免异常驱动控制流。
 
 ### 19.3 分层结构
 
@@ -788,7 +791,17 @@ ProviderAdapter 至少支持以下能力：
 - 领域层，负责业务规则与实体。
 - 基础设施层，负责 SQLite、SQLAlchemy、网络、文件、日志、LiteLLM。
 
-### 19.4 plugin shell 要求
+### 19.4 依赖注入与服务容器
+
+当前 `TKOpsApp` 直接实例化所有组件并互相传递引用，随着系统增长会变成 God Object。本节规定依赖管理规范。
+
+- 引入轻量 DI 容器或 ServiceLocator，统一管理组件的创建、引用和销毁。
+- 所有核心组件（ConfigBus、ThemeEngine、Database、ServiceRegistry）通过容器注册和获取，不在 `app.py` 中直接持有公共属性。
+- MainWindow 及页面依赖接口（Protocol）而非具体类。
+- 容器负责启动校验：校验所有已注册服务是否正常初始化，校验失败时记录日志并降级运行。
+- 容器负责关闭清理：应用退出时按依赖拓扑逆序释放资源。
+
+### 19.5 plugin shell 要求
 
 - 壳层必须包含 TitleBar。
 - 壳层必须包含 CollapsibleSidebar。
@@ -797,46 +810,126 @@ ProviderAdapter 至少支持以下能力：
 - 壳层必须包含 StatusBar。
 - 壳层必须支持最近访问、收藏和全局搜索。
 
-### 19.5 ConfigBus 要求
+### 19.6 ConfigBus 要求
 
 - 统一广播配置变更。
 - 支持字段级订阅。
 - 支持持久化。
 - 支持版本迁移。
 - 主题、AI 配置、调度器和页面 ViewModel 可订阅。
+- 读写操作必须线程安全，使用 QReadWriteLock 或 copy-on-write 策略。
+- 订阅必须返回 Disposable 句柄，页面在 `on_deactivated` 时清理，防止订阅泄漏。
+- 支持 `batch_update(callback)` 合并通知，避免一次性修改多个字段时触发多次回调。
 
-### 19.6 ThemeEngine 要求
+### 19.7 ThemeEngine 要求
 
 - 基于设计令牌输出主题。
 - 负责浅色与深色切换。
 - 负责注入专区角色色。
 - 负责壳层与页面的统一风格。
+- QSS 模板应拆分为模块化片段（base / controls / views / sidebar / pages），按需组装，避免单文件超长模板。
 
-### 19.7 RouteRegistry 要求
+### 19.8 RouteRegistry 要求
 
 - 所有正式页、hub 页、stub 页都必须注册。
 - 路由字段至少包括标识、标题、图标、专区、权限、懒加载信息。
 - 支持插件方式追加注册。
+- 路由注册不得硬编码在 `app.py` 中。每个业务域目录下提供 `routes.py` 导出路由声明列表，`app.py` 通过自动发现机制扫描 `ui/pages/*/routes.py` 完成注册。
+- 路由注册时必须校验：RouteId 唯一性、域组枚举值合法性、页面工厂模块路径有效性。
 
-### 19.8 typed Qt signals 要求
+### 19.9 ViewModel 规范
+
+所有页面必须通过 ViewModel 管理状态与业务逻辑，不允许页面 Widget 直接操作服务层或数据层。
+
+- 定义 `BaseViewModel` 抽象基类，所有页面 ViewModel 继承此基类。
+- `BaseViewModel` 规定以下接口：
+  - `properties` — 可观察状态字典，变更时发出 Qt Signal。
+  - `commands` — 可绑定命令字典，页面按钮直接关联。
+  - `on_activated()` — 页面被激活时调用，负责加载数据和订阅配置。
+  - `on_deactivated()` — 页面被切走时调用，负责清理订阅和释放资源。
+  - `subscribe_config(key, handler)` — 快捷方法，订阅 ConfigBus 字段并自动纳入生命周期管理。
+- 页面 Widget 只负责视图绑定和用户交互转发，不包含业务逻辑。
+
+### 19.10 typed Qt signals 要求
 
 - 所有长耗时任务必须后台执行。
 - 所有任务需支持进度、成功、失败、日志信号。
 - 复杂任务支持取消、暂停、恢复。
 
-### 19.9 数据层要求
+### 19.11 后台任务系统
+
+本节补充任务系统的具体模型设计，不仅限于 Qt signals 通信。
+
+- `TaskDescriptor` — 任务声明：类型、输入参数、优先级、重试策略、超时时间。
+- `TaskExecutor` — 任务执行器：基于 QThreadPool 的线程池 + 信号桥接，限制最大并发数。
+- `TaskStore` — 任务持久化：将任务状态写入 SQLite，应用重启后可恢复未完成队列。
+- `TaskScheduler` — 任务调度：支持 cron 表达式、依赖拓扑排序、冲突检测。
+- 任务间依赖通过 DAG 描述，调度器在执行前校验依赖是否满足。
+- 资源限制：可配置最大并发任务数和单任务内存上限。
+
+### 19.12 数据层要求
 
 - 首期数据库为 SQLite。
 - ORM 使用 SQLAlchemy。
 - 文件资产与元数据分离存储。
 - 关键对象支持未来迁移。
 
-### 19.10 插件扩展要求
+### 19.13 Repository 接口协议
+
+所有数据访问必须通过 Repository 接口，业务层不直接操作 SQLAlchemy Session。
+
+- 定义 `Repository[T]` Protocol，所有仓储实现此协议：
+  - `get_by_id(id: str) -> T | None`
+  - `list(filters: dict) -> list[T]`
+  - `save(entity: T) -> None`
+  - `delete(id: str) -> None`
+- 每个核心实体对应一个 Repository 实现。
+- Repository 实现内部封装 SQLAlchemy 会话管理、异常转换和事务边界。
+- 服务层通过 Protocol 引用 Repository，方便替换为内存实现用于开发调试。
+
+### 19.14 页面复杂度分级
+
+26 个页面复杂度差异巨大，用同一套框架模式会导致简单页面写过多 boilerplate、复杂页面框架约束不够。按复杂度分级提供页面基类：
+
+- `SimplePage` — 适用于表格 + 筛选 + CRUD 场景，如网络诊断、下载器、局域网传输、任务队列。自动绑定表格数据、筛选栏和标准操作条。
+- `WorkspacePage` — 适用于多面板 + 工具栏 + 属性抽屉场景，如账号管理、CRM、素材工厂、AI供应商配置。内置 DetailPanel 集成和多面板布局。
+- `CanvasPage` — 适用于画布 + 节点/时间轴 + 自定义渲染场景，如视觉编辑器、AI内容工厂、可视化实验室。提供画布缩放、节点拖拽、时间轴控件的基础支持。
+
+所有页面基类均继承自通用 `BasePage`，共享路由注册、主题刷新、ViewModel 绑定和生命周期钩子。
+
+### 19.15 错误边界与降级策略
+
+- 每个页面的 `on_activated` 必须在错误边界内运行，单个页面崩溃不得拖垮整个壳层。页面加载失败时展示错误占位页，提供重试和返回入口。
+- 服务层方法返回 `Result[T, Error]` 类型而非直接抛异常，让调用方显式处理失败路径。
+- AI 供应商全部不可用时，依赖 AI 的页面展示降级提示而非空白或报错。
+- 引入 `SessionRestore` 机制：页面在 `on_deactivated` 时序列化关键表单状态到本地存储，应用重启后可恢复到上次页面和未完成的表单内容。
+
+### 19.16 插件扩展要求
 
 - 页面可通过插件接入。
 - AI 供应商可通过插件接入。
 - 报告模板与角色预设可通过插件接入。
 - 插件需支持加载、卸载、校验与健康检查。
+
+### 19.17 日志规范
+
+- 日志格式统一为结构化 JSON。
+- 日志分为三类：business（业务操作）、system（系统运行）、audit（审计记录）。
+- 敏感信息默认脱敏。
+- AI 调用日志记录模型、耗时、成本、角色预设和失败原因。
+
+### 19.18 密钥安全实现
+
+- API Key 和敏感凭据统一通过 Windows Credential Manager（`win32cred`）存储。
+- 若 Windows Credential Manager 不可用，降级为加密 SQLite 列（AES-256）。
+- 密钥在 UI 层始终脱敏展示，不可明文回显。
+- 密钥变更纳入审计日志。
+
+### 19.19 国际化预留
+
+- UI 字符串统一通过 `QCoreApplication.translate()` 或 `tr()` 包裹。
+- 首期仅支持中文，但代码结构上为多语言扩展预留入口。
+- 不在业务代码中硬编码用户可见文本。
 
 ## 二十、数据模型
 
@@ -1130,7 +1223,7 @@ ProviderAdapter 至少支持以下能力：
 - 页面逻辑与领域逻辑分离。
 - 配置统一走 ConfigBus。
 - UI 状态统一走 ViewModel。
-- 关键行为可测试、可追踪。
+- 关键行为可追踪。
 
 ### 22.6 可观测性
 
@@ -1298,4 +1391,4 @@ ProviderAdapter 至少支持以下能力：
 TK-OPS 的目标不是简单复刻若干页面。
 它要成为一个围绕 TikTok Shop 运营场景构建的企业级桌面产品。
 这份 PRD 明确了产品目标、目标用户、愿景、二十六个页面、九大域组、五大专区、AI 架构、技术架构、数据模型、用户流程、优先级和里程碑。
-后续设计、开发、测试和验收都应以本文件为主依据。
+后续设计、开发和验收都应以本文件为主依据。

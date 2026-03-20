@@ -1,0 +1,195 @@
+.search-panel {
+    position: absolute;
+    top: calc(100% + 10px);
+    left: 0;
+    width: min(520px, 62vw);
+    padding: 14px;
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-xl);
+    background: color-mix(in srgb, var(--surface-secondary) 96%, transparent);
+    box-shadow: var(--shadow-lg);
+    z-index: 30;
+}
+
+.search-panel__section + .search-panel__section {
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px solid var(--border-default);
+}
+
+.search-panel__title {
+    margin-bottom: 10px;
+    font-size: 11px;
+    font-weight: 800;
+    color: var(--text-secondary);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.search-panel__list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.search-result-item {
+    width: 100%;
+    padding: 12px 14px;
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-lg);
+    background: var(--surface-secondary);
+    text-align: left;
+    color: var(--text-primary);
+}
+
+.search-result-item:hover,
+.search-result-item.is-active {
+    border-color: var(--border-focus);
+    background: color-mix(in srgb, var(--brand-primary) 8%, var(--surface-secondary));
+}
+
+.search-result-item strong {
+    display: block;
+    margin-bottom: 4px;
+}
+
+.search-result-item .subtle {
+    display: block;
+}
+
+.search-hit {
+    border-color: var(--border-focus) !important;
+    box-shadow: 0 0 0 2px rgba(0, 242, 234, 0.08);
+}
+
+.search-highlight-text {
+    color: var(--brand-primary);
+    font-weight: 800;
+}
+
+.is-filtered-out {
+    display: none !important;
+}
+
+.account-grid.list-mode {
+    grid-template-columns: 1fr;
+}
+
+.account-grid.list-mode .account-card {
+    display: grid;
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 16px;
+}
+
+.account-grid.list-mode .account-card__meta {
+    margin: 0;
+}
+
+.account-grid.list-mode .detail-actions {
+    justify-content: flex-end;
+}
+
+.empty-state {
+    display: grid;
+    place-items: center;
+    min-height: 140px;
+    padding: 18px;
+    border: 1px dashed var(--border-strong);
+    border-radius: var(--radius-lg);
+    color: var(--text-secondary);
+    background: color-mix(in srgb, var(--surface-secondary) 96%, transparent);
+    text-align: center;
+}
+
+.shell-hidden {
+    display: none !important;
+}
+
+.shell-two-column {
+    display: grid;
+    grid-template-columns: minmax(0, 1.35fr) minmax(300px, 0.85fr);
+    gap: 16px;
+    align-items: start;
+}
+
+.shell-three-column {
+    display: grid;
+    grid-template-columns: 240px minmax(0, 1fr) 300px;
+    gap: 16px;
+    align-items: start;
+}
+
+.toolbar-strip,
+.section-toolbar,
+.editor-toolbar,
+.lab-toolbar,
+.settings-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 14px 16px;
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-lg);
+    background: color-mix(in srgb, var(--surface-secondary) 96%, transparent);
+}
+
+.toolbar-strip__group,
+.editor-toolbar__group,
+.settings-toolbar__group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+}
+
+.workbench-grid,
+.insight-grid,
+.operations-grid,
+.crm-grid,
+.report-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+    align-items: start;
+}
+
+.board-list,
+.workbench-list,
+.rule-list,
+.kanban-list,
+.mini-panel-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.board-card,
+.ticket-card,
+.crm-card,
+.asset-tile,
+.template-card,
+.node-card,
+.report-card,
+.studio-tool,
+.settings-card,
+.segment-card {
+    padding: 16px;
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-lg);
+    background: var(--surface-secondary);
+}
+
+.board-card strong,
+.ticket-card strong,
+.crm-card strong,
+.asset-tile strong,
+.template-card strong,
+.node-card strong,
+.report-card strong,
+.settings-card strong,
+.segment-card strong {
+    display: block;
+    margin-bottom: 6px;
+}

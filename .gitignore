@@ -4,6 +4,17 @@ nul
 *.pyc
 *.pyo
 *.pyd
+__pycache__/
+
+# 构建产物与临时目录
+build/
+dist/
+.pytest_cache/
+
+# 日志与本地数据库
+*.log
+build_log.txt
+data/*.db
 
 # 虚拟环境
 venv/

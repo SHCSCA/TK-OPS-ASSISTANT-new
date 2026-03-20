@@ -1,25 +1,37 @@
-#!/usr/bin/env python3
 from __future__ import annotations
 
-# pyright: basic, reportMissingImports=false
-
-"""TK-OPS 桌面应用正式启动入口。"""
-
+import logging
+import os
 import sys
+import traceback
 from pathlib import Path
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
+os.environ.setdefault("QTWEBENGINE_CHROMIUM_FLAGS", "--disable-logging --log-level=3")
 
-try:
-    from .app import main as app_main
-except ImportError:
-    from desktop_app.app import main as app_main
+if __package__ is None or __package__ == "":
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+log = logging.getLogger(__name__)
+
+
+def _global_excepthook(exc_type, exc_value, exc_tb):
+    """Catch unhandled exceptions and log them before the process dies."""
+    if issubclass(exc_type, KeyboardInterrupt):
+        sys.__excepthook__(exc_type, exc_value, exc_tb)
+        return
+    log.critical(
+        "Unhandled exception\n%s",
+        "".join(traceback.format_exception(exc_type, exc_value, exc_tb)),
+    )
 
 
 def main() -> int:
-    return app_main(sys.argv)
+    sys.excepthook = _global_excepthook
+
+    from desktop_app.app import build_application
+
+    app, _window = build_application()
+    return app.exec()
 
 
 if __name__ == "__main__":

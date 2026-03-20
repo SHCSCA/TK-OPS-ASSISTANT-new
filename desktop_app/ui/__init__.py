@@ -1,1 +1,1 @@
-"""UI package for desktop app (PySide6)"""
+"""UI package for the minimal TK-OPS desktop prototype."""

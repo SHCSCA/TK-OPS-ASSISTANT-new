@@ -1,0 +1,58 @@
+html,
+body {
+    min-height: 100%;
+}
+
+body {
+    overflow: hidden;
+    word-break: break-word;
+    overflow-wrap: break-word;
+    -webkit-font-smoothing: antialiased;
+}
+
+/* ── Dark-mode overrides for custom components ── */
+body[data-theme="dark"] .notice-banner {
+    background: color-mix(in srgb, var(--status-warning) 12%, var(--surface-secondary));
+    border-color: color-mix(in srgb, var(--status-warning) 22%, transparent);
+}
+
+body[data-theme="dark"] .funnel-step {
+    background: color-mix(in srgb, var(--brand-primary) 8%, var(--surface-secondary));
+}
+
+body[data-theme="dark"] .heatmap-cell {
+    border-color: var(--border-default);
+}
+
+body[data-theme="dark"] .config-toggle__track {
+    background: var(--border-strong);
+}
+
+body[data-theme="dark"] .device-env-card--idle {
+    opacity: .85;
+}
+
+body[data-theme="dark"] canvas {
+    filter: brightness(0.95);
+}
+
+body[data-theme="dark"] .stat-card,
+body[data-theme="dark"] .detail-item,
+body[data-theme="dark"] .ticket-card,
+body[data-theme="dark"] .board-card {
+    border-color: var(--border-default);
+}
+
+body[data-theme="dark"] .coverage-track {
+    background: var(--border-strong);
+}
+
+body[data-theme="dark"] .matrix-bubble {
+    border-color: rgba(255, 255, 255, 0.12);
+    color: #f1f5f9;
+}
+
+body[data-theme="dark"] .calendar-slot {
+    background: color-mix(in srgb, var(--brand-primary) 18%, var(--surface-secondary));
+}
+
