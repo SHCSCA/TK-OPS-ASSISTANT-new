@@ -96,6 +96,49 @@ function applyProviderState(keyword) {
     highlightMatches(rows, keyword);
 }
 
+function applyGroupManagementState(keyword) {
+    const items = [...document.getElementById('mainHost').querySelectorAll('.workbench-list .task-item')];
+    let visibleCount = 0;
+    items.forEach((item) => {
+        const visible = matchSearch(item, keyword);
+        item.classList.toggle('is-filtered-out', !visible);
+        if (visible) visibleCount += 1;
+    });
+    highlightMatches(items, keyword);
+    const host = document.querySelector('#mainHost .workbench-list');
+    if (host) ensureEmptyState(host, visibleCount, '没有匹配的分组，请调整搜索关键词。');
+}
+
+function applyDeviceManagementState(keyword) {
+    const state = uiState['device-management'];
+    const cards = [...document.getElementById('mainHost').querySelectorAll('.device-env-grid .device-env-card')];
+    let visibleCount = 0;
+    cards.forEach((card) => {
+        const status = card.dataset.status || 'all';
+        const statusMatched = state.statusFilter === 'all' || status === state.statusFilter;
+        const searchMatched = matchSearch(card, keyword);
+        const visible = statusMatched && searchMatched;
+        card.classList.toggle('is-filtered-out', !visible);
+        if (visible) visibleCount += 1;
+    });
+    highlightMatches(cards, keyword);
+    const host = document.querySelector('#mainHost .device-env-grid');
+    if (host) ensureEmptyState(host, visibleCount, '没有匹配的设备，请调整筛选条件或搜索关键词。');
+}
+
+function applyAssetCenterState(keyword) {
+    const items = [...document.getElementById('mainHost').querySelectorAll('.asset-source-grid .source-thumb')];
+    let visibleCount = 0;
+    items.forEach((item) => {
+        const visible = matchSearch(item, keyword);
+        item.classList.toggle('is-filtered-out', !visible);
+        if (visible) visibleCount += 1;
+    });
+    highlightMatches(items, keyword);
+    const host = document.querySelector('#mainHost .asset-source-grid');
+    if (host) ensureEmptyState(host, visibleCount, '没有匹配的素材，请调整搜索关键词。');
+}
+
 function applyGenericState(keyword) {
     const items = [...document.getElementById('mainHost').querySelectorAll('[data-search]')];
     items.forEach((element) => element.classList.toggle('is-filtered-out', !matchSearch(element, keyword)));
@@ -108,8 +151,14 @@ function applyCurrentRouteState() {
 
     if (currentRoute === 'account') {
         applyAccountState(keyword);
+    } else if (currentRoute === 'group-management') {
+        applyGroupManagementState(keyword);
+    } else if (currentRoute === 'device-management') {
+        applyDeviceManagementState(keyword);
     } else if (currentRoute === 'task-queue') {
         applyTaskState(keyword);
+    } else if (currentRoute === 'asset-center') {
+        applyAssetCenterState(keyword);
     }
 }
 

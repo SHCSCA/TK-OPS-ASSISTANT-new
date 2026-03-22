@@ -6,6 +6,207 @@
     'use strict';
 
     var loaders = {};
+    var runtimeSummaryHandlers = {
+        'dashboard': function (payload) {
+            payload = payload || {};
+            var stats = payload.stats || {};
+            var accountStatuses = (stats.accounts && stats.accounts.byStatus) || {};
+            var taskStatuses = (stats.tasks && stats.tasks.byStatus) || {};
+            var deviceStatuses = (stats.devices && stats.devices.byStatus) || {};
+            _applyRuntimeSummary({
+                eyebrow: '今日重点',
+                title: '系统实时运行摘要',
+                copy: '账号 ' + (stats.accounts ? stats.accounts.total || 0 : 0)
+                    + ' / 任务 ' + (stats.tasks ? stats.tasks.total || 0 : 0)
+                    + ' / 设备 ' + (stats.devices ? stats.devices.total || 0 : 0)
+                    + ' / 供应商 ' + (stats.providers || 0)
+                    + ' / 素材 ' + (stats.assets || 0),
+                statusLeft: [
+                    '账号 ' + (accountStatuses.active || 0) + ' 活跃 / ' + ((stats.accounts && stats.accounts.total) || 0) + ' 总量',
+                    '任务运行中 ' + (taskStatuses.running || 0) + ' / 排队 ' + (taskStatuses.pending || 0),
+                    '设备健康 ' + (deviceStatuses.healthy || 0) + ' / 异常 ' + (deviceStatuses.error || 0),
+                ],
+                statusRight: [
+                    { text: (taskStatuses.failed || 0) > 0 ? ('任务异常 ' + (taskStatuses.failed || 0)) : '任务稳定', tone: (taskStatuses.failed || 0) > 0 ? 'error' : 'success' },
+                    { text: (stats.providers || 0) > 0 ? ('已接入供应商 ' + (stats.providers || 0)) : '未配置供应商', tone: (stats.providers || 0) > 0 ? 'info' : 'warning' },
+                ],
+            });
+        },
+        'account': function (payload) {
+            payload = payload || {};
+            var accounts = payload.accounts || [];
+            var counts = { total: accounts.length, online: 0, offline: 0, error: 0 };
+            accounts.forEach(function (a) {
+                var s = (a.status || '').toLowerCase();
+                if (s === 'online' || s === '在线' || s === 'active') counts.online++;
+                else if (s === 'offline' || s === '离线' || s === 'idle') counts.offline++;
+                else if (s === 'error' || s === 'warning' || s === '异常' || s === 'suspended' || s === 'warming') counts.error++;
+            });
+            _applyRuntimeSummary({
+                eyebrow: '当前提醒',
+                title: counts.error > 0 ? (counts.error + ' 个异常账号待处理') : '账号状态稳定',
+                copy: '在线 ' + counts.online + ' / 离线 ' + counts.offline + ' / 异常 ' + counts.error + ' / 总量 ' + counts.total,
+                statusLeft: [
+                    '账号总量 ' + counts.total,
+                    '在线账号 ' + counts.online,
+                    '异常账号 ' + counts.error,
+                ],
+                statusRight: [
+                    { text: counts.online > 0 ? ('在线 ' + counts.online) : '暂无在线账号', tone: counts.online > 0 ? 'success' : 'warning' },
+                    { text: counts.error > 0 ? ('异常 ' + counts.error) : '无异常', tone: counts.error > 0 ? 'error' : 'info' },
+                ],
+            });
+        },
+        'group-management': function (payload) {
+            payload = payload || {};
+            var groups = payload.groups || [];
+            var described = groups.filter(function (g) { return !!(g.description || '').trim(); }).length;
+            var colored = groups.filter(function (g) { return !!(g.color || '').trim(); }).length;
+            _applyRuntimeSummary({
+                eyebrow: '组织提醒',
+                title: groups.length ? ('分组结构已加载 ' + groups.length + ' 项') : '暂无分组结构',
+                copy: '已描述 ' + described + ' / 已配色 ' + colored + ' / 总量 ' + groups.length,
+                statusLeft: ['分组总量 ' + groups.length, '已描述分组 ' + described, '已配色分组 ' + colored],
+                statusRight: [
+                    { text: groups.length ? '分组已接线' : '等待创建分组', tone: groups.length ? 'success' : 'warning' },
+                    { text: '实时汇总', tone: 'info' },
+                ],
+            });
+        },
+        'device-management': function (payload) {
+            payload = payload || {};
+            var devices = payload.devices || [];
+            var healthy = devices.filter(function (d) { return (d.status || '').toLowerCase() === 'healthy'; }).length;
+            var warning = devices.filter(function (d) { return (d.status || '').toLowerCase() === 'warning'; }).length;
+            var error = devices.filter(function (d) { return (d.status || '').toLowerCase() === 'error'; }).length;
+            var rate = devices.length ? Math.round((healthy / devices.length) * 100) : 0;
+            _applyRuntimeSummary({
+                eyebrow: '环境提醒',
+                title: error > 0 ? (error + ' 台异常设备待处理') : '设备环境状态稳定',
+                copy: '健康 ' + healthy + ' / 告警 ' + warning + ' / 异常 ' + error + ' / 总量 ' + devices.length,
+                statusLeft: ['设备总量 ' + devices.length, '健康覆盖率 ' + rate + '%', '异常设备 ' + error],
+                statusRight: [
+                    { text: error > 0 ? ('异常 ' + error) : '环境正常', tone: error > 0 ? 'error' : 'success' },
+                    { text: warning > 0 ? ('告警 ' + warning) : '无告警', tone: warning > 0 ? 'warning' : 'info' },
+                ],
+            });
+        },
+        'ai-provider': function (payload) {
+            payload = payload || {};
+            var providers = payload.providers || [];
+            var active = providers.filter(function (p) { return p.is_active === true || p.is_active === 'True'; });
+            var primary = active[0] || providers[0] || null;
+            _applyRuntimeSummary({
+                eyebrow: '配置建议',
+                title: providers.length ? ('已接入 ' + providers.length + ' 个供应商') : '尚未配置供应商',
+                copy: primary ? ('当前默认模型 ' + (primary.default_model || '-') + ' / 供应商 ' + (primary.name || '-')) : '请先添加供应商并完成连接测试。',
+                statusLeft: ['供应商总量 ' + providers.length, '启用供应商 ' + active.length, '默认模型 ' + (primary ? (primary.default_model || '-') : '-')],
+                statusRight: [
+                    { text: active.length ? ('启用中 ' + active.length) : '未启用', tone: active.length ? 'success' : 'warning' },
+                    { text: primary ? (primary.name || '已配置') : '等待加载', tone: primary ? 'info' : 'warning' },
+                ],
+            });
+        },
+        'task-queue': function (payload) {
+            payload = payload || {};
+            var tasks = payload.tasks || [];
+            var counts = { total: tasks.length, running: 0, pending: 0, completed: 0, failed: 0 };
+            tasks.forEach(function (task) {
+                var s = (task.status || '').toLowerCase();
+                if (s === 'running') counts.running++;
+                else if (s === 'pending') counts.pending++;
+                else if (s === 'completed') counts.completed++;
+                else if (s === 'failed') counts.failed++;
+            });
+            _applyRuntimeSummary({
+                eyebrow: '队列摘要',
+                title: tasks.length ? ('运行中 ' + counts.running + ' 条，排队 ' + counts.pending + ' 条') : '暂无任务队列数据',
+                copy: '已完成 ' + counts.completed + ' / 异常 ' + counts.failed + ' / 总量 ' + counts.total,
+                statusLeft: ['任务总量 ' + counts.total, '运行中任务 ' + counts.running, '排队任务 ' + counts.pending],
+                statusRight: [
+                    { text: counts.completed ? ('已完成 ' + counts.completed) : '待完成任务', tone: counts.completed ? 'success' : 'info' },
+                    { text: counts.failed ? ('需重试 ' + counts.failed) : '无异常', tone: counts.failed ? 'error' : 'info' },
+                ],
+            });
+        },
+        'asset-center': function (payload) {
+            payload = payload || {};
+            var assets = payload.assets || [];
+            var stats = payload.stats || { total: assets.length, byType: {} };
+            var total = stats.total || assets.length;
+            var byType = stats.byType || {};
+            var reviewCount = (byType.text || 0) + (byType.template || 0);
+            var reusable = total ? Math.round(((byType.video || 0) + (byType.image || 0)) / total * 100) : 0;
+            _applyRuntimeSummary({
+                eyebrow: '素材提醒',
+                title: total ? ('素材库存 ' + total + ' 项') : '暂无素材库存',
+                copy: '待整理 ' + reviewCount + ' / 图片视频占比 ' + reusable + '%',
+                statusLeft: ['素材总量 ' + total, '待整理素材 ' + reviewCount, '图片/视频占比 ' + reusable + '%'],
+                statusRight: [
+                    { text: total ? '库存已加载' : '等待上传素材', tone: total ? 'success' : 'warning' },
+                    { text: reviewCount ? ('待整理 ' + reviewCount) : '已整理', tone: reviewCount ? 'warning' : 'info' },
+                ],
+            });
+        },
+    };
+    var pageAudits = {
+        'dashboard': {
+            dataSources: ['getDashboardStats'],
+            interactions: ['create', 'detail', 'filter', 'navigate'],
+        },
+        'account': {
+            dataSources: ['listAccounts'],
+            interactions: ['create', 'edit', 'delete', 'filter', 'detail', 'batch', 'task'],
+        },
+        'ai-provider': {
+            dataSources: ['listProviders'],
+            interactions: ['create', 'edit', 'activate', 'delete', 'detail'],
+        },
+        'task-queue': {
+            dataSources: ['listTasks'],
+            interactions: ['create', 'edit', 'start', 'complete', 'delete', 'filter', 'batch', 'detail'],
+        },
+        'group-management': {
+            dataSources: ['listGroups'],
+            interactions: ['create', 'edit', 'delete', 'filter', 'detail'],
+        },
+        'device-management': {
+            dataSources: ['listDevices'],
+            interactions: ['create', 'edit', 'delete', 'filter', 'detail', 'batch'],
+        },
+        'asset-center': {
+            dataSources: ['listAssets', 'getAssetStats'],
+            interactions: ['create', 'edit', 'delete', 'filter', 'detail'],
+        },
+    };
+
+    function _applyRuntimeSummary(summary) {
+        if (!summary) return;
+        if (typeof renderSidebarSummary === 'function') {
+            renderSidebarSummary({
+                eyebrow: summary.eyebrow || '',
+                title: summary.title || '',
+                copy: summary.copy || '',
+            });
+        } else {
+            var titleNode = document.getElementById('sidebarSummaryTitle');
+            var copyNode = document.getElementById('sidebarSummaryCopy');
+            if (titleNode) titleNode.textContent = summary.title || '';
+            if (copyNode) copyNode.textContent = summary.copy || '';
+        }
+        var leftHost = document.getElementById('statusLeft');
+        var rightHost = document.getElementById('statusRight');
+        if (leftHost && Array.isArray(summary.statusLeft)) {
+            leftHost.innerHTML = summary.statusLeft.map(function (text) {
+                return '<span class="status-text">' + _esc(text) + '</span>';
+            }).join('');
+        }
+        if (rightHost && Array.isArray(summary.statusRight)) {
+            rightHost.innerHTML = summary.statusRight.map(function (item) {
+                return '<span class="status-chip ' + _esc(item.tone || 'info') + '">' + _esc(item.text || '') + '</span>';
+            }).join('');
+        }
+    }
 
     /* ══════════════════════════════════════════════
        Account 页面
@@ -15,6 +216,7 @@
 
         api.accounts.list().then(function (accounts) {
             accounts = accounts || [];
+            runtimeSummaryHandlers['account']({ accounts: accounts });
             // ── 更新 tabs 计数 ──
             var counts = { all: accounts.length, online: 0, offline: 0, error: 0 };
             accounts.forEach(function (a) {
@@ -41,7 +243,7 @@
             grid.innerHTML = accounts.map(function (a, i) {
                 var statusClass = _accountStatusTone(a.status);
                 var statusLabel = a.status || '未知';
-                return '<article class="account-card' + (i === 0 ? ' is-selected' : '') + '" data-id="' + (a.id || '') + '">'
+                return '<article class="account-card' + (i === 0 ? ' is-selected' : '') + '" data-id="' + (a.id || '') + '" data-status="' + _esc((a.status || '').toLowerCase()) + '" data-order="' + _esc(_accountSortOrder(a.status)) + '" data-search="' + _esc((a.username || '') + ' ' + (a.platform || '') + ' ' + (a.region || '') + ' ' + (a.status || '') + ' ' + (a.notes || '')) + '">'
                     + '<input type="checkbox" class="batch-check js-batch-account" data-id="' + (a.id || '') + '">'
                     + '<div class="account-card__head"><div><strong>' + _esc(a.username || '') + '</strong>'
                     + '<div class="subtle">' + _esc(a.platform || '') + ' · ' + _esc(a.region || '') + '</div></div>'
@@ -105,8 +307,16 @@
                 var id = btn.dataset.id;
                 var cards = document.querySelectorAll('.account-card');
                 cards.forEach(function (c) { c.classList.toggle('is-selected', c.dataset.id === id); });
+                _renderAccountDetail((accounts || []).find(function (a) { return String(a.id) === String(id); }));
             });
         });
+    }
+
+    function _renderAccountDetail(account) {
+        if (!account) return;
+        var detailHost = document.getElementById('detailHost');
+        if (!detailHost) return;
+        detailHost.innerHTML = '<div class="detail-root"><section class="panel"><div class="panel__header"><div><strong>' + _esc(account.username || '账号详情') + '</strong><div class="subtle mono">ID ' + _esc(account.id || '-') + '</div></div><span class="status-chip ' + _accountStatusTone(account.status) + '">' + _esc(account.status || '未知') + '</span></div><div class="detail-list"><div class="detail-item"><span class="subtle">平台</span><strong>' + _esc(account.platform || '-') + '</strong></div><div class="detail-item"><span class="subtle">地区</span><strong>' + _esc(account.region || '-') + '</strong></div><div class="detail-item"><span class="subtle">粉丝数</span><strong>' + _formatNum(account.followers || 0) + '</strong></div><div class="detail-item"><span class="subtle">备注</span><strong>' + _esc(account.notes || '无') + '</strong></div></div></section></div>';
     }
 
     function _accountStatusTone(status) {
@@ -118,12 +328,21 @@
         return 'error';
     }
 
+    function _accountSortOrder(status) {
+        var s = (status || '').toLowerCase();
+        if (s === 'error' || s === '异常' || s === 'suspended') return '1';
+        if (s === 'warning' || s === 'warming') return '2';
+        if (s === 'offline' || s === '离线' || s === 'idle') return '3';
+        return '4';
+    }
+
     /* ══════════════════════════════════════════════
        Dashboard 页面
        ══════════════════════════════════════════════ */
     loaders['dashboard'] = function () {
         api.dashboard.stats().then(function (stats) {
             if (!stats) return;
+            runtimeSummaryHandlers['dashboard']({ stats: stats });
             var cards = document.querySelectorAll('#mainHost .stat-card');
             if (cards.length >= 4) {
                 // Total Accounts
@@ -180,6 +399,7 @@
 
         api.tasks.list().then(function (tasks) {
             tasks = tasks || [];
+            runtimeSummaryHandlers['task-queue']({ tasks: tasks });
             // ── 更新 tabs ──
             var counts = { all: tasks.length, running: 0, completed: 0, pending: 0, failed: 0 };
             tasks.forEach(function (t) {
@@ -208,7 +428,7 @@
             tbody.innerHTML = tasks.map(function (t) {
                 var statusClass = _taskStatusTone(t.status);
                 var statusLabel = _taskStatusLabel(t.status);
-                return '<tr data-id="' + (t.id || '') + '">'
+                return '<tr class="route-row" data-id="' + (t.id || '') + '" data-status="' + _esc((t.status || '').toLowerCase()) + '" data-search="' + _esc((t.title || '') + ' ' + (t.task_type || '') + ' ' + (t.status || '') + ' ' + (t.priority || '') + ' ' + (t.result_summary || '')) + '">'
                     + '<td><input type="checkbox" class="batch-check js-batch-task" data-id="' + (t.id || '') + '"></td>'
                     + '<td><strong>' + _esc(t.title || '') + '</strong></td>'
                     + '<td>' + _esc(t.task_type || '-') + '</td>'
@@ -253,6 +473,7 @@
                 var id = parseInt(btn.dataset.id, 10);
                 var task = (tasks || []).find(function (t) { return t.id === id; });
                 if (task) openTaskForm(task);
+                if (task) _renderTaskDetail(task);
             });
         });
         document.querySelectorAll('.js-delete-task').forEach(function (btn) {
@@ -272,6 +493,13 @@
                 });
             });
         });
+    }
+
+    function _renderTaskDetail(task) {
+        if (!task) return;
+        var detailHost = document.getElementById('detailHost');
+        if (!detailHost) return;
+        detailHost.innerHTML = '<div class="detail-root"><section class="panel"><div class="panel__header"><div><strong>' + _esc(task.title || '任务详情') + '</strong><div class="subtle">' + _esc(task.task_type || '-') + '</div></div><span class="status-chip ' + _taskStatusTone(task.status) + '">' + _esc(_taskStatusLabel(task.status)) + '</span></div><div class="detail-list"><div class="detail-item"><span class="subtle">优先级</span><strong>' + _esc(task.priority || '-') + '</strong></div><div class="detail-item"><span class="subtle">关联账号</span><strong>' + _esc(task.account_id || '-') + '</strong></div><div class="detail-item"><span class="subtle">结果摘要</span><strong>' + _esc(task.result_summary || '无') + '</strong></div></div></section></div>';
     }
 
     function _taskAction(t) {
@@ -307,6 +535,7 @@
 
         api.providers.list().then(function (providers) {
             providers = providers || [];
+            runtimeSummaryHandlers['ai-provider']({ providers: providers });
             // 尝试渲染到表格
             var tbody = document.querySelector('#mainHost .table-wrapper tbody');
             if (tbody) {
@@ -354,12 +583,20 @@
     };
 
     function _bindProviderActions(providers) {
+        document.querySelectorAll('#mainHost .table-wrapper tbody tr[data-id], #mainHost .metric-list .task-item[data-id]').forEach(function (row) {
+            row.addEventListener('click', function (e) {
+                if (e.target.closest('button')) return;
+                var id = parseInt(row.dataset.id, 10);
+                _renderProviderDetail((providers || []).find(function (p) { return p.id === id; }));
+            });
+        });
         document.querySelectorAll('.js-edit-provider').forEach(function (btn) {
             btn.addEventListener('click', function (e) {
                 e.stopPropagation();
                 var id = parseInt(btn.dataset.id, 10);
                 var prov = (providers || []).find(function (p) { return p.id === id; });
                 if (prov) openProviderForm(prov);
+                if (prov) _renderProviderDetail(prov);
             });
         });
         document.querySelectorAll('.js-activate-provider').forEach(function (btn) {
@@ -401,6 +638,7 @@
 
         api.groups.list().then(function (groups) {
             groups = groups || [];
+            runtimeSummaryHandlers['group-management']({ groups: groups });
             // 更新指标卡
             var statCards = document.querySelectorAll('#mainHost .stat-card');
             if (statCards.length >= 3) {
@@ -420,7 +658,7 @@
             }
             list.innerHTML = groups.map(function (g) {
                 var color = g.color || '#6366f1';
-                return '<div class="task-item" data-id="' + (g.id || '') + '" style="border-left:3px solid ' + _esc(color) + ';">'
+                return '<div class="task-item" data-id="' + (g.id || '') + '" data-search="' + _esc((g.name || '') + ' ' + (g.description || '') + ' ' + (g.color || '')) + '" style="border-left:3px solid ' + _esc(color) + ';">'
                     + '<div><strong>' + _esc(g.name || '') + '</strong>'
                     + '<div class="subtle">' + _esc(g.description || '暂无描述') + '</div></div>'
                     + '<div style="display:flex;gap:6px;align-items:center;">'
@@ -435,12 +673,22 @@
     };
 
     function _bindGroupActions(groups) {
+        document.querySelectorAll('#mainHost .workbench-list .task-item').forEach(function (item) {
+            item.addEventListener('click', function (e) {
+                if (e.target.closest('button')) return;
+                document.querySelectorAll('#mainHost .workbench-list .task-item').forEach(function (node) { node.classList.remove('is-selected'); });
+                item.classList.add('is-selected');
+                var id = parseInt(item.dataset.id, 10);
+                _renderGroupDetail((groups || []).find(function (g) { return g.id === id; }));
+            });
+        });
         document.querySelectorAll('.js-edit-group').forEach(function (btn) {
             btn.addEventListener('click', function (e) {
                 e.stopPropagation();
                 var id = parseInt(btn.dataset.id, 10);
                 var grp = (groups || []).find(function (g) { return g.id === id; });
                 if (grp) openGroupForm(grp);
+                if (grp) _renderGroupDetail(grp);
             });
         });
         document.querySelectorAll('.js-delete-group').forEach(function (btn) {
@@ -466,6 +714,21 @@
         });
     }
 
+    function _renderProviderDetail(provider) {
+        if (!provider) return;
+        var detailHost = document.getElementById('detailHost');
+        if (!detailHost) return;
+        var active = provider.is_active === true || provider.is_active === 'True';
+        detailHost.innerHTML = '<div class="detail-root"><section class="panel"><div class="panel__header"><div><strong>' + _esc(provider.name || '供应商详情') + '</strong><div class="subtle">' + _esc(provider.provider_type || '-') + '</div></div><span class="status-chip ' + (active ? 'success' : 'info') + '">' + (active ? '启用中' : '未启用') + '</span></div><div class="detail-list"><div class="detail-item"><span class="subtle">默认模型</span><strong>' + _esc(provider.default_model || '-') + '</strong></div><div class="detail-item"><span class="subtle">API 地址</span><strong>' + _esc(provider.api_base || '-') + '</strong></div><div class="detail-item"><span class="subtle">最大 Token</span><strong>' + _esc(provider.max_tokens || '-') + '</strong></div></div></section></div>';
+    }
+
+    function _renderGroupDetail(group) {
+        if (!group) return;
+        var detailHost = document.getElementById('detailHost');
+        if (!detailHost) return;
+        detailHost.innerHTML = '<div class="detail-root"><section class="panel"><div class="panel__header"><div><strong>' + _esc(group.name || '分组详情') + '</strong><div class="subtle">组织编排详情</div></div><span class="status-chip info">已加载</span></div><div class="detail-list"><div class="detail-item"><span class="subtle">描述</span><strong>' + _esc(group.description || '无') + '</strong></div><div class="detail-item"><span class="subtle">颜色</span><strong>' + _esc(group.color || '-') + '</strong></div><div class="detail-item"><span class="subtle">分组 ID</span><strong>' + _esc(group.id || '-') + '</strong></div></div></section></div>';
+    }
+
     /* ══════════════════════════════════════════════
        Device Management 页面
        ══════════════════════════════════════════════ */
@@ -474,6 +737,7 @@
 
         api.devices.list().then(function (devices) {
             devices = devices || [];
+            runtimeSummaryHandlers['device-management']({ devices: devices });
             // 更新指标卡
             var statCards = document.querySelectorAll('#mainHost .stat-card');
             if (statCards.length >= 4) {
@@ -512,7 +776,7 @@
             }
             grid.innerHTML = devices.map(function (d, i) {
                 var st = _deviceStatusMap(d.status);
-                return '<article class="device-env-card device-env-card--' + (d.status || 'idle') + (i === 0 ? ' is-selected' : '') + '" data-id="' + (d.id || '') + '">'
+                return '<article class="device-env-card device-env-card--' + (d.status || 'idle') + (i === 0 ? ' is-selected' : '') + '" data-id="' + (d.id || '') + '" data-status="' + _esc((d.status || 'idle').toLowerCase()) + '" data-search="' + _esc((d.name || '') + ' ' + (d.device_code || '') + ' ' + (d.proxy_ip || '') + ' ' + (d.region || '') + ' ' + (d.status || '')) + '">'
                     + '<div class="device-env-card__head"><strong>' + _esc(d.name || '') + '</strong><span class="status-chip ' + st.tone + '">' + st.label + '</span></div>'
                     + '<div class="device-env-card__meta">'
                     + '<div class="list-row"><span class="subtle">设备编码</span><strong class="mono">' + _esc(d.device_code || '-') + '</strong></div>'
@@ -525,18 +789,31 @@
                     + '</div></article>';
             }).join('');
             _bindDeviceActions(devices);
+            _bindBatchBar('.js-batch-device', function (ids) {
+                return _batchDelete(ids, api.devices.remove, '设备', 'device-management');
+            });
         }).catch(function (e) {
             console.warn('[page-loaders] device-management load failed:', e);
         });
     };
 
     function _bindDeviceActions(devices) {
+        document.querySelectorAll('#mainHost .device-env-card').forEach(function (card) {
+            card.addEventListener('click', function (e) {
+                if (e.target.closest('button') || e.target.closest('input')) return;
+                document.querySelectorAll('#mainHost .device-env-card').forEach(function (node) { node.classList.remove('is-selected'); });
+                card.classList.add('is-selected');
+                var id = parseInt(card.dataset.id, 10);
+                _renderDeviceDetail((devices || []).find(function (d) { return d.id === id; }));
+            });
+        });
         document.querySelectorAll('.js-edit-device').forEach(function (btn) {
             btn.addEventListener('click', function (e) {
                 e.stopPropagation();
                 var id = parseInt(btn.dataset.id, 10);
                 var dev = (devices || []).find(function (d) { return d.id === id; });
                 if (dev) openDeviceForm(dev);
+                if (dev) _renderDeviceDetail(dev);
             });
         });
         document.querySelectorAll('.js-delete-device').forEach(function (btn) {
@@ -560,6 +837,14 @@
                 });
             });
         });
+    }
+
+    function _renderDeviceDetail(device) {
+        if (!device) return;
+        var detailHost = document.getElementById('detailHost');
+        if (!detailHost) return;
+        var status = _deviceStatusMap(device.status);
+        detailHost.innerHTML = '<div class="detail-root"><section class="panel"><div class="panel__header"><div><strong>' + _esc(device.name || '设备详情') + '</strong><div class="subtle mono">' + _esc(device.device_code || '-') + '</div></div><span class="status-chip ' + status.tone + '">' + _esc(status.label) + '</span></div><div class="detail-list"><div class="detail-item"><span class="subtle">代理 IP</span><strong>' + _esc(device.proxy_ip || '-') + '</strong></div><div class="detail-item"><span class="subtle">地区</span><strong>' + _esc(device.region || '-') + '</strong></div><div class="detail-item"><span class="subtle">状态</span><strong>' + _esc(device.status || '-') + '</strong></div></div></section></div>';
     }
 
     function _deviceStatusMap(status) {
@@ -692,6 +977,7 @@
        Asset Center 页面
        ══════════════════════════════════════════════ */
     loaders['asset-center'] = function () {
+        _wireHeaderPrimary(function () { openAssetForm(); }, '上传素材');
         Promise.all([
             api.assets.list().catch(function () { return []; }),
             api.assets.stats().catch(function () { return { total: 0, byType: {} }; }),
@@ -700,6 +986,7 @@
             var stats = results[1] || { total: 0, byType: {} };
             var currentType = 'all';
 
+            runtimeSummaryHandlers['asset-center']({ assets: assets, stats: stats });
             _updateAssetStats(assets, stats);
             _renderAssetCategories(stats.byType || {}, assets.length);
 
@@ -763,46 +1050,54 @@
        ══════════════════════════════════════════════ */
     loaders['visual-lab'] = function () {
         Promise.all([
-            api.dashboard.stats().catch(function () { return {}; }),
-            api.assets.stats().catch(function () { return { total: 0, byType: {} }; }),
-            api.providers.list().catch(function () { return []; }),
+            api.analytics.summary().catch(function () { return {}; }),
+            api.experiments.projects().catch(function () { return []; }),
+            api.experiments.views().catch(function () { return []; }),
         ]).then(function (results) {
-            var stats = results[0] || {};
-            var assetStats = results[1] || { total: 0, byType: {} };
-            var providers = results[2] || [];
+            var summary = results[0] || {};
+            var projects = results[1] || [];
+            var views = results[2] || [];
+            var stats = {
+                accounts: summary.accounts || {},
+                tasks: summary.tasks || {},
+                assets: summary.assets || {},
+                providers: summary.providers || {},
+            };
+            var assetStats = { total: (summary.assets && summary.assets.total) || 0, byType: (summary.assets && summary.assets.by_type) || {} };
+            var providers = new Array((summary.providers && summary.providers.total) || 0).fill({});
             var cards = document.querySelectorAll('#mainHost .stat-grid .stat-card');
             if (cards.length >= 3) {
-                cards[0].querySelector('.stat-card__value').textContent = String((stats.assets || 0) + (stats.tasks ? stats.tasks.total || 0 : 0));
-                cards[1].querySelector('.stat-card__value').textContent = String(Object.keys(assetStats.byType || {}).length + Math.max(1, providers.length));
-                cards[2].querySelector('.stat-card__value').textContent = ((assetStats.total || 0) > 0 ? Math.round(((assetStats.byType.image || 0) + (assetStats.byType.video || 0)) / Math.max(1, assetStats.total) * 100) : 0) + '%';
+                cards[0].querySelector('.stat-card__value').textContent = String(projects.length || ((summary.experiments && summary.experiments.projects) || 0));
+                cards[1].querySelector('.stat-card__value').textContent = String(Math.max(views.length, Object.keys(assetStats.byType || {}).length));
+                cards[2].querySelector('.stat-card__value').textContent = ((summary.providers && summary.providers.models) || []).length + ' 个';
             }
             var sourceList = document.querySelector('#mainHost .data-source-list');
             if (sourceList) {
                 sourceList.innerHTML = [
-                    { title: '账号总览', meta: '账号 ' + ((stats.accounts && stats.accounts.total) || 0) + ' / 实时同步' },
-                    { title: '任务执行池', meta: '任务 ' + ((stats.tasks && stats.tasks.total) || 0) + ' / 可用于实验对照' },
+                    { title: '实验项目', meta: '项目 ' + projects.length + ' / 持久化同步' },
+                    { title: '实验视图', meta: '视图 ' + views.length + ' / 可用于对照' },
                     { title: '素材资产库', meta: '素材 ' + (assetStats.total || 0) + ' / 已连接' },
-                    { title: 'AI 供应商', meta: '供应商 ' + providers.length + ' / 模型可用' },
+                    { title: 'AI 模型池', meta: '模型 ' + (((summary.providers && summary.providers.models) || []).length) + ' / 可用' },
                 ].map(function (item, index) {
                     return '<button class="data-source-item ' + (index === 0 ? 'is-selected' : '') + '" type="button"><strong>' + _esc(item.title) + '</strong><span>' + _esc(item.meta) + '</span></button>';
                 }).join('');
             }
             var overlay = document.querySelectorAll('#mainHost .visual-preview-overlay span');
             if (overlay.length >= 3) {
-                overlay[0].textContent = '账号 ' + ((stats.accounts && stats.accounts.total) || 0);
-                overlay[1].textContent = '任务 ' + ((stats.tasks && stats.tasks.total) || 0);
+                overlay[0].textContent = '项目 ' + projects.length;
+                overlay[1].textContent = '视图 ' + views.length;
                 overlay[2].textContent = '素材 ' + (assetStats.total || 0);
             }
             _setAnalyticsSeed({
                 visualTrend: [
-                    (stats.accounts && stats.accounts.total) || 0,
-                    (stats.tasks && stats.tasks.total) || 0,
+                    projects.length,
+                    views.length,
                     assetStats.total || 0,
-                    providers.length,
-                    Math.max(1, Object.keys(assetStats.byType || {}).length),
+                    (summary.providers && summary.providers.active) || 0,
+                    ((summary.providers && summary.providers.models) || []).length,
                 ],
             });
-            _bindAnalyticsHeaderActions('visual-lab', { stats: stats, assets: assetStats, providers: providers });
+            _bindAnalyticsHeaderActions('visual-lab', { stats: stats, assets: assetStats, providers: providers, experiments: projects, views: views });
             if (typeof bindRouteInteractions === 'function') bindRouteInteractions();
         }).catch(function (e) {
             console.warn('[page-loaders] visual-lab load failed:', e);
@@ -811,42 +1106,42 @@
 
     loaders['profit-analysis'] = function () {
         Promise.all([
-            api.accounts.list().catch(function () { return []; }),
-            api.tasks.list().catch(function () { return []; }),
-            api.assets.list().catch(function () { return []; }),
+            api.analytics.summary().catch(function () { return {}; }),
+            api.analytics.conversion().catch(function () { return { counts: {}, funnel: [] }; }),
         ]).then(function (results) {
-            var accounts = results[0] || [];
-            var tasks = results[1] || [];
-            var assets = results[2] || [];
-            var revenue = _estimateRevenue(accounts, tasks, assets);
-            var cost = _estimateCost(accounts, tasks, assets);
-            var profit = Math.max(0, revenue - cost);
-            var roi = cost > 0 ? (revenue / cost).toFixed(2) : '0.00';
+            var summary = results[0] || {};
+            var conversion = results[1] || { counts: {}, funnel: [] };
+            var counts = conversion.counts || {};
+            var accountsTotal = (summary.accounts && summary.accounts.total) || 0;
+            var activeAccounts = (summary.accounts && summary.accounts.active) || 0;
+            var assetsTotal = (summary.assets && summary.assets.total) || 0;
+            var completedTasks = counts.completed_tasks || (summary.tasks && summary.tasks.completed) || 0;
+            var failedTasks = (summary.tasks && summary.tasks.failed) || 0;
             var cards = document.querySelectorAll('#mainHost .stat-grid .stat-card');
             if (cards.length >= 4) {
-                cards[0].querySelector('.stat-card__value').textContent = _formatMoney(revenue);
-                cards[1].querySelector('.stat-card__value').textContent = _formatMoney(cost);
-                cards[2].querySelector('.stat-card__value').textContent = _formatMoney(profit);
-                cards[3].querySelector('.stat-card__value').textContent = roi;
+                cards[0].querySelector('.stat-card__value').textContent = _formatNum(completedTasks);
+                cards[1].querySelector('.stat-card__value').textContent = _formatNum(failedTasks);
+                cards[2].querySelector('.stat-card__value').textContent = _formatNum(assetsTotal);
+                cards[3].querySelector('.stat-card__value').textContent = _formatNum(activeAccounts);
             }
             var costGrid = document.querySelectorAll('#mainHost .profit-ledger-grid article');
             if (costGrid.length >= 4) {
-                costGrid[0].querySelector('strong').textContent = Math.max(8, Math.round(tasks.length * 2.8)) + '%';
-                costGrid[1].querySelector('strong').textContent = Math.max(6, Math.round(accounts.length * 1.4)) + '%';
-                costGrid[2].querySelector('strong').textContent = Math.max(2.1, (tasks.filter(function (task) { return (task.status || '').toLowerCase() === 'failed'; }).length * 0.9)).toFixed(1) + '%';
-                costGrid[3].querySelector('strong').textContent = Math.max(3.2, providersFeeEstimate(assets.length)) + '%';
+                costGrid[0].querySelector('strong').textContent = _formatNum(completedTasks);
+                costGrid[1].querySelector('strong').textContent = _formatNum(activeAccounts);
+                costGrid[2].querySelector('strong').textContent = _formatNum(failedTasks);
+                costGrid[3].querySelector('strong').textContent = _formatNum(assetsTotal);
             }
             var tbody = document.querySelector('#mainHost .table-wrapper tbody');
             if (tbody) {
-                tbody.innerHTML = _buildProfitRows(accounts, tasks).join('');
+                tbody.innerHTML = _buildTruthfulProfitRows(summary, conversion).join('');
             }
             _setAnalyticsSeed({
                 profitBars: [
-                    Math.max(24, Math.min(88, Math.round((cost / Math.max(1, revenue)) * 100))),
-                    Math.max(26, Math.min(92, Math.round((profit / Math.max(1, revenue)) * 100))),
+                    Math.max(24, Math.min(88, activeAccounts * 8 + 24)),
+                    Math.max(26, Math.min(92, completedTasks * 10 + 26)),
                 ],
             });
-            _bindAnalyticsHeaderActions('profit-analysis', { revenue: revenue, cost: cost, profit: profit, accounts: accounts, tasks: tasks });
+            _bindAnalyticsHeaderActions('profit-analysis', { summary: summary, conversion: conversion, accounts: new Array(accountsTotal), tasks: new Array((summary.tasks && summary.tasks.total) || 0), assets: { total: assetsTotal } });
             if (typeof bindRouteInteractions === 'function') bindRouteInteractions();
         }).catch(function (e) {
             console.warn('[page-loaders] profit-analysis load failed:', e);
@@ -855,39 +1150,35 @@
 
     loaders['competitor-monitor'] = function () {
         Promise.all([
+            api.analytics.competitor().catch(function () { return { metrics: {}, rivals: [], rows: [], bars: [] }; }),
             api.accounts.list().catch(function () { return []; }),
             api.tasks.list().catch(function () { return []; }),
         ]).then(function (results) {
-            var accounts = results[0] || [];
-            var tasks = results[1] || [];
+            var analysis = results[0] || { metrics: {}, rivals: [], rows: [], bars: [] };
+            var accounts = results[1] || [];
+            var tasks = results[2] || [];
+            var metrics = analysis.metrics || {};
             var cards = document.querySelectorAll('#mainHost .stat-grid .stat-card');
             if (cards.length >= 3) {
-                cards[0].querySelector('.stat-card__value').textContent = String(accounts.length);
-                cards[1].querySelector('.stat-card__value').textContent = String(tasks.filter(function (task) { return (task.status || '').toLowerCase() === 'failed'; }).length);
-                cards[2].querySelector('.stat-card__value').textContent = String(Math.max(1, Math.round(accounts.length / 2)));
+                cards[0].querySelector('.stat-card__value').textContent = String(metrics.monitored_accounts || 0);
+                cards[1].querySelector('.stat-card__value').textContent = String(metrics.failed_tasks || 0);
+                cards[2].querySelector('.stat-card__value').textContent = String(metrics.regions || 0);
             }
             var rivalStrip = document.querySelector('#mainHost .rival-strip');
             if (rivalStrip) {
-                rivalStrip.innerHTML = accounts.slice(0, 4).map(function (account, index) {
-                    var username = account.username || ('Account ' + (index + 1));
-                    var followers = _formatNum(parseInt(account.followers || 0, 10) || 0);
-                    var tone = index === 0 ? 'success' : index === 1 ? 'warning' : 'info';
-                    return '<article class="rival-card ' + (index === 0 ? 'is-self' : '') + '"><div class="rival-avatar">' + _esc(username.slice(0, 1).toUpperCase()) + '</div><strong>' + _esc(username) + '</strong><span>' + followers + '</span><em class="' + tone + '">'
-                        + (index === 0 ? '+主账号' : ('+' + (index + 2) + '.2%')) + '</em></article>';
+                rivalStrip.innerHTML = (analysis.rivals || []).slice(0, 4).map(function (item, index) {
+                    var name = item.name || ('账号 ' + (index + 1));
+                    return '<article class="rival-card ' + (index === 0 ? 'is-self' : '') + '"><div class="rival-avatar">' + _esc(name.slice(0, 1).toUpperCase()) + '</div><strong>' + _esc(name) + '</strong><span>' + _formatNum(item.followers || 0) + '</span><em class="' + _esc(item.tone || 'info') + '">' + _esc(item.delta || '持续跟踪') + '</em></article>';
                 }).join('');
             }
             var tbody = document.querySelector('#mainHost .table-wrapper tbody');
             if (tbody) {
-                tbody.innerHTML = accounts.slice(0, 3).map(function (account, index) {
-                    var followers = parseInt(account.followers || 0, 10) || 0;
-                    return '<tr class="route-row" data-search="' + _esc((account.username || '') + ' ' + followers) + '"><td><strong>' + _esc(account.username || ('账号 ' + (index + 1))) + '</strong></td><td>' + _formatNum(followers || (820000 - index * 170000)) + '</td><td>' + _esc(account.region || '全球') + ' / ' + _esc(account.platform || 'TikTok') + '</td><td>' + (followers > 50000 ? '增长活跃，可借鉴内容结构' : '体量较小，继续观察') + '</td></tr>';
+                tbody.innerHTML = (analysis.rows || []).slice(0, 4).map(function (row) {
+                    return '<tr class="route-row" data-search="' + _esc((row.title || '') + ' ' + (row.meta || '')) + '"><td><strong>' + _esc(row.title || '账号') + '</strong></td><td>' + _formatNum(row.value || 0) + '</td><td>' + _esc(row.meta || '等待数据') + '</td><td>' + _esc(row.conclusion || '继续观察') + '</td></tr>';
                 }).join('');
             }
             _setAnalyticsSeed({
-                rivalBars: accounts.slice(0, 6).map(function (account, index) {
-                    var followers = parseInt(account.followers || 0, 10) || 0;
-                    return Math.max(22, Math.min(96, 28 + Math.round((followers / Math.max(1, _sumFollowers(accounts))) * 70) + index));
-                }),
+                rivalBars: (analysis.bars || []).slice(0, 6),
             });
             _bindAnalyticsHeaderActions('competitor-monitor', { accounts: accounts, tasks: tasks });
             if (typeof bindRouteInteractions === 'function') bindRouteInteractions();
@@ -898,46 +1189,36 @@
 
     loaders['traffic-board'] = function () {
         Promise.all([
-            api.dashboard.stats().catch(function () { return {}; }),
+            api.analytics.traffic().catch(function () { return { metrics: {}, sources: [], rows: [], trend: [] }; }),
             api.accounts.list().catch(function () { return []; }),
             api.tasks.list().catch(function () { return []; }),
         ]).then(function (results) {
-            var stats = results[0] || {};
+            var analysis = results[0] || { metrics: {}, sources: [], rows: [], trend: [] };
             var accounts = results[1] || [];
             var tasks = results[2] || [];
+            var metrics = analysis.metrics || {};
             var cards = document.querySelectorAll('#mainHost .stat-grid .stat-card');
             if (cards.length >= 3) {
-                cards[0].querySelector('.stat-card__value').textContent = _formatNum((stats.accounts && stats.accounts.total) || accounts.length || 0);
-                cards[1].querySelector('.stat-card__value').textContent = _trafficCtr(accounts, tasks) + '%';
-                cards[2].querySelector('.stat-card__value').textContent = String(tasks.filter(function (task) {
-                    return _normalizeTaskStatus(task.status) === 'failed';
-                }).length);
+                cards[0].querySelector('.stat-card__value').textContent = _formatNum(metrics.account_sample || 0);
+                cards[1].querySelector('.stat-card__value').textContent = String(metrics.task_completion_rate || 0) + '%';
+                cards[2].querySelector('.stat-card__value').textContent = String(metrics.failed_tasks || 0);
             }
             var sourceCards = document.querySelectorAll('#mainHost .traffic-source-grid .traffic-source-card');
             if (sourceCards.length >= 3) {
-                var totalFollowers = _sumFollowers(accounts);
-                var natural = Math.round(totalFollowers * 0.48);
-                var campaign = Math.round(totalFollowers * 0.34);
-                var search = Math.max(0, totalFollowers - natural - campaign);
-                _setTrafficSourceCard(sourceCards[0], natural, 'CTR ' + _trafficCtr(accounts, tasks) + '% / 内容带动');
-                _setTrafficSourceCard(sourceCards[1], campaign, '运行中 ' + tasks.filter(function (task) { return _normalizeTaskStatus(task.status) === 'running'; }).length + ' / 投放承压');
-                _setTrafficSourceCard(sourceCards[2], search, '异常 ' + tasks.filter(function (task) { return _normalizeTaskStatus(task.status) === 'failed'; }).length + ' / 需复核');
+                (analysis.sources || []).slice(0, 3).forEach(function (item, index) {
+                    _setTrafficSourceCard(sourceCards[index], item.value || 0, item.meta || '等待数据');
+                });
             }
             var tbody = document.querySelector('#mainHost .table-wrapper tbody');
             if (tbody) {
-                tbody.innerHTML = accounts.slice(0, 3).map(function (account, index) {
-                    var followers = parseInt(account.followers || 0, 10) || 0;
-                    var delta = (followers > 50000 ? '上升 ' : '波动 ') + (6 + index * 4) + '%';
-                    return '<tr class="route-row" data-search="' + _esc((account.username || '') + ' ' + delta) + '"><td><strong>' + _esc(account.region || ('区域 ' + (index + 1))) + '</strong></td><td>' + delta + '</td><td>' + (followers > 50000 ? '账号体量带动自然流量' : '内容效率一般，继续观察') + '</td><td>' + (index === 0 ? '继续放量' : index === 1 ? '优化封面' : '排查关键词') + '</td></tr>';
+                tbody.innerHTML = (analysis.rows || []).slice(0, 4).map(function (row) {
+                    return '<tr class="route-row" data-search="' + _esc((row.label || '') + ' ' + (row.reason || '')) + '"><td><strong>' + _esc(row.label || '区域') + '</strong></td><td>' + _esc(row.delta || '等待数据') + '</td><td>' + _esc(row.reason || '等待数据') + '</td><td>' + _esc(row.action || '继续观察') + '</td></tr>';
                 }).join('');
             }
             _setAnalyticsSeed({
-                trafficTrend: accounts.slice(0, 12).map(function (account, index) {
-                    var followers = parseInt(account.followers || 0, 10) || 0;
-                    return Math.max(10, Math.min(95, 12 + Math.round(followers / 2000) + index * 2));
-                }),
+                trafficTrend: (analysis.trend || []).slice(0, 12),
             });
-            _bindAnalyticsHeaderActions('traffic-board', { stats: stats, accounts: accounts, tasks: tasks });
+            _bindAnalyticsHeaderActions('traffic-board', { stats: analysis, accounts: accounts, tasks: tasks });
             if (typeof bindRouteInteractions === 'function') bindRouteInteractions();
         }).catch(function (e) {
             console.warn('[page-loaders] traffic-board load failed:', e);
@@ -946,50 +1227,52 @@
 
     loaders['blue-ocean'] = function () {
         Promise.all([
+            api.analytics.blueOcean().catch(function () { return { metrics: {}, topics: [], lead: {}, matrix: [] }; }),
             api.accounts.list().catch(function () { return []; }),
             api.assets.stats().catch(function () { return { total: 0, byType: {} }; }),
             api.tasks.list().catch(function () { return []; }),
         ]).then(function (results) {
-            var accounts = results[0] || [];
-            var assetStats = results[1] || { total: 0, byType: {} };
-            var tasks = results[2] || [];
+            var analysis = results[0] || { metrics: {}, topics: [], lead: {}, matrix: [] };
+            var accounts = results[1] || [];
+            var assetStats = results[2] || { total: 0, byType: {} };
+            var tasks = results[3] || [];
+            var metrics = analysis.metrics || {};
             var cards = document.querySelectorAll('#mainHost .stat-grid .stat-card');
             if (cards.length >= 3) {
-                cards[0].querySelector('.stat-card__value').textContent = String(Math.max(6, accounts.length + 4));
-                cards[1].querySelector('.stat-card__value').textContent = String(Math.max(2, Math.round((assetStats.total || 0) / 3)));
-                cards[2].querySelector('.stat-card__value').textContent = String(tasks.filter(function (task) {
-                    return _normalizeTaskStatus(task.status) === 'failed';
-                }).length || 1);
+                cards[0].querySelector('.stat-card__value').textContent = String(metrics.candidate_topics || 0);
+                cards[1].querySelector('.stat-card__value').textContent = String(metrics.asset_topics || 0);
+                cards[2].querySelector('.stat-card__value').textContent = String(metrics.failed_tasks || 0);
             }
             var bubbles = document.querySelectorAll('#mainHost .matrix-bubble');
-            var bubbleLabels = _buildBlueOceanTopics(accounts, assetStats);
+            var bubbleLabels = (analysis.topics || []).length ? analysis.topics : _buildBlueOceanTopics(accounts, assetStats);
             bubbles.forEach(function (bubble, index) {
                 if (bubbleLabels[index]) bubble.textContent = bubbleLabels[index];
             });
             var detailCard = document.querySelector('#mainHost .opportunity-detail-card');
             if (detailCard) {
+                var lead = analysis.lead || {};
                 var title = detailCard.querySelector('strong');
                 var statsList = detailCard.querySelectorAll('.detail-item strong');
                 var desc = detailCard.querySelector('p');
-                if (title) title.textContent = bubbleLabels[0] || '内容机会';
+                if (title) title.textContent = lead.title || bubbleLabels[0] || '内容机会';
                 if (statsList.length >= 3) {
-                    statsList[0].textContent = String(Math.min(92, 60 + accounts.length * 3));
-                    statsList[1].textContent = String(Math.max(18, 52 - tasks.filter(function (task) { return _normalizeTaskStatus(task.status) === 'failed'; }).length * 5));
-                    statsList[2].textContent = Math.max(18, Math.round(((assetStats.byType.video || 0) + (assetStats.byType.image || 0)) * 3.2)) + '%';
+                    statsList[0].textContent = String(lead.heat || 0);
+                    statsList[1].textContent = String(lead.competition || 0);
+                    statsList[2].textContent = String(lead.coverage || 0) + '%';
                 }
-                if (desc) desc.textContent = '机会判断已根据账号体量、素材结构和任务波动自动刷新，建议优先验证第一象限主题。';
+                if (desc) desc.textContent = lead.description || '机会判断已根据账号、素材与任务反馈自动刷新。';
             }
-                _setAnalyticsSeed({
-                    blueOcean: bubbleLabels.map(function (label, index) {
-                        return {
-                            label: label,
-                            heat: Math.min(95, 58 + index * 7 + accounts.length * 2),
-                            competition: Math.max(12, 46 - index * 6 + tasks.filter(function (task) { return _normalizeTaskStatus(task.status) === 'failed'; }).length * 2),
-                            margin: Math.max(12, Math.min(42, 18 + ((assetStats.byType.video || 0) * 3) - index * 2)),
-                        };
-                    }),
-                });
-                _bindAnalyticsHeaderActions('blue-ocean', { accounts: accounts, tasks: tasks, assets: assetStats });
+            _setAnalyticsSeed({
+                blueOcean: (analysis.matrix || []).map(function (item) {
+                    return {
+                        label: item.label,
+                        heat: item.heat,
+                        competition: item.competition,
+                        margin: item.coverage,
+                    };
+                }),
+            });
+            _bindAnalyticsHeaderActions('blue-ocean', { accounts: accounts, tasks: tasks, assets: assetStats });
             if (typeof bindRouteInteractions === 'function') bindRouteInteractions();
         }).catch(function (e) {
             console.warn('[page-loaders] blue-ocean load failed:', e);
@@ -998,40 +1281,41 @@
 
     loaders['report-center'] = function () {
         Promise.all([
-            api.tasks.list().catch(function () { return []; }),
-            api.accounts.list().catch(function () { return []; }),
-            api.assets.list().catch(function () { return []; }),
+            api.reports.list().catch(function () { return []; }),
+            api.analytics.summary().catch(function () { return {}; }),
+            api.activity.list().catch(function () { return []; }),
         ]).then(function (results) {
-            var tasks = results[0] || [];
-            var accounts = results[1] || [];
-            var assets = results[2] || [];
+            var reports = results[0] || [];
+            var summary = results[1] || {};
+            var activity = results[2] || [];
             var cards = document.querySelectorAll('#mainHost .stat-grid .stat-card');
             if (cards.length >= 3) {
-                cards[0].querySelector('.stat-card__value').textContent = String(Math.max(4, accounts.length + 2));
-                cards[1].querySelector('.stat-card__value').textContent = String(tasks.filter(function (task) {
-                    return _normalizeTaskStatus(task.status) !== 'completed';
+                cards[0].querySelector('.stat-card__value').textContent = String(reports.length);
+                cards[1].querySelector('.stat-card__value').textContent = String(reports.filter(function (report) {
+                    return String(report.status || '').toLowerCase() !== 'completed';
                 }).length);
-                cards[2].querySelector('.stat-card__value').textContent = String(Math.max(3, Math.round(assets.length / 2)));
+                cards[2].querySelector('.stat-card__value').textContent = String(activity.length);
             }
             var templates = document.querySelectorAll('#mainHost .report-template-list .data-source-item');
             templates.forEach(function (item, index) {
                 var title = item.querySelector('strong');
                 var meta = item.querySelector('span');
                 if (title && meta) {
-                    title.textContent = ['经营日报', '利润专题', '互动洞察', '蓝海调研'][index] || ('模板 ' + (index + 1));
-                    meta.textContent = index === 0 ? ('覆盖账号 ' + accounts.length) : index === 1 ? ('关联任务 ' + tasks.length) : index === 2 ? ('素材样本 ' + assets.length) : '可直接生成';
+                    var report = reports[index];
+                    title.textContent = report ? (report.title || ('报告 ' + (index + 1))) : (['经营日报', '利润专题', '互动洞察', '蓝海调研'][index] || ('模板 ' + (index + 1)));
+                    meta.textContent = report ? ('状态 ' + (report.status || 'pending')) : '等待生成';
                 }
             });
             var previewRows = document.querySelectorAll('#mainHost .report-preview-table div span');
             if (previewRows.length >= 3) {
-                previewRows[0].textContent = '当前监控 ' + accounts.length + ' 个账号，运行中任务 ' + tasks.filter(function (task) { return _normalizeTaskStatus(task.status) === 'running'; }).length + ' 个';
-                previewRows[1].textContent = '异常任务 ' + tasks.filter(function (task) { return _normalizeTaskStatus(task.status) === 'failed'; }).length + ' 个，需纳入日报提醒';
-                previewRows[2].textContent = '建议优先输出利润、互动和蓝海三类报告。';
+                previewRows[0].textContent = '当前已沉淀 ' + reports.length + ' 份报告记录';
+                previewRows[1].textContent = '最近活动日志 ' + activity.length + ' 条，可追踪报告动作';
+                previewRows[2].textContent = '账号总量 ' + ((summary.accounts && summary.accounts.total) || 0) + ' / 素材总量 ' + ((summary.assets && summary.assets.total) || 0);
             }
             _setAnalyticsSeed({
-                reportTrend: [accounts.length, tasks.length, assets.length, tasks.filter(function (task) { return _normalizeTaskStatus(task.status) === 'failed'; }).length],
+                reportTrend: [reports.length, activity.length, ((summary.accounts && summary.accounts.total) || 0), ((summary.assets && summary.assets.total) || 0)],
             });
-            _bindAnalyticsHeaderActions('report-center', { accounts: accounts, tasks: tasks, assets: assets });
+            _bindAnalyticsHeaderActions('report-center', { reports: reports, activity: activity, summary: summary, accounts: new Array((summary.accounts && summary.accounts.total) || 0), tasks: [], assets: { total: ((summary.assets && summary.assets.total) || 0) } });
             if (typeof bindRouteInteractions === 'function') bindRouteInteractions();
         }).catch(function (e) {
             console.warn('[page-loaders] report-center load failed:', e);
@@ -1040,41 +1324,41 @@
 
     loaders['interaction-analysis'] = function () {
         Promise.all([
+            api.analytics.interaction().catch(function () { return { metrics: {}, sentiment: {}, keywords: [], heatmap: [], affinity: [] }; }),
             api.accounts.list().catch(function () { return []; }),
             api.tasks.list().catch(function () { return []; }),
             api.assets.list().catch(function () { return []; }),
         ]).then(function (results) {
-            var accounts = results[0] || [];
-            var tasks = results[1] || [];
-            var assets = results[2] || [];
+            var analysis = results[0] || { metrics: {}, sentiment: {}, keywords: [], heatmap: [], affinity: [] };
+            var accounts = results[1] || [];
+            var tasks = results[2] || [];
+            var assets = results[3] || [];
+            var metrics = analysis.metrics || {};
+            var sentiment = analysis.sentiment || {};
             var cards = document.querySelectorAll('#mainHost .stat-grid .stat-card');
             if (cards.length >= 3) {
-                cards[0].querySelector('.stat-card__value').textContent = _formatNum(_sumFollowers(accounts));
-                cards[1].querySelector('.stat-card__value').textContent = Math.max(48, Math.min(88, 62 + accounts.length * 3)) + '%';
-                cards[2].querySelector('.stat-card__value').textContent = String(Math.max(12, tasks.filter(function (task) {
-                    return _normalizeTaskStatus(task.status) === 'failed';
-                }).length * 9));
+                cards[0].querySelector('.stat-card__value').textContent = _formatNum(metrics.followers_total || 0);
+                cards[1].querySelector('.stat-card__value').textContent = String(metrics.positive_share || 0) + '%';
+                cards[2].querySelector('.stat-card__value').textContent = String(metrics.risk_items || 0);
             }
             var donut = document.querySelector('#mainHost .sentiment-donut__inner strong');
-            if (donut) donut.textContent = Math.max(48, Math.min(88, 62 + assets.length * 2)) + '%';
+            if (donut) donut.textContent = String(sentiment.positive || 0) + '%';
             var legends = document.querySelectorAll('#mainHost .sentiment-legend span');
             if (legends.length >= 3) {
-                legends[0].lastChild.textContent = '正向 ' + (Math.max(48, Math.min(88, 62 + assets.length * 2)) + '%');
-                legends[1].lastChild.textContent = '中立 ' + Math.max(8, 30 - accounts.length) + '%';
-                legends[2].lastChild.textContent = '负向 ' + Math.max(4, tasks.filter(function (task) { return _normalizeTaskStatus(task.status) === 'failed'; }).length * 3) + '%';
+                legends[0].lastChild.textContent = '正向 ' + String(sentiment.positive || 0) + '%';
+                legends[1].lastChild.textContent = '中立 ' + String(sentiment.neutral || 0) + '%';
+                legends[2].lastChild.textContent = '负向 ' + String(sentiment.negative || 0) + '%';
+            }
+            var keywordCloud = document.querySelector('#mainHost .keyword-cloud');
+            if (keywordCloud) {
+                keywordCloud.innerHTML = (analysis.keywords || []).map(function (keyword, index) {
+                    var size = index === 0 ? 'xl' : index < 3 ? 'lg' : index < 5 ? 'md' : 'sm';
+                    return '<span class="' + size + '">' + _esc(keyword) + '</span>';
+                }).join('');
             }
             _setAnalyticsSeed({
-                heatmap: [
-                    Math.max(1, Math.min(5, 2 + accounts.length % 4)),
-                    Math.max(1, Math.min(5, 3 + assets.length % 3)),
-                    Math.max(1, Math.min(5, 1 + tasks.length % 5)),
-                ],
-                affinity: [
-                    78,
-                    58 + Math.min(18, accounts.length * 4),
-                    36 + Math.min(12, tasks.length * 2),
-                    18 + Math.min(8, Math.round(assets.length / 3)),
-                ],
+                heatmap: analysis.heatmap || [],
+                affinity: analysis.affinity || [],
             });
             _bindAnalyticsHeaderActions('interaction-analysis', { accounts: accounts, tasks: tasks, assets: assets });
             if (typeof bindRouteInteractions === 'function') bindRouteInteractions();
@@ -1085,34 +1369,28 @@
 
     loaders['ecommerce-conversion'] = function () {
         Promise.all([
-            api.accounts.list().catch(function () { return []; }),
-            api.tasks.list().catch(function () { return []; }),
-            api.dashboard.stats().catch(function () { return {}; }),
+            api.analytics.conversion().catch(function () { return { counts: {}, funnel: [] }; }),
+            api.analytics.summary().catch(function () { return {}; }),
         ]).then(function (results) {
-            var accounts = results[0] || [];
-            var tasks = results[1] || [];
-            var stats = results[2] || {};
+            var conversion = results[0] || { counts: {}, funnel: [] };
+            var summary = results[1] || {};
+            var counts = conversion.counts || {};
             var cards = document.querySelectorAll('#mainHost .stat-grid .stat-card');
             if (cards.length >= 3) {
-                cards[0].querySelector('.stat-card__value').textContent = _trafficCtr(accounts, tasks) + '%';
-                cards[1].querySelector('.stat-card__value').textContent = Math.max(8, Math.min(24, 14 + accounts.length * 2)) + '%';
-                cards[2].querySelector('.stat-card__value').textContent = Math.max(3.1, Math.min(9.8, ((stats.accounts && stats.accounts.total) || accounts.length || 0) * 0.9)).toFixed(1) + '%';
+                cards[0].querySelector('.stat-card__value').textContent = _safePercent(counts.active_accounts, counts.accounts);
+                cards[1].querySelector('.stat-card__value').textContent = _safePercent(counts.completed_tasks, counts.tasks);
+                cards[2].querySelector('.stat-card__value').textContent = _safePercent(counts.assets, counts.completed_tasks || counts.tasks);
             }
             var steps = document.querySelectorAll('#mainHost .funnel-step strong');
-            if (steps.length >= 5) {
-                var exposure = Math.max(50000, _sumFollowers(accounts) * 12);
-                var clicks = Math.round(exposure * (_trafficCtr(accounts, tasks) / 100));
-                var addToCart = Math.round(clicks * 0.18);
-                var orders = Math.round(addToCart * 0.35);
-                var signoffs = Math.round(orders * 0.94);
-                [exposure, clicks, addToCart, orders, signoffs].forEach(function (value, index) {
-                    steps[index].textContent = _formatNum(value);
+            if (steps.length >= 5 && conversion.funnel) {
+                conversion.funnel.forEach(function (step, index) {
+                    if (steps[index]) steps[index].textContent = _formatNum(step.value || 0);
                 });
                 _setAnalyticsSeed({
-                    funnel: [exposure, clicks, addToCart, orders, signoffs],
+                    funnel: conversion.funnel.map(function (step) { return step.value || 0; }),
                 });
             }
-            _bindAnalyticsHeaderActions('ecommerce-conversion', { accounts: accounts, tasks: tasks, stats: stats });
+            _bindAnalyticsHeaderActions('ecommerce-conversion', { conversion: conversion, summary: summary, accounts: new Array(counts.accounts || 0), tasks: new Array(counts.tasks || 0), assets: { total: counts.assets || 0 } });
             if (typeof bindRouteInteractions === 'function') bindRouteInteractions();
         }).catch(function (e) {
             console.warn('[page-loaders] ecommerce-conversion load failed:', e);
@@ -1121,35 +1399,32 @@
 
     loaders['fan-profile'] = function () {
         Promise.all([
-            api.accounts.list().catch(function () { return []; }),
-            api.assets.list().catch(function () { return []; }),
-            api.tasks.list().catch(function () { return []; }),
+            api.analytics.persona().catch(function () { return { segments: [], regions: [], interest_clusters: [] }; }),
+            api.analytics.summary().catch(function () { return {}; }),
         ]).then(function (results) {
-            var accounts = results[0] || [];
-            var assets = results[1] || [];
-            var tasks = results[2] || [];
+            var persona = results[0] || { segments: [], regions: [], interest_clusters: [] };
+            var summary = results[1] || {};
+            var assetsTotal = (summary.assets && summary.assets.total) || 0;
+            var tasksTotal = (summary.tasks && summary.tasks.total) || 0;
+            var accountsTotal = (summary.accounts && summary.accounts.total) || 0;
             var cards = document.querySelectorAll('#mainHost .stat-grid .stat-card');
             if (cards.length >= 3) {
-                cards[0].querySelector('.stat-card__value').textContent = _formatNum(Math.round(_sumFollowers(accounts) * 0.12));
-                cards[1].querySelector('.stat-card__value').textContent = String(Math.max(3, Math.min(6, accounts.length)));
-                cards[2].querySelector('.stat-card__value').textContent = String(Math.max(3, Math.round(assets.length / 2)));
+                cards[0].querySelector('.stat-card__value').textContent = _formatNum((persona.segments[0] && persona.segments[0].count) || 0);
+                cards[1].querySelector('.stat-card__value').textContent = String(persona.segments.length || 0);
+                cards[2].querySelector('.stat-card__value').textContent = String((persona.interest_clusters || []).length || 0);
             }
             var affinityBars = document.querySelectorAll('#mainHost .affinity-bars div');
             if (affinityBars.length >= 4) {
-                _setAffinityBar(affinityBars[0], 78, '高价值粉丝');
-                _setAffinityBar(affinityBars[1], 58 + Math.min(18, accounts.length * 4), '潜力粉丝');
-                _setAffinityBar(affinityBars[2], 36 + Math.min(12, tasks.length * 2), '观望粉丝');
-                _setAffinityBar(affinityBars[3], 18 + Math.min(8, Math.round(assets.length / 3)), '沉默粉丝');
+                (persona.segments || []).slice(0, 4).forEach(function (segment, index) {
+                    _setAffinityBar(affinityBars[index], Math.max(18, Math.min(96, 22 + (segment.count || 0) * 14)), segment.label || segment.key || ('分层 ' + (index + 1)));
+                });
             }
             _setAnalyticsSeed({
-                affinity: [
-                    78,
-                    58 + Math.min(18, accounts.length * 4),
-                    36 + Math.min(12, tasks.length * 2),
-                    18 + Math.min(8, Math.round(assets.length / 3)),
-                ],
+                affinity: (persona.segments || []).slice(0, 4).map(function (segment) {
+                    return Math.max(18, Math.min(96, 22 + (segment.count || 0) * 14));
+                }),
             });
-            _bindAnalyticsHeaderActions('fan-profile', { accounts: accounts, tasks: tasks, assets: assets });
+            _bindAnalyticsHeaderActions('fan-profile', { persona: persona, summary: summary, accounts: new Array(accountsTotal), tasks: new Array(tasksTotal), assets: { total: assetsTotal } });
             if (typeof bindRouteInteractions === 'function') bindRouteInteractions();
         }).catch(function (e) {
             console.warn('[page-loaders] fan-profile load failed:', e);
@@ -1192,12 +1467,14 @@
             api.accounts.list().catch(function () { return []; }),
             api.assets.list().catch(function () { return []; }),
             api.tasks.list().catch(function () { return []; }),
+            api.experiments.projects().catch(function () { return []; }),
         ]).then(function (results) {
             var accounts = results[0] || [];
             var assets = results[1] || [];
             var tasks = results[2] || [];
+            var projects = results[3] || [];
             _renderWorkbenchSummary([
-                { label: '当前实验', value: accounts.length ? (accounts[0].region || '多地区实验') : '实验待启动', note: '账号与地域结构已同步进创意对比。'},
+                { label: '当前实验', value: projects[0] ? (projects[0].name || '实验已保存') : (accounts.length ? (accounts[0].region || '多地区实验') : '实验待启动'), note: '账号与地域结构已同步进创意对比。'},
                 { label: '待决策', value: String(Math.max(2, tasks.length)) + ' 组', note: '来自真实任务池的执行反馈已回写。'},
                 { label: '保留倾向', value: assets.length > 3 ? '素材充分' : '素材偏少', note: '优先选择有足够素材支撑的方案。'},
             ]);
@@ -1237,13 +1514,17 @@
             api.assets.list().catch(function () { return []; }),
             api.tasks.list().catch(function () { return []; }),
             api.providers.list().catch(function () { return []; }),
+            api.workflows.definitions().catch(function () { return []; }),
+            api.workflows.runs().catch(function () { return []; }),
         ]).then(function (results) {
             var assets = results[0] || [];
             var tasks = results[1] || [];
             var providers = results[2] || [];
-            _renderWorkflowNodes(assets, tasks, providers);
+            var definitions = results[3] || [];
+            var runs = results[4] || [];
+            _renderWorkflowNodes(assets, tasks, providers, definitions, runs);
             _renderWorkbenchSideCards(tasks, '#mainHost .workbench-side-list');
-            _renderStripCards(tasks, '#mainHost .workbench-strip-grid');
+            _renderStripCards(runs.length ? runs : tasks, '#mainHost .workbench-strip-grid');
             _applyAiHandoffHint('ai-content-factory', '#mainHost .workbench-strip-grid');
             if (typeof bindRouteInteractions === 'function') bindRouteInteractions();
         }).catch(function (e) {
@@ -1806,19 +2087,19 @@
         }).join('');
     }
 
-    function _renderWorkflowNodes(assets, tasks, providers) {
+    function _renderWorkflowNodes(assets, tasks, providers, definitions, runs) {
         var nodes = document.querySelectorAll('#mainHost .workflow-node');
         if (!nodes.length) return;
         var summaries = [
             '素材 ' + assets.length + ' 条',
-            '任务 ' + tasks.length + ' 个',
+            '工作流 ' + ((definitions || []).length || tasks.length) + ' 个',
             '供应商 ' + providers.length + ' 个',
-            '运行中 ' + tasks.filter(function (task) { return _normalizeTaskStatus(task.status) === 'running'; }).length + ' 个',
+            '运行中 ' + ((runs || []).filter(function (run) { return _normalizeTaskStatus(run.status) === 'running'; }).length || tasks.filter(function (task) { return _normalizeTaskStatus(task.status) === 'running'; }).length) + ' 个',
         ];
         nodes.forEach(function (node, index) {
             var subtle = node.querySelector('.subtle');
             if (subtle && summaries[index]) subtle.textContent = summaries[index];
-            node.classList.toggle('is-active', index === Math.min(3, tasks.filter(function (task) { return _normalizeTaskStatus(task.status) === 'running'; }).length));
+            node.classList.toggle('is-active', index === Math.min(3, ((runs || []).filter(function (run) { return _normalizeTaskStatus(run.status) === 'running'; }).length || tasks.filter(function (task) { return _normalizeTaskStatus(task.status) === 'running'; }).length)));
         });
     }
 
@@ -3494,6 +3775,39 @@
                 _renderAssetDetail(asset);
             });
         });
+        _bindAssetActions(assets);
+    }
+
+    function _bindAssetActions(assets) {
+        var actionHost = document.querySelector('#detailHost .workbench-side-list');
+        if (!actionHost) return;
+        var selectedThumb = document.querySelector('#mainHost .source-thumb.is-selected');
+        if (!selectedThumb) return;
+        var selectedId = parseInt(selectedThumb.dataset.id, 10);
+        var asset = (assets || []).find(function (item) { return item.id === selectedId || String(item.id) === String(selectedId); });
+        if (!asset) return;
+        actionHost.innerHTML = '<article class="workbench-sidecard"><strong>素材操作</strong><div class="subtle"><button class="secondary-button js-edit-asset" data-id="' + _esc(asset.id || '') + '">编辑素材</button> <button class="danger-button js-delete-asset" data-id="' + _esc(asset.id || '') + '">删除素材</button></div></article>';
+        document.querySelectorAll('.js-edit-asset').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                openAssetForm(asset);
+            });
+        });
+        document.querySelectorAll('.js-delete-asset').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                confirmModal({
+                    title: '删除素材',
+                    message: '确定删除该素材记录？此操作不可恢复。',
+                    confirmText: '删除',
+                    tone: 'danger',
+                }).then(function (ok) {
+                    if (!ok) return;
+                    api.assets.remove(asset.id).then(function () {
+                        showToast('素材已删除', 'success');
+                        loaders['asset-center']();
+                    });
+                });
+            });
+        });
     }
 
     function _renderAssetDetail(asset) {
@@ -3697,39 +4011,34 @@
         return count;
     }
 
-    function _estimateRevenue(accounts, tasks, assets) {
-        var followerBase = 0;
-        (accounts || []).forEach(function (account) {
-            followerBase += parseInt(account.followers || 0, 10) || 0;
-        });
-        return Math.round((followerBase * 3.2) + (tasks.length * 4800) + (assets.length * 2100));
-    }
-
-    function _estimateCost(accounts, tasks, assets) {
-        return Math.round((accounts.length * 16000) + (tasks.length * 3200) + (assets.length * 780));
-    }
-
-    function providersFeeEstimate(assetCount) {
-        return Math.max(3.2, Math.min(12.4, (assetCount || 0) * 0.18)).toFixed(1);
-    }
-
     function _formatMoney(num) {
         var n = parseInt(num || 0, 10) || 0;
         if (n >= 10000) return (n / 10000).toFixed(1) + '万';
         return _formatNum(n);
     }
 
-    function _buildProfitRows(accounts, tasks) {
-        if (!(accounts || []).length) {
+    function _safePercent(part, whole) {
+        var numerator = parseInt(part || 0, 10) || 0;
+        var denominator = parseInt(whole || 0, 10) || 0;
+        if (!denominator) return '0%';
+        return Math.max(0, Math.min(100, Math.round((numerator / denominator) * 100))) + '%';
+    }
+
+    function _buildTruthfulProfitRows(summary, conversion) {
+        var regions = ((summary.accounts && summary.accounts.by_region) || {});
+        var keys = Object.keys(regions);
+        if (!keys.length) {
             return ['<tr><td colspan="5" style="text-align:center;padding:32px;">暂无利润分析基础数据</td></tr>'];
         }
-        return accounts.slice(0, 4).map(function (account, index) {
-            var followers = parseInt(account.followers || 0, 10) || 0;
-            var margin = Math.max(12, Math.min(38, Math.round(followers / 4000) || (18 + index * 4)));
-            var statusClass = margin >= 28 ? 'success' : margin >= 18 ? 'warning' : 'error';
-            var risk = margin >= 28 ? '健康' : margin >= 18 ? '广告成本高' : '退款高';
-            var action = margin >= 28 ? '继续加码' : margin >= 18 ? '调整投流' : '优先复盘';
-            return '<tr class="route-row" data-search="' + _esc((account.username || '') + ' ' + risk + ' ' + action) + '"><td><strong>' + _esc(account.username || ('店铺 ' + (index + 1))) + '</strong></td><td><span class="status-chip ' + statusClass + '">' + margin + '%</span></td><td>' + (followers > 30000 ? '高' : followers > 10000 ? '中' : '低') + '</td><td>' + risk + '</td><td>' + action + '</td></tr>';
+        var counts = (conversion && conversion.counts) || {};
+        return keys.slice(0, 4).map(function (regionKey, index) {
+            var accountCount = regions[regionKey] || 0;
+            var completed = counts.completed_tasks || 0;
+            var assets = counts.assets || 0;
+            var statusClass = accountCount >= 2 ? 'success' : accountCount === 1 ? 'warning' : 'error';
+            var readiness = assets >= completed ? '素材已覆盖' : '素材待补齐';
+            var action = accountCount >= 2 ? '继续验证' : '优先补样本';
+            return '<tr class="route-row" data-search="' + _esc(regionKey + ' ' + readiness + ' ' + action) + '"><td><strong>' + _esc(regionKey) + '</strong></td><td><span class="status-chip ' + statusClass + '">' + _formatNum(completed) + '</span></td><td>' + _formatNum(accountCount) + '</td><td>' + readiness + '</td><td>' + action + '</td></tr>';
         });
     }
 
@@ -4036,4 +4345,6 @@
     // ── 暴露全局 ──
     window.loadRouteData = loadRouteData;
     window._pageLoaders = loaders;
+    window.__pageAudits = pageAudits;
+    window.__runtimeSummaryHandlers = runtimeSummaryHandlers;
 })();

@@ -157,6 +157,135 @@ class Asset(Base):
     account: Mapped[Account | None] = relationship("Account")
 
 
+# ── Analysis Snapshot ─────────────────────────────────────
+
+class AnalysisSnapshot(Base):
+    __tablename__ = "analysis_snapshots"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    page_key: Mapped[str] = mapped_column(String(80), nullable=False)
+    title: Mapped[str] = mapped_column(String(160), nullable=False)
+    summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    payload_json: Mapped[str] = mapped_column(Text, default="{}")
+    filters_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[_dt.datetime] = mapped_column(DateTime, server_default=func.now())
+    updated_at: Mapped[_dt.datetime] = mapped_column(
+        DateTime, server_default=func.now(), onupdate=func.now()
+    )
+
+
+# ── Report Run ────────────────────────────────────────────
+
+class ReportRun(Base):
+    __tablename__ = "report_runs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    title: Mapped[str] = mapped_column(String(160), nullable=False)
+    report_type: Mapped[str] = mapped_column(String(80), default="general")
+    status: Mapped[str] = mapped_column(String(40), default="pending")
+    filters_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    result_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    task_id: Mapped[int | None] = mapped_column(ForeignKey("tasks.id"), nullable=True)
+    created_at: Mapped[_dt.datetime] = mapped_column(DateTime, server_default=func.now())
+    updated_at: Mapped[_dt.datetime] = mapped_column(
+        DateTime, server_default=func.now(), onupdate=func.now()
+    )
+
+    task: Mapped[Task | None] = relationship("Task")
+
+
+# ── Workflow Definition / Run ─────────────────────────────
+
+class WorkflowDefinition(Base):
+    __tablename__ = "workflow_definitions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(160), nullable=False)
+    status: Mapped[str] = mapped_column(String(40), default="draft")
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    config_json: Mapped[str] = mapped_column(Text, default="{}")
+    created_at: Mapped[_dt.datetime] = mapped_column(DateTime, server_default=func.now())
+    updated_at: Mapped[_dt.datetime] = mapped_column(
+        DateTime, server_default=func.now(), onupdate=func.now()
+    )
+
+    runs: Mapped[list[WorkflowRun]] = relationship(
+        "WorkflowRun", back_populates="workflow_definition"
+    )
+
+
+class WorkflowRun(Base):
+    __tablename__ = "workflow_runs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    workflow_definition_id: Mapped[int] = mapped_column(
+        ForeignKey("workflow_definitions.id"), nullable=False
+    )
+    status: Mapped[str] = mapped_column(String(40), default="pending")
+    input_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    result_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    started_at: Mapped[_dt.datetime | None] = mapped_column(DateTime, nullable=True)
+    finished_at: Mapped[_dt.datetime | None] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[_dt.datetime] = mapped_column(DateTime, server_default=func.now())
+
+    workflow_definition: Mapped[WorkflowDefinition] = relationship(
+        "WorkflowDefinition", back_populates="runs"
+    )
+
+
+# ── Experiment Project / View ─────────────────────────────
+
+class ExperimentProject(Base):
+    __tablename__ = "experiment_projects"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(160), nullable=False)
+    goal: Mapped[str | None] = mapped_column(Text, nullable=True)
+    status: Mapped[str] = mapped_column(String(40), default="draft")
+    config_json: Mapped[str] = mapped_column(Text, default="{}")
+    created_at: Mapped[_dt.datetime] = mapped_column(DateTime, server_default=func.now())
+    updated_at: Mapped[_dt.datetime] = mapped_column(
+        DateTime, server_default=func.now(), onupdate=func.now()
+    )
+
+    views: Mapped[list[ExperimentView]] = relationship(
+        "ExperimentView", back_populates="project"
+    )
+
+
+class ExperimentView(Base):
+    __tablename__ = "experiment_views"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    experiment_project_id: Mapped[int] = mapped_column(
+        ForeignKey("experiment_projects.id"), nullable=False
+    )
+    name: Mapped[str] = mapped_column(String(160), nullable=False)
+    layout_json: Mapped[str] = mapped_column(Text, default="{}")
+    created_at: Mapped[_dt.datetime] = mapped_column(DateTime, server_default=func.now())
+    updated_at: Mapped[_dt.datetime] = mapped_column(
+        DateTime, server_default=func.now(), onupdate=func.now()
+    )
+
+    project: Mapped[ExperimentProject] = relationship(
+        "ExperimentProject", back_populates="views"
+    )
+
+
+# ── Activity Log ──────────────────────────────────────────
+
+class ActivityLog(Base):
+    __tablename__ = "activity_logs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    category: Mapped[str] = mapped_column(String(80), nullable=False)
+    title: Mapped[str] = mapped_column(String(200), nullable=False)
+    payload_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    related_entity_type: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    related_entity_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    created_at: Mapped[_dt.datetime] = mapped_column(DateTime, server_default=func.now())
+
+
 # ── App Setting (key-value config) ───────────────
 
 class AppSetting(Base):

@@ -31,13 +31,18 @@ from desktop_app.database.models import (
 from desktop_app.database.repository import Repository
 from desktop_app.logging_config import LOG_FILE
 from desktop_app.services.account_service import AccountService
+from desktop_app.services.activity_service import ActivityService
 from desktop_app.services.ai_service import AIService
+from desktop_app.services.analytics_service import AnalyticsService
 from desktop_app.services.asset_service import AssetService
 from desktop_app.services.chat_service import ChatService, list_presets, get_preset
+from desktop_app.services.dev_seed_service import DevSeedService
 from desktop_app.services.license_service import LicenseService
+from desktop_app.services.report_service import ReportService
 from desktop_app.services.task_service import TaskService
 from desktop_app.services.updater_service import UpdaterService
 from desktop_app.services.usage_tracker import UsageTracker
+from desktop_app.services.workflow_service import WorkflowService
 
 log = logging.getLogger(__name__)
 
@@ -93,7 +98,12 @@ class Bridge(QObject):
         self._accounts = AccountService(self._repo)
         self._tasks = TaskService(self._repo)
         self._ai = AIService(self._repo)
+        self._analytics = AnalyticsService(self._repo)
         self._assets = AssetService(self._repo)
+        self._dev_seed = DevSeedService(self._repo)
+        self._reports = ReportService(self._repo)
+        self._workflows = WorkflowService(self._repo)
+        self._activity = ActivityService(self._repo)
         self._updater = UpdaterService()
         self._chat = ChatService(self._repo)
         self._usage = UsageTracker(self._repo)
@@ -289,6 +299,40 @@ class Bridge(QObject):
         self._emit_change("task", "deleted", pk)
         return _ok({"deleted": pk})
 
+    @Slot(str, result=str)
+    @_safe
+    def createTaskAction(self, payload: str) -> str:
+        data = json.loads(payload)
+        action_key = str(data.get("action_key") or "").strip()
+        title = str(data.get("title") or "").strip()
+        if not action_key:
+            return _err("动作标识不能为空")
+        if not title:
+            return _err("任务标题不能为空")
+
+        metadata = data.get("metadata")
+        if metadata is not None and not isinstance(metadata, dict):
+            metadata = {"value": metadata}
+
+        account_id = data.get("account_id")
+        if account_id in ("", None):
+            account_id = None
+        elif isinstance(account_id, str):
+            account_id = int(account_id)
+
+        task = self._tasks.create_action_task(
+            action_key,
+            title=title,
+            summary=str(data.get("summary") or ""),
+            metadata=metadata,
+            task_type=str(data.get("task_type") or "maintenance"),
+            priority=str(data.get("priority") or "medium"),
+            status=str(data.get("status") or "pending"),
+            account_id=account_id,
+        )
+        self._emit_change("task", "created", task.id)
+        return _ok(_to_dict(task))
+
     # ── AI Provider slots ──
 
     @Slot(result=str)
@@ -406,6 +450,170 @@ class Bridge(QObject):
             "assets": self._repo.count(Asset),
             "providers": self._repo.count(AIProvider),
         })
+
+    @Slot(result=str)
+    @_safe
+    def getAnalyticsSummary(self) -> str:
+        return _ok(self._analytics.get_analytics_summary())
+
+    @Slot(result=str)
+    @_safe
+    def getConversionAnalysis(self) -> str:
+        return _ok(self._analytics.get_conversion_analysis())
+
+    @Slot(result=str)
+    @_safe
+    def getPersonaAnalysis(self) -> str:
+        return _ok(self._analytics.get_persona_analysis())
+
+    @Slot(result=str)
+    @_safe
+    def getTrafficAnalysis(self) -> str:
+        return _ok(self._analytics.get_traffic_analysis())
+
+    @Slot(result=str)
+    @_safe
+    def getCompetitorAnalysis(self) -> str:
+        return _ok(self._analytics.get_competitor_analysis())
+
+    @Slot(result=str)
+    @_safe
+    def getBlueOceanAnalysis(self) -> str:
+        return _ok(self._analytics.get_blue_ocean_analysis())
+
+    @Slot(result=str)
+    @_safe
+    def getInteractionAnalysis(self) -> str:
+        return _ok(self._analytics.get_interaction_analysis())
+
+    # ── Analytics / Reports / Workflows / Experiments ──
+
+    @Slot(result=str)
+    @_safe
+    def listAnalysisSnapshots(self) -> str:
+        return _ok([_to_dict(item) for item in self._analytics.list_analysis_snapshots()])
+
+    @Slot(str, result=str)
+    @_safe
+    def createAnalysisSnapshot(self, payload: str) -> str:
+        data = json.loads(payload)
+        page_key = data.pop("page_key", "")
+        title = data.pop("title", "")
+        if not page_key or not title:
+            return _err("page_key 和 title 不能为空")
+        item = self._analytics.create_analysis_snapshot(page_key, title, **data)
+        self._emit_change("analysis_snapshot", "created", item.id)
+        return _ok(_to_dict(item))
+
+    @Slot(result=str)
+    @_safe
+    def listReportRuns(self) -> str:
+        return _ok([_to_dict(item) for item in self._reports.list_report_runs()])
+
+    @Slot(str, result=str)
+    @_safe
+    def createReportRun(self, payload: str) -> str:
+        data = json.loads(payload)
+        title = data.pop("title", "")
+        if not title:
+            return _err("title 不能为空")
+        item = self._reports.create_report_run(title, **data)
+        self._emit_change("report_run", "created", item.id)
+        return _ok(_to_dict(item))
+
+    @Slot(result=str)
+    @_safe
+    def listWorkflowDefinitions(self) -> str:
+        return _ok([_to_dict(item) for item in self._workflows.list_workflow_definitions()])
+
+    @Slot(str, result=str)
+    @_safe
+    def createWorkflowDefinition(self, payload: str) -> str:
+        data = json.loads(payload)
+        name = data.pop("name", "")
+        if not name:
+            return _err("name 不能为空")
+        item = self._workflows.create_workflow_definition(name, **data)
+        self._emit_change("workflow_definition", "created", item.id)
+        return _ok(_to_dict(item))
+
+    @Slot(result=str)
+    @_safe
+    def listWorkflowRuns(self) -> str:
+        return _ok([_to_dict(item) for item in self._workflows.list_workflow_runs()])
+
+    @Slot(str, result=str)
+    @_safe
+    def startWorkflowRun(self, payload: str) -> str:
+        data = json.loads(payload)
+        workflow_definition_id = data.pop("workflow_definition_id", None)
+        if workflow_definition_id is None:
+            return _err("workflow_definition_id 不能为空")
+        item = self._workflows.create_workflow_run(int(workflow_definition_id), **data)
+        self._emit_change("workflow_run", "created", item.id)
+        return _ok(_to_dict(item))
+
+    @Slot(result=str)
+    @_safe
+    def listExperimentProjects(self) -> str:
+        return _ok([_to_dict(item) for item in self._analytics.list_experiment_projects()])
+
+    @Slot(str, result=str)
+    @_safe
+    def createExperimentProject(self, payload: str) -> str:
+        data = json.loads(payload)
+        name = data.pop("name", "")
+        if not name:
+            return _err("name 不能为空")
+        item = self._analytics.create_experiment_project(name, **data)
+        self._emit_change("experiment_project", "created", item.id)
+        return _ok(_to_dict(item))
+
+    @Slot(result=str)
+    @_safe
+    def listExperimentViews(self) -> str:
+        return _ok([_to_dict(item) for item in self._analytics.list_experiment_views()])
+
+    @Slot(str, result=str)
+    @_safe
+    def createExperimentView(self, payload: str) -> str:
+        data = json.loads(payload)
+        experiment_project_id = data.pop("experiment_project_id", None)
+        name = data.pop("name", "")
+        if experiment_project_id is None or not name:
+            return _err("experiment_project_id 和 name 不能为空")
+        item = self._analytics.create_experiment_view(int(experiment_project_id), name, **data)
+        self._emit_change("experiment_view", "created", item.id)
+        return _ok(_to_dict(item))
+
+    @Slot(result=str)
+    @_safe
+    def listActivityLogs(self) -> str:
+        return _ok([_to_dict(item) for item in self._activity.list_activity_logs()])
+
+    @Slot(result=str)
+    @_safe
+    def listNotifications(self) -> str:
+        return _ok(self._activity.list_notifications())
+
+    @Slot(str, result=str)
+    @_safe
+    def createActivityLog(self, payload: str) -> str:
+        data = json.loads(payload)
+        category = data.pop("category", "")
+        title = data.pop("title", "")
+        if not category or not title:
+            return _err("category 和 title 不能为空")
+        item = self._activity.create_activity_log(category, title, **data)
+        self._emit_change("activity_log", "created", item.id)
+        return _ok(_to_dict(item))
+
+    @Slot(result=str)
+    @_safe
+    def runDevSeed(self) -> str:
+        result = self._dev_seed.seed_development_data()
+        self._emit_change("dev_seed", "completed", result.get("created", 0))
+        return _ok(result)
 
     # ── Settings slots ──
 

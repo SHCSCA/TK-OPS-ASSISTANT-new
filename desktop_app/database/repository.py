@@ -10,12 +10,19 @@ from desktop_app.database import get_session
 from desktop_app.database.models import (
     Account,
     AIProvider,
+    ActivityLog,
+    AnalysisSnapshot,
     AppSetting,
     Asset,
     Base,
     Device,
+    ExperimentProject,
+    ExperimentView,
     Group,
+    ReportRun,
     Task,
+    WorkflowDefinition,
+    WorkflowRun,
 )
 
 T = TypeVar("T", bound=Base)
@@ -91,6 +98,60 @@ class Repository:
 
     def list_groups(self) -> Sequence[Group]:
         return self._session.execute(select(Group).order_by(Group.id)).scalars().all()
+
+    def list_analysis_snapshots(
+        self, *, page_key: str | None = None
+    ) -> Sequence[AnalysisSnapshot]:
+        stmt = select(AnalysisSnapshot)
+        if page_key:
+            stmt = stmt.where(AnalysisSnapshot.page_key == page_key)
+        return self._session.execute(
+            stmt.order_by(AnalysisSnapshot.created_at.desc(), AnalysisSnapshot.id.desc())
+        ).scalars().all()
+
+    def list_report_runs(self) -> Sequence[ReportRun]:
+        stmt = select(ReportRun).order_by(ReportRun.created_at.desc(), ReportRun.id.desc())
+        return self._session.execute(stmt).scalars().all()
+
+    def list_workflow_definitions(self) -> Sequence[WorkflowDefinition]:
+        stmt = select(WorkflowDefinition).order_by(
+            WorkflowDefinition.created_at.desc(), WorkflowDefinition.id.desc()
+        )
+        return self._session.execute(stmt).scalars().all()
+
+    def list_workflow_runs(
+        self, *, workflow_definition_id: int | None = None
+    ) -> Sequence[WorkflowRun]:
+        stmt = select(WorkflowRun)
+        if workflow_definition_id is not None:
+            stmt = stmt.where(WorkflowRun.workflow_definition_id == workflow_definition_id)
+        return self._session.execute(
+            stmt.order_by(WorkflowRun.created_at.desc(), WorkflowRun.id.desc())
+        ).scalars().all()
+
+    def list_experiment_projects(self) -> Sequence[ExperimentProject]:
+        stmt = select(ExperimentProject).order_by(
+            ExperimentProject.created_at.desc(), ExperimentProject.id.desc()
+        )
+        return self._session.execute(stmt).scalars().all()
+
+    def list_experiment_views(
+        self, *, experiment_project_id: int | None = None
+    ) -> Sequence[ExperimentView]:
+        stmt = select(ExperimentView)
+        if experiment_project_id is not None:
+            stmt = stmt.where(ExperimentView.experiment_project_id == experiment_project_id)
+        return self._session.execute(
+            stmt.order_by(ExperimentView.created_at.desc(), ExperimentView.id.desc())
+        ).scalars().all()
+
+    def list_activity_logs(self, *, category: str | None = None) -> Sequence[ActivityLog]:
+        stmt = select(ActivityLog)
+        if category:
+            stmt = stmt.where(ActivityLog.category == category)
+        return self._session.execute(
+            stmt.order_by(ActivityLog.created_at.desc(), ActivityLog.id.desc())
+        ).scalars().all()
 
     # ── app settings ──
 

@@ -125,6 +125,7 @@ function makeListManagementRoute(config) {
     return {
         eyebrow: config.eyebrow,
         searchTerms: `${config.title} ${config.description} ${config.breadcrumb} ${config.eyebrow}`,
+        audit: config.audit,
         sidebarSummary: config.sidebarSummary || { eyebrow: `${config.title}提醒`, title: `${config.title}正在推进`, copy: `先处理${config.title}中的高影响项。` },
         statusLeft: config.statusLeft || [`${config.title} 已接入`, '状态正常', '最近更新 12:48'],
         statusRight: config.statusRight || [{ text: '运行正常', tone: 'success' }, { text: '待复核 2', tone: 'warning' }],
@@ -139,7 +140,7 @@ function makeListManagementRoute(config) {
    独立于 makeListManagementRoute，有环境卡片、指纹/代理状态、
    设备-账号绑定关系、隔离覆盖率和批量操作面板
    ═══════════════════════════════════════════════ */
-function makeDeviceManagementRoute() {
+function makeDeviceManagementRoute(config = {}) {
     const metrics = [
         { label: '设备总量', value: '64', delta: '+6', note: '本周新增 6 台环境', color: 'var(--status-success)', search: '设备 总量 64' },
         { label: '隔离覆盖率', value: '91%', delta: '+3%', note: '大部分账号已进入独立环境', color: 'var(--brand-primary)', search: '隔离 覆盖率 91' },
@@ -223,9 +224,10 @@ function makeDeviceManagementRoute() {
     return {
         eyebrow: '设备与环境中心',
         searchTerms: '设备管理 浏览器隔离 代理 指纹 环境 device proxy fingerprint 设备池',
-        sidebarSummary: { eyebrow: '环境提醒', title: '3 台异常设备待处理', copy: '先处理代理丢失和指纹漂移，再恢复大批量登录任务。' },
-        statusLeft: ['设备可用率 95.3%', '异常 3', '最近巡检 12:18'],
-        statusRight: [{ text: '环境正常', tone: 'success' }, { text: '告警 3', tone: 'warning' }],
+        audit: config.audit,
+        sidebarSummary: { eyebrow: '环境提醒', title: '设备环境摘要', copy: '加载后根据真实设备状态、覆盖率与异常情况自动更新。' },
+        statusLeft: ['设备总量', '健康覆盖率', '异常设备'],
+        statusRight: [{ text: '实时汇总', tone: 'info' }, { text: '等待加载', tone: 'warning' }],
         hideDetailPanel: false,
         mainHtml,
         detailHtml: `<div class="detail-root"><section class="panel"><div class="panel__header"><div><strong>设备详情</strong><div class="subtle">选中设备的环境参数与绑定信息</div></div><span class="status-chip success">正常</span></div><div class="detail-stack"><div><strong>美国直播池 A1</strong><div class="subtle mono">DEV-US-01</div></div><div class="detail-list"><div class="detail-item"><span class="subtle">代理 IP</span><strong class="mono">192.168.1.101 (US)</strong></div><div class="detail-item"><span class="subtle">指纹状态</span><strong>正常</strong></div><div class="detail-item"><span class="subtle">绑定账号</span><strong>4 个</strong></div><div class="detail-item"><span class="subtle">最近巡检</span><strong>12:18</strong></div></div><div class="detail-actions"><button class="primary-button" type="button">打开环境</button><button class="secondary-button" type="button">修改绑定</button></div></div></section><section class="panel"><div class="panel__header"><div><strong>维护建议</strong><div class="subtle">避免设备与账号混绑带来风险</div></div></div><div class="audit-list"><div class="audit-item"><div><strong>优先修复德国设备池</strong><div class="subtle">指纹漂移会影响 5 个账号的登录环境</div></div><span class="pill warning">优先</span></div><div class="audit-item"><div><strong>英国代理恢复后再操作</strong><div class="subtle">当前代理丢失，不宜继续投流</div></div><span class="pill error">阻塞</span></div><div class="audit-item"><div><strong>空闲设备调度</strong><div class="subtle">12 台空闲可分配给新增高价值账号</div></div><span class="pill info">调度</span></div></div></section></div>`,

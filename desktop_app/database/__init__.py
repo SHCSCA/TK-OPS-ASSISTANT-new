@@ -19,12 +19,15 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from desktop_app.database.models import Base
 
-APP_VERSION = "1.0.0"
+APP_VERSION = "1.1.0"
 log = logging.getLogger(__name__)
 
 
 def _resolve_data_dir() -> Path:
     """Pick the best data directory: AppData on Windows, project/data in dev."""
+    explicit = os.environ.get("TK_OPS_DATA_DIR")
+    if explicit:
+        return Path(explicit)
     if getattr(sys, "frozen", False):
         # Packaged exe – always use AppData
         base = Path(os.environ.get("APPDATA", Path.home()))
@@ -129,8 +132,9 @@ def session_scope() -> Generator[Session, None, None]:
 
 # Auto-initialize the database when this module is imported (helps tests run reliably
 # in fresh environments where migrations may not have run yet).
-try:
-    init_db()
-except Exception:
-    # Do not crash import if DB cannot be initialized in some environments
-    pass
+if os.environ.get("TKOPS_SKIP_DB_AUTO_INIT") != "1":
+    try:
+        init_db()
+    except Exception:
+        # Do not crash import if DB cannot be initialized in some environments
+        pass

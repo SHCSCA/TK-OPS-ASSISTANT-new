@@ -100,13 +100,14 @@ function makeAIConfigDetail(config) {
     `;
 }
 
-function makeAssetCenterRoute() {
+function makeAssetCenterRoute(config = {}) {
     return {
         eyebrow: '素材资产库',
         searchTerms: '素材中心 素材分类 素材库 视频 图片 字幕 音频 标签 授权',
-        sidebarSummary: { eyebrow: '素材提醒', title: '12 个素材待审核', copy: '先补版权审核，再把高价值素材批量标记到创作链路。' },
-        statusLeft: ['素材 2148', '待审 12', '高转化 18'],
-        statusRight: [{ text: '库存健康', tone: 'success' }, { text: '待审核 12', tone: 'warning' }],
+        audit: config.audit,
+        sidebarSummary: { eyebrow: '素材提醒', title: '素材库存摘要', copy: '加载后根据真实素材库存、分类分布和待整理情况自动更新。' },
+        statusLeft: ['素材总量', '待整理素材', '图片/视频占比'],
+        statusRight: [{ text: '实时汇总', tone: 'info' }, { text: '等待加载', tone: 'warning' }],
         hideDetailPanel: false,
         mainHtml: `
             <div class="breadcrumbs"><span>creator</span><span>/</span><span>素材中心</span></div>
