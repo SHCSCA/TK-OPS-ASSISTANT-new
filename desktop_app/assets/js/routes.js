@@ -4,16 +4,19 @@ const routes = {
         searchTerms: '概览数据看板 dashboard KPI 任务 趋势 系统健康 活动流',
         mainTemplate: 'route-dashboard-main',
         detailTemplate: 'route-dashboard-detail-default',
+        audit: {
+            scope: 'dashboard',
+            interactions: ['create', 'detail', 'filter', 'navigate'],
+        },
         sidebarSummary: {
             eyebrow: '今日重点',
-            title: 'AI 任务 452 条正在运行',
-            copy: '优先处理 3 个异常集群，再回看导出队列和跨店铺同步失败告警。',
+            title: '实时运行摘要',
+            copy: '加载后根据账号、任务、设备、素材和供应商状态自动更新。',
         },
-        statusLeft: ['AI 服务健康度 98.7%', '最后同步 12:48', '连接状态 正常'],
+        statusLeft: ['账号状态', '任务状态', '设备状态'],
         statusRight: [
-            { text: '运行中 37', tone: 'success' },
-            { text: '排队中 28', tone: 'warning' },
-            { text: '异常 3', tone: 'error' },
+            { text: '实时汇总', tone: 'info' },
+            { text: '等待加载', tone: 'warning' },
         ],
     },
     account: {
@@ -21,16 +24,19 @@ const routes = {
         searchTerms: '账号管理 account cookie 代理 登录 环境 隔离',
         mainTemplate: 'route-account-main',
         detailTemplate: 'route-account-detail-default',
+        audit: {
+            scope: 'account',
+            interactions: ['create', 'edit', 'delete', 'detail', 'filter', 'batch', 'task'],
+        },
         sidebarSummary: {
             eyebrow: '当前提醒',
-            title: '4 个异常账号待处理',
-            copy: '建议先处理代理异常和 Cookie 过期账号，再继续批量导入和自动回复任务。',
+            title: '账号状态摘要',
+            copy: '加载后根据真实账号列表与状态统计自动更新。',
         },
-        statusLeft: ['在线 12', '异常 4', '最后检测 12:46'],
+        statusLeft: ['账号总量', '在线账号', '异常账号'],
         statusRight: [
-            { text: 'Cookie 有效 18', tone: 'success' },
-            { text: '即将过期 3', tone: 'warning' },
-            { text: '隔离未启用 6', tone: 'error' },
+            { text: '实时汇总', tone: 'info' },
+            { text: '等待加载', tone: 'warning' },
         ],
     },
     'ai-provider': {
@@ -38,15 +44,19 @@ const routes = {
         searchTerms: 'AI 供应商配置 provider 模型 key 路由 测试',
         mainTemplate: 'route-ai-provider-main',
         detailTemplate: 'route-ai-provider-detail-default',
+        audit: {
+            scope: 'ai-provider',
+            interactions: ['create', 'edit', 'activate', 'delete', 'detail'],
+        },
         sidebarSummary: {
             eyebrow: '配置建议',
-            title: '默认模型建议先测试再切换',
-            copy: '先做连接验证和模型枚举，再把新路由推广到标题、脚本和工作流页面。',
+            title: '供应商配置摘要',
+            copy: '加载后根据真实供应商配置、启用状态和默认模型自动更新。',
         },
-        statusLeft: ['启用 Provider 3', '默认路由 OpenAI', '最后验证 12:43'],
+        statusLeft: ['供应商总量', '启用供应商', '默认模型'],
         statusRight: [
-            { text: '连接正常', tone: 'success' },
-            { text: '备用路由 1', tone: 'warning' },
+            { text: '实时汇总', tone: 'info' },
+            { text: '等待加载', tone: 'warning' },
         ],
     },
     'task-queue': {
@@ -54,18 +64,26 @@ const routes = {
         searchTerms: '任务队列 task queue 运行中 排队 异常 调度',
         mainTemplate: 'route-task-queue-main',
         detailTemplate: 'route-task-queue-detail-default',
+        audit: {
+            scope: 'task-queue',
+            interactions: ['create', 'edit', 'start', 'complete', 'delete', 'filter', 'batch', 'detail'],
+        },
         sidebarSummary: {
             eyebrow: '队列摘要',
-            title: '运行中 37 条，排队 28 条',
-            copy: '优先检查 9 条异常任务，再按业务价值调整内容生成和导出队列优先级。',
+            title: '任务队列摘要',
+            copy: '加载后根据真实任务状态与队列分布自动更新。',
         },
-        statusLeft: ['运行中 37', '排队中 28', '异常 9'],
+        statusLeft: ['任务总量', '运行中任务', '排队任务'],
         statusRight: [
-            { text: '完成 54', tone: 'success' },
-            { text: '需重试 4', tone: 'error' },
+            { text: '实时汇总', tone: 'info' },
+            { text: '等待加载', tone: 'warning' },
         ],
     },
     'group-management': makeListManagementRoute({
+        audit: {
+            scope: 'group-management',
+            interactions: ['create', 'edit', 'delete', 'filter', 'detail'],
+        },
         breadcrumb: 'account',
         eyebrow: '账号组织编排',
         headerEyebrow: '组织结构工作台',
@@ -79,9 +97,9 @@ const routes = {
         sideDesc: '面向运营负责人的分组调整建议。',
         sideStats: ['新增高价值组 2 个', '异常账号分散在 3 个组', '先补齐德国站和英国站规则'],
         metrics: [
-            { label: '分组总数', value: '32', delta: '+4', note: '本周新增欧洲专项组', color: 'var(--status-success)', search: '分组总数 32 欧洲 专项' },
-            { label: '高风险分组', value: '5', delta: '需复核', note: '集中在代理与 Cookie 问题', color: 'var(--status-warning)', search: '高风险分组 5 代理 cookie' },
-            { label: '自动同步覆盖率', value: '86%', delta: '+8%', note: '分组标签与店铺数据已打通', color: 'var(--brand-primary)', search: '同步 覆盖率 86' },
+            { label: '分组总量', value: '--', delta: '实时汇总', note: '根据真实分组记录填充', color: 'var(--status-success)', search: '分组总量 实时汇总' },
+            { label: '已描述分组', value: '--', delta: '实时汇总', note: '根据描述字段计算', color: 'var(--status-warning)', search: '分组 描述 字段' },
+            { label: '已配色分组', value: '--', delta: '实时汇总', note: '根据颜色配置统计', color: 'var(--brand-primary)', search: '分组 配色 统计' },
         ],
         items: [
             { title: '欧洲站高价值组', desc: '包含 18 个内容账号，适合优先分配优质素材。', badge: '优先', tone: 'success', search: '欧洲站 高价值 内容账号 优先' },
@@ -90,12 +108,22 @@ const routes = {
         ],
         detailDesc: '通过分组编排降低批量动作的出错概率。',
         detailItems: ['32 个分组运行正常', '5 个高风险分组需复核', '先修复代理异常组再做批量导入'],
-        sidebarSummary: { eyebrow: '组织提醒', title: '5 个高风险分组待复核', copy: '建议先处理欧洲代理异常组，再同步 Cookie 风险组续签计划。' },
-        statusLeft: ['分组 32', '高风险 5', '最近变更 12:21'],
-        statusRight: [{ text: '同步正常', tone: 'success' }, { text: '需复核 5', tone: 'warning' }],
+        sidebarSummary: { eyebrow: '组织提醒', title: '分组结构摘要', copy: '加载后根据真实分组记录和元数据自动更新。' },
+        statusLeft: ['分组总量', '已描述分组', '已配色分组'],
+        statusRight: [{ text: '实时汇总', tone: 'info' }, { text: '等待加载', tone: 'warning' }],
     }),
-    'device-management': makeDeviceManagementRoute(),
-    'asset-center': makeAssetCenterRoute(),
+    'device-management': makeDeviceManagementRoute({
+        audit: {
+            scope: 'device-management',
+            interactions: ['create', 'edit', 'delete', 'filter', 'detail', 'batch'],
+        },
+    }),
+    'asset-center': makeAssetCenterRoute({
+        audit: {
+            scope: 'asset-center',
+            interactions: ['create', 'edit', 'delete', 'filter', 'detail'],
+        },
+    }),
     'video-editor': makeContentWorkbenchRoute({
         breadcrumb: 'creator',
         eyebrow: '视频剪辑工作台',
@@ -619,16 +647,19 @@ function setHostHtml(hostId, html) {
 }
 
 function renderSidebarSummary(summary) {
+    const state = summary || { eyebrow: '', title: '', copy: '' };
     document.getElementById('sidebarSummary').innerHTML = `
-        <div class="eyebrow">${summary.eyebrow}</div>
-        <strong>${summary.title}</strong>
-        <p class="sidebar__footer-copy">${summary.copy}</p>
+        <div class="eyebrow">${state.eyebrow || ''}</div>
+        <strong id="sidebarSummaryTitle">${state.title || ''}</strong>
+        <p class="sidebar__footer-copy" id="sidebarSummaryCopy">${state.copy || ''}</p>
     `;
 }
 
 function renderStatus(route) {
-    document.getElementById('statusLeft').innerHTML = route.statusLeft.map((text) => `<span class="status-text">${text}</span>`).join('');
-    document.getElementById('statusRight').innerHTML = route.statusRight.map((item) => `<span class="status-chip ${item.tone}">${item.text}</span>`).join('');
+    const left = (route && route.statusLeft) || [];
+    const right = (route && route.statusRight) || [];
+    document.getElementById('statusLeft').innerHTML = left.map((text) => `<span class="status-text">${text}</span>`).join('');
+    document.getElementById('statusRight').innerHTML = right.map((item) => `<span class="status-chip ${item.tone}">${item.text}</span>`).join('');
 }
 
 function applyTheme(name) {

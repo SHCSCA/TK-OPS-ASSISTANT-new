@@ -412,6 +412,371 @@ function _runDiagnostics(title) {
     });
 }
 
+function _createNamedTaskAction(actionKey, payload, successText) {
+    if (!api || !api.taskActions || typeof api.taskActions.create !== 'function') {
+        showToast('当前版本不支持任务动作创建', 'warning');
+        return Promise.resolve(null);
+    }
+    const data = Object.assign({ action_key: actionKey }, payload || {});
+    return api.taskActions.create(data).then((task) => {
+        showToast(successText || ((data.title || actionKey) + ' 已加入任务队列'), 'success');
+        return task;
+    }).catch((err) => {
+        showToast('创建任务失败: ' + ((err && err.message) || '未知错误'), 'error');
+        return null;
+    });
+}
+
+function _selectedAccountIds() {
+    return [...document.querySelectorAll('.js-batch-account:checked')]
+        .map((el) => parseInt(el.dataset.id || '0', 10))
+        .filter(Boolean);
+}
+
+function _selectedTaskIds() {
+    return [...document.querySelectorAll('.js-batch-task:checked')]
+        .map((el) => parseInt(el.dataset.id || '0', 10))
+        .filter(Boolean);
+}
+
+function _selectedProviderId() {
+    const selected = document.querySelector('#mainHost .table-wrapper tbody tr.is-selected[data-id], #mainHost .metric-list .task-item.is-selected[data-id]');
+    return selected ? parseInt(selected.dataset.id || '0', 10) || null : null;
+}
+
+function _selectedDeviceId(btn) {
+    const host = btn && btn.closest('[data-id]');
+    if (host && host.dataset.id) return parseInt(host.dataset.id || '0', 10) || null;
+    const selected = document.querySelector('#mainHost .device-env-card.is-selected[data-id]');
+    return selected ? parseInt(selected.dataset.id || '0', 10) || null : null;
+}
+
+function _selectedDeviceIdFromButton(btn) {
+    return _selectedDeviceId(btn);
+}
+
+function _openBatchGroupAssignmentModal() {
+    const selectedIds = _selectedAccountIds();
+    if (!selectedIds.length) {
+        showToast('请先勾选需要归组的账号', 'warning');
+        return;
+    }
+    api.groups.list().then((groups) => {
+        const options = [{ value: '', label: '请选择目标分组' }].concat((groups || []).map((group) => ({
+            value: String(group.id),
+            label: group.name || ('分组 #' + group.id),
+        })));
+        openModal({
+            title: '批量归组',
+            submitText: '确认归组',
+            fields: [
+                { key: 'group_id', label: '目标分组', type: 'select', options, required: true },
+            ],
+            onSubmit: function (data) {
+                const groupId = parseInt(data.group_id || '0', 10);
+                if (!groupId) {
+                    throw new Error('请选择目标分组');
+                }
+                const jobs = selectedIds.map((accountId) => api.accounts.update(accountId, { group_id: groupId }));
+                return Promise.all(jobs).then(() => {
+                    showToast('已完成 ' + selectedIds.length + ' 个账号归组', 'success');
+                    if (typeof loadRouteData === 'function') loadRouteData('account');
+                });
+            },
+        });
+    }).catch((err) => {
+        showToast('加载分组失败: ' + ((err && err.message) || '未知错误'), 'error');
+    });
+}
+
+function _batchStartSelectedTasks() {
+    const selectedIds = _selectedTaskIds();
+    if (!selectedIds.length) {
+        showToast('请先勾选需要启动的任务', 'warning');
+        return;
+    }
+    Promise.all(selectedIds.map((taskId) => api.tasks.start(taskId))).then(() => {
+        showToast('已启动 ' + selectedIds.length + ' 个任务', 'success');
+        if (typeof loadRouteData === 'function') loadRouteData('task-queue');
+    }).catch((err) => {
+        showToast('批量启动失败: ' + ((err && err.message) || '未知错误'), 'error');
+    });
+}
+
+function _resetSelectedProviderDefaults() {
+    const providerId = _selectedProviderId();
+    if (!providerId) {
+        showToast('请先选择需要恢复的供应商', 'warning');
+        return;
+    }
+    api.providers.update(providerId, {
+        api_base: 'https://api.openai.com/v1',
+        default_model: 'gpt-4o-mini',
+        temperature: 0.7,
+        max_tokens: 2048,
+    }).then(() => {
+        showToast('供应商默认配置已恢复', 'success');
+        if (typeof loadRouteData === 'function') loadRouteData('ai-provider');
+    }).catch((err) => {
+        showToast('恢复默认失败: ' + ((err && err.message) || '未知错误'), 'error');
+    });
+}
+
+function _openSelectedProviderEditModal() {
+    const providerId = _selectedProviderId();
+    if (!providerId) {
+        showToast('请先选择需要保存的供应商', 'warning');
+        return;
+    }
+    api.providers.list().then((providers) => {
+        const provider = (providers || []).find((item) => Number(item.id) === Number(providerId));
+        if (!provider) {
+            showToast('未找到选中的供应商', 'warning');
+            return;
+        }
+        if (typeof openProviderForm === 'function') {
+            openProviderForm(provider);
+        }
+    }).catch((err) => {
+        showToast('加载供应商失败: ' + ((err && err.message) || '未知错误'), 'error');
+    });
+}
+
+function _openDeviceBindingModal(btn) {
+    const deviceId = _selectedDeviceId(btn);
+    if (!deviceId) {
+        showToast('请先选择设备', 'warning');
+        return;
+    }
+    api.accounts.list().then((accounts) => {
+        const accountOptions = [{ value: '', label: '解除绑定' }].concat((accounts || []).map((account) => ({
+            value: String(account.id),
+            label: (account.username || ('账号 #' + account.id)) + ' / ' + (account.region || '-'),
+        })));
+        openModal({
+            title: '调整设备绑定',
+            submitText: '保存绑定',
+            fields: [
+                { key: 'account_id', label: '账号', type: 'select', options: accountOptions, required: true },
+            ],
+            onSubmit: function (data) {
+                const accountId = parseInt(data.account_id || '0', 10);
+                if (!accountId) {
+                    return _createNamedTaskAction('device_unbind_account', {
+                        title: '调整设备绑定',
+                        summary: '来源页面：设备环境管理 / 调整绑定',
+                        metadata: { device_id: deviceId, mode: 'unbind' },
+                    }, '解除绑定任务已加入队列');
+                }
+                return api.accounts.update(accountId, { device_id: deviceId }).then(() => {
+                    showToast('设备绑定已更新', 'success');
+                    if (typeof loadRouteData === 'function') loadRouteData('device-management');
+                });
+            },
+        });
+    }).catch((err) => {
+        showToast('加载账号列表失败: ' + ((err && err.message) || '未知错误'), 'error');
+    });
+}
+
+function _openAssetTagBatchModal() {
+    const thumbs = [...document.querySelectorAll('#mainHost .source-thumb.is-selected[data-id]')];
+    const selectedIds = thumbs.map((thumb) => parseInt(thumb.dataset.id || '0', 10)).filter(Boolean);
+    if (!selectedIds.length) {
+        showToast('请先选择需要打标签的素材', 'warning');
+        return;
+    }
+    openModal({
+        title: '批量打标签',
+        submitText: '应用标签',
+        fields: [
+            { key: 'tags', label: '标签', placeholder: '例如 春促, 高转化', required: true },
+        ],
+        onSubmit: function (data) {
+            const tags = String(data.tags || '').trim();
+            const jobs = selectedIds.map((assetId) => api.assets.update(assetId, { tags }));
+            return Promise.all(jobs).then(() => {
+                showToast('已更新 ' + selectedIds.length + ' 个素材标签', 'success');
+                if (typeof loadRouteData === 'function') loadRouteData('asset-center');
+            });
+        },
+    });
+}
+
+function _refreshCurrentRoute() {
+    if (typeof loadRouteData === 'function' && currentRoute) {
+        loadRouteData(currentRoute);
+    }
+}
+
+function _createExperimentProjectFromRoute(routeKey) {
+    const targetRoute = routeKey || currentRoute;
+    const titleMap = {
+        'visual-lab': '保存实验视图',
+        'creative-workshop': '保存创意方案',
+    };
+    openModal({
+        title: titleMap[targetRoute] || '保存实验项目',
+        submitText: '保存',
+        fields: [
+            { key: 'name', label: '项目名称', value: (targetRoute === 'visual-lab' ? '可视化实验' : '创意方案') + ' ' + new Date().toLocaleDateString(), required: true },
+            { key: 'goal', label: '目标说明', type: 'textarea', placeholder: '填写当前实验或创意方案的目标' },
+        ],
+        onSubmit: function (data) {
+            const payload = {
+                name: String(data.name || '').trim(),
+                goal: String(data.goal || '').trim(),
+                status: 'active',
+                config_json: JSON.stringify({ route: targetRoute, saved_at: new Date().toISOString() }),
+            };
+            return api.experiments.createProject(payload).then(function (project) {
+                return api.experiments.createView({
+                    experiment_project_id: project.id,
+                    name: payload.name + ' / 默认视图',
+                    layout_json: JSON.stringify({ route: targetRoute, project_id: project.id, mode: 'default' }),
+                }).then(function () { return project; });
+            }).then(function (project) {
+                if (api.activity && typeof api.activity.create === 'function') {
+                    return api.activity.create({
+                        category: 'experiment',
+                        title: payload.name + ' 已保存',
+                        payload_json: JSON.stringify({ route: targetRoute }),
+                        related_entity_type: 'experiment_project',
+                        related_entity_id: project.id,
+                    }).catch(function () { return null; }).then(function () { return project; });
+                }
+                return project;
+            }).then(function () {
+                showToast((titleMap[targetRoute] || '实验项目已保存') + '成功', 'success');
+                _refreshCurrentRoute();
+            });
+        },
+    });
+}
+
+function _createReportRunFromRoute() {
+    openModal({
+        title: '生成新报表',
+        submitText: '创建报表',
+        fields: [
+            { key: 'title', label: '报表标题', value: '经营分析报告 ' + new Date().toLocaleDateString(), required: true },
+            { key: 'report_type', label: '报表类型', type: 'select', value: 'general', options: [{ value: 'daily', label: '日报' }, { value: 'weekly', label: '周报' }, { value: 'general', label: '专题' }] },
+        ],
+        onSubmit: function (data) {
+            const payload = {
+                title: String(data.title || '').trim(),
+                report_type: data.report_type || 'general',
+                status: 'pending',
+                filters_json: JSON.stringify({ route: currentRoute, created_at: new Date().toISOString() }),
+            };
+            return api.reports.create(payload).then(function (report) {
+                if (api.activity && typeof api.activity.create === 'function') {
+                    return api.activity.create({
+                        category: 'report',
+                        title: payload.title + ' 已创建',
+                        payload_json: JSON.stringify({ route: currentRoute, report_type: payload.report_type }),
+                        related_entity_type: 'report_run',
+                        related_entity_id: report.id,
+                    }).catch(function () { return null; }).then(function () { return report; });
+                }
+                return report;
+            }).then(function () {
+                showToast('报表任务已创建', 'success');
+                _refreshCurrentRoute();
+            });
+        },
+    });
+}
+
+function _createWorkflowDefinitionFromRoute() {
+    openModal({
+        title: '保存工作流',
+        submitText: '保存工作流',
+        fields: [
+            { key: 'name', label: '工作流名称', value: '工作流 ' + new Date().toLocaleDateString(), required: true },
+            { key: 'description', label: '说明', type: 'textarea', placeholder: '描述当前工作流的目标和用途' },
+        ],
+        onSubmit: function (data) {
+            const payload = {
+                name: String(data.name || '').trim(),
+                description: String(data.description || '').trim(),
+                status: 'active',
+                config_json: JSON.stringify({ route: currentRoute, saved_at: new Date().toISOString() }),
+            };
+            return api.workflows.createDefinition(payload).then(function (definition) {
+                if (api.activity && typeof api.activity.create === 'function') {
+                    return api.activity.create({
+                        category: 'workflow',
+                        title: payload.name + ' 已保存',
+                        payload_json: JSON.stringify({ route: currentRoute }),
+                        related_entity_type: 'workflow_definition',
+                        related_entity_id: definition.id,
+                    }).catch(function () { return null; }).then(function () { return definition; });
+                }
+                return definition;
+            }).then(function () {
+                showToast('工作流已保存', 'success');
+                _refreshCurrentRoute();
+            });
+        },
+    });
+}
+
+function _createWorkflowRunFromRoute() {
+    api.workflows.definitions().then(function (definitions) {
+        definitions = definitions || [];
+        if (!definitions.length) {
+            showToast('请先保存工作流，再执行运行', 'warning');
+            _createWorkflowDefinitionFromRoute();
+            return;
+        }
+        openModal({
+            title: '运行工作流',
+            submitText: '启动运行',
+            fields: [
+                {
+                    key: 'workflow_definition_id',
+                    label: '选择工作流',
+                    type: 'select',
+                    value: String(definitions[0].id || ''),
+                    options: definitions.map(function (definition) {
+                        return { value: String(definition.id), label: definition.name || ('工作流 #' + definition.id) };
+                    }),
+                    required: true,
+                },
+                { key: 'note', label: '运行说明', type: 'textarea', placeholder: '可选：说明本次运行目标' },
+            ],
+            onSubmit: function (data) {
+                const workflowDefinitionId = parseInt(data.workflow_definition_id || '0', 10);
+                if (!workflowDefinitionId) {
+                    throw new Error('请选择需要运行的工作流');
+                }
+                return api.workflows.start({
+                    workflow_definition_id: workflowDefinitionId,
+                    status: 'running',
+                    input_json: JSON.stringify({ route: currentRoute, note: String(data.note || '').trim() }),
+                }).then(function (run) {
+                    if (api.activity && typeof api.activity.create === 'function') {
+                        return api.activity.create({
+                            category: 'workflow',
+                            title: '工作流运行已启动',
+                            payload_json: JSON.stringify({ route: currentRoute, workflow_definition_id: workflowDefinitionId }),
+                            related_entity_type: 'workflow_run',
+                            related_entity_id: run.id,
+                        }).catch(function () { return null; }).then(function () { return run; });
+                    }
+                    return run;
+                }).then(function () {
+                    showToast('工作流运行已启动', 'success');
+                    _refreshCurrentRoute();
+                });
+            },
+        });
+    }).catch(function (err) {
+        showToast('加载工作流失败: ' + ((err && err.message) || '未知错误'), 'error');
+    });
+}
+
 function _bindSelectableButtonGroups() {
     const mainHost = document.getElementById('mainHost');
     if (!mainHost) return;
@@ -446,7 +811,7 @@ function _bindRouteButtonPresets() {
 
     if (contentRoutes.includes(currentRoute)) {
         Object.assign(groupHandlers, {
-            '保存创意方案': () => _createQuickTask('创意方案保存', 'report', '来源页面：创意工坊', '创意方案已加入保存队列'),
+            '保存创意方案': () => _createExperimentProjectFromRoute('creative-workshop'),
             '对比创意版本': () => showToast('已切换到创意版本对比视图', 'info'),
             '导出当前设计': () => _createQuickTask('设计稿导出', 'publish', '来源页面：视觉编辑器', '设计导出任务已加入队列'),
             '切换模板': () => showToast('模板切换面板已打开', 'info'),
@@ -477,7 +842,7 @@ function _bindRouteButtonPresets() {
             '设出点': () => showToast('已设置出点', 'success'),
             '锁定版本': () => showToast('当前版本已锁定', 'success'),
             '生成对比': () => showToast('已生成版本对比草稿', 'info'),
-            '保存工作流': () => _createQuickTask('工作流保存', 'report', '来源页面：' + currentRoute, '工作流已保存到任务池'),
+            '保存工作流': () => _createWorkflowDefinitionFromRoute(),
             '运行批次': () => _createQuickTask('工作流批次', 'publish', '来源页面：' + currentRoute, '运行批次已加入队列'),
         });
     }
@@ -501,13 +866,15 @@ function _bindRouteButtonPresets() {
             '导出合规报告': () => _exportThroughBackend('合规报告', ['来源页面: ' + currentRoute, '状态: 手动导出'], '合规报告已导出'),
             '选择模板集': () => showToast('模板集选择器已打开', 'info'),
             '启动批量生产': () => _createQuickTask('批量生产', 'publish', '来源页面：AI 内容工厂', '批量生产任务已加入队列'),
-            '保存': () => currentRoute === 'ai-content-factory' ? _createQuickTask('工作流保存', 'report', '来源页面：AI 内容工厂', '工作流保存任务已创建') : showToast('已保存当前内容', 'success'),
-            '运行工作流': () => _createQuickTask('运行工作流', 'publish', '来源页面：AI 内容工厂', '工作流已加入执行队列'),
+            '保存': () => currentRoute === 'ai-content-factory' ? _createWorkflowDefinitionFromRoute() : showToast('已保存当前内容', 'success'),
+            '运行工作流': () => _createWorkflowRunFromRoute(),
         });
     }
 
     if (analyticsRoutes.includes(currentRoute)) {
         Object.assign(groupHandlers, {
+            '保存实验视图': () => _createExperimentProjectFromRoute('visual-lab'),
+            '生成新报表': () => _createReportRunFromRoute(),
             '趋势': () => showToast('已切换到趋势视图', 'info'),
             '对比': () => showToast('已切换到对比视图', 'info'),
             '分布': () => showToast('已切换到分布视图', 'info'),
@@ -545,13 +912,29 @@ function _bindRouteButtonPresets() {
                     showToast('导出失败: ' + ((err && err.message) || '未知错误'), 'error');
                 });
             },
-            '批量检测环境': () => showToast('批量环境检测已加入队列', 'info'),
+            '批量检测环境': () => _createNamedTaskAction('batch_environment_check', {
+                title: '批量环境检测',
+                summary: '来源页面：账号管理 / 批量检测环境',
+                metadata: { route: 'account', selected_ids: _selectedAccountIds() },
+            }, '批量环境检测任务已创建'),
             '立即开启隔离': () => typeof renderRoute === 'function' ? renderRoute('device-management') : null,
             '稍后提醒我': () => showToast('已记录提醒', 'info'),
-            '测试连接': () => showToast('连接检测任务已创建', 'info'),
-            '批量归组': () => typeof renderRoute === 'function' ? renderRoute('group-management') : null,
-            '登录环境': () => showToast('正在准备登录环境', 'info'),
-            '管理 Cookies': () => showToast('Cookie 管理能力正在接入', 'info'),
+            '测试连接': () => _createNamedTaskAction('account_connection_test', {
+                title: '账号连接检测',
+                summary: '来源页面：账号管理 / 测试连接',
+                metadata: { route: 'account', selected_ids: _selectedAccountIds() },
+            }, '连接检测任务已创建'),
+            '批量归组': () => _openBatchGroupAssignmentModal(),
+            '登录环境': () => _createNamedTaskAction('account_login_environment', {
+                title: '登录环境',
+                summary: '来源页面：账号管理 / 登录环境',
+                metadata: { route: 'account' },
+            }, '登录环境任务已创建'),
+            '管理 Cookies': () => _createNamedTaskAction('account_cookie_maintenance', {
+                title: 'Cookie 管理',
+                summary: '来源页面：账号管理 / 管理 Cookies',
+                metadata: { route: 'account', selected_ids: _selectedAccountIds() },
+            }, 'Cookie 管理任务已创建'),
             '安排续签': () => showToast('已创建续签提醒', 'info'),
             '处理异常': () => showToast('异常处理流程已启动', 'warning'),
             '查看日志': () => showToast('日志查看能力正在接入', 'info'),
@@ -559,28 +942,10 @@ function _bindRouteButtonPresets() {
             '进入详情': () => showToast('详情入口已聚合到右侧面板', 'info'),
         },
         'ai-provider': {
-            'Reset to Default': () => {
-                confirmModal({
-                    title: '恢复默认配置',
-                    message: '将恢复当前页面显示的默认配置项，是否继续？',
-                    confirmText: '恢复默认',
-                    tone: 'warning',
-                }).then((ok) => {
-                    if (ok) showToast('默认配置已恢复', 'success');
-                });
-            },
-            '恢复默认': () => {
-                confirmModal({
-                    title: '恢复默认配置',
-                    message: '将恢复当前页面显示的默认配置项，是否继续？',
-                    confirmText: '恢复默认',
-                    tone: 'warning',
-                }).then((ok) => {
-                    if (ok) showToast('默认配置已恢复', 'success');
-                });
-            },
-            '保存变更': () => showToast('供应商配置已记录，建议先执行连接测试', 'success'),
-            'Save Changes': () => showToast('供应商配置已记录，建议先执行连接测试', 'success'),
+            'Reset to Default': () => _resetSelectedProviderDefaults(),
+            '恢复默认': () => _resetSelectedProviderDefaults(),
+            '保存变更': () => _openSelectedProviderEditModal(),
+            'Save Changes': () => _openSelectedProviderEditModal(),
             '基础设置': (btn) => {
                 _setExclusiveButtonState(btn);
                 showToast('已切换到基础设置', 'info');
@@ -615,7 +980,7 @@ function _bindRouteButtonPresets() {
             },
         },
         'task-queue': {
-            '批量开始': () => showToast('批量启动任务已加入队列', 'info'),
+            '批量开始': () => _batchStartSelectedTasks(),
         },
         'group-management': {
             '导出分组结构': () => {
@@ -641,15 +1006,20 @@ function _bindRouteButtonPresets() {
                     return _exportThroughBackend('设备环境日志', lines, '环境日志已导出');
                 }).catch((err) => showToast('导出失败: ' + ((err && err.message) || '未知错误'), 'error'));
             },
-            '调整绑定': () => showToast('绑定调整面板正在接入', 'info'),
-            '修改绑定': () => showToast('绑定修改面板正在接入', 'info'),
-            '打开环境': () => showToast('设备环境启动命令已下发', 'success'),
+            '调整绑定': (btn) => _openDeviceBindingModal(btn),
+            '修改绑定': (btn) => _openDeviceBindingModal(btn),
+            '打开环境': () => _createNamedTaskAction('device_open_environment', {
+                title: '打开设备环境',
+                summary: '来源页面：设备环境管理 / 打开环境',
+                metadata: { route: 'device-management', device_id: _selectedDeviceId() },
+            }, '设备环境启动任务已创建'),
             '查看详情': () => showToast('详情已同步到右侧面板', 'info'),
         },
         'asset-center': {
             '上传素材': () => _pickFilesAndImportAssets(currentRoute),
             '导入素材': () => _pickFilesAndImportAssets(currentRoute),
             '新建素材': () => typeof openAssetForm === 'function' ? openAssetForm() : null,
+            '批量打标签': () => _openAssetTagBatchModal(),
         },
         dashboard: {
             '查看历史': () => typeof renderRoute === 'function' ? renderRoute('task-queue') : null,

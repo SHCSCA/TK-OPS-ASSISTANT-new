@@ -11,6 +11,7 @@ Validates:
 import importlib
 import json
 import os
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -41,6 +42,24 @@ class Test01_Imports(unittest.TestCase):
     def test_bridge(self):
         from desktop_app.ui.bridge import Bridge
         self.assertTrue(callable(Bridge))
+
+    def test_database_honors_tk_ops_data_dir_override(self):
+        temp_dir = tempfile.mkdtemp()
+        env = os.environ.copy()
+        env["TK_OPS_DATA_DIR"] = temp_dir
+        output = subprocess.check_output(
+            [
+                sys.executable,
+                "-c",
+                "import desktop_app.database as db; print(db.DB_PATH)",
+            ],
+            cwd=str(ROOT),
+            env=env,
+            text=True,
+            stderr=subprocess.STDOUT,
+        )
+        db_path = Path(output.strip().splitlines()[-1])
+        self.assertEqual(db_path, Path(temp_dir) / "tk_ops.db")
 
 
 class Test02_Presets(unittest.TestCase):
@@ -190,6 +209,23 @@ class Test05_BridgeSlots(unittest.TestCase):
         data = json.loads(raw)
         self.assertTrue(data["ok"])
         self.assertTrue(data["data"]["finished"])
+
+    def test_bridge_stub_has_runtime_methods(self):
+        bridge_js = (ROOT / "desktop_app" / "assets" / "js" / "bridge.js").read_text(encoding="utf-8")
+        expected_stub_methods = [
+            "listAssetsByType:",
+            "getAssetStats:",
+            "chatSync:",
+            "startChatStream:",
+            "pollChatStream:",
+            "listAiPresets:",
+            "getAiPreset:",
+            "testAiProvider:",
+            "getAiUsageStats:",
+            "getAiUsageToday:",
+        ]
+        for method in expected_stub_methods:
+            self.assertIn(method, bridge_js)
 
 
 class Test06_JsSyntax(unittest.TestCase):

@@ -19,12 +19,15 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from desktop_app.database.models import Base
 
-APP_VERSION = "1.0.0"
+APP_VERSION = "1.1.0"
 log = logging.getLogger(__name__)
 
 
 def _resolve_data_dir() -> Path:
     """Pick the best data directory: AppData on Windows, project/data in dev."""
+    explicit = os.environ.get("TK_OPS_DATA_DIR")
+    if explicit:
+        return Path(explicit)
     if getattr(sys, "frozen", False):
         # Packaged exe – always use AppData
         base = Path(os.environ.get("APPDATA", Path.home()))
@@ -32,12 +35,19 @@ def _resolve_data_dir() -> Path:
     # Dev mode – check if APPDATA is available, otherwise fall back to project/data
     appdata = os.environ.get("APPDATA")
     if appdata:
-        return Path(appdata) / "TK-OPS-ASSISTANT"
+        p = Path(appdata) / "TK-OPS-ASSISTANT"
+        try:
+            p.mkdir(parents=True, exist_ok=True)
+        except Exception:
+            # Fall back to a local data directory if APPDATA is not writable
+            return Path(__file__).resolve().parents[2] / "data"
+        return p
     return Path(__file__).resolve().parents[2] / "data"
 
 
 DATA_DIR = _resolve_data_dir()
-DB_PATH = DATA_DIR / "tk_ops.db"
+# Allow overriding the database path (useful for tests/CI in isolated environments)
+DB_PATH = Path(os.environ.get("TKOPS_DB_PATH")) if os.environ.get("TKOPS_DB_PATH") else DATA_DIR / "tk_ops.db"
 
 engine = create_engine(
     f"sqlite:///{DB_PATH}",
@@ -119,3 +129,12 @@ def session_scope() -> Generator[Session, None, None]:
         raise
     finally:
         session.close()
+
+# Auto-initialize the database when this module is imported (helps tests run reliably
+# in fresh environments where migrations may not have run yet).
+if os.environ.get("TKOPS_SKIP_DB_AUTO_INIT") != "1":
+    try:
+        init_db()
+    except Exception:
+        # Do not crash import if DB cannot be initialized in some environments
+        pass

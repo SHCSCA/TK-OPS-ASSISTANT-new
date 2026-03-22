@@ -139,6 +139,9 @@
             fail:     function (id)    { return callBackend('failTask', id); },
             remove:   function (id)    { return callBackend('deleteTask', id); },
         },
+        taskActions: {
+            create: function (data) { return callBackend('createTaskAction', JSON.stringify(data || {})); },
+        },
         // -- AI Providers --
         providers: {
             list:      function ()      { return callCached('providers:list', DEFAULT_TTL, 'listProviders'); },
@@ -150,6 +153,52 @@
         // -- Dashboard --
         dashboard: {
             stats: function () { return callCached('dashboard:stats', 15000, 'getDashboardStats'); },
+        },
+        analytics: {
+            summary: function () { return callBackend('getAnalyticsSummary'); },
+            conversion: function () { return callBackend('getConversionAnalysis'); },
+            persona: function () { return callBackend('getPersonaAnalysis'); },
+            traffic: function () { return callBackend('getTrafficAnalysis'); },
+            competitor: function () { return callBackend('getCompetitorAnalysis'); },
+            blueOcean: function () { return callBackend('getBlueOceanAnalysis'); },
+            interaction: function () { return callBackend('getInteractionAnalysis'); },
+            snapshots: function () { return callBackend('listAnalysisSnapshots'); },
+            createSnapshot: function (data) { return callBackend('createAnalysisSnapshot', JSON.stringify(data || {})); },
+        },
+        reports: {
+            list: function () { return callBackend('listReportRuns'); },
+            create: function (data) { return callBackend('createReportRun', JSON.stringify(data || {})); },
+        },
+        workflows: {
+            definitions: function () { return callBackend('listWorkflowDefinitions'); },
+            createDefinition: function (data) { return callBackend('createWorkflowDefinition', JSON.stringify(data || {})); },
+            runs: function () { return callBackend('listWorkflowRuns'); },
+            start: function (data) { return callBackend('startWorkflowRun', JSON.stringify(data || {})); },
+        },
+        experiments: {
+            projects: function () { return callBackend('listExperimentProjects'); },
+            createProject: function (data) { return callBackend('createExperimentProject', JSON.stringify(data || {})); },
+            views: function (experimentProjectId) {
+                return callBackend('listExperimentViews').then(function (views) {
+                    if (experimentProjectId === undefined || experimentProjectId === null || experimentProjectId === '') {
+                        return views || [];
+                    }
+                    return (views || []).filter(function (view) {
+                        return String(view.experiment_project_id || '') === String(experimentProjectId);
+                    });
+                });
+            },
+            createView: function (data) { return callBackend('createExperimentView', JSON.stringify(data || {})); },
+        },
+        notifications: {
+            list: function () { return callBackend('listNotifications'); },
+        },
+        activity: {
+            list: function () { return callBackend('listActivityLogs'); },
+            create: function (data) { return callBackend('createActivityLog', JSON.stringify(data || {})); },
+        },
+        dev: {
+            seed: function () { return callBackend('runDevSeed'); },
         },
         // -- Settings --
         settings: {
@@ -234,8 +283,27 @@
                     } else if (entity === 'task') {
                         _cacheInvalidate('tasks:');
                         _cacheInvalidate('dashboard:');
+                        _cacheInvalidate('notifications:');
                     } else if (entity === 'provider') {
                         _cacheInvalidate('providers:');
+                        _cacheInvalidate('analytics:');
+                    } else if (entity === 'asset') {
+                        _cacheInvalidate('assets:');
+                        _cacheInvalidate('dashboard:');
+                        _cacheInvalidate('analytics:');
+                    } else if (entity === 'analysis_snapshot') {
+                        _cacheInvalidate('analytics:');
+                    } else if (entity === 'report_run') {
+                        _cacheInvalidate('reports:');
+                        _cacheInvalidate('analytics:');
+                    } else if (entity === 'workflow_definition' || entity === 'workflow_run') {
+                        _cacheInvalidate('workflows:');
+                    } else if (entity === 'experiment_project' || entity === 'experiment_view') {
+                        _cacheInvalidate('experiments:');
+                        _cacheInvalidate('analytics:');
+                    } else if (entity === 'activity_log') {
+                        _cacheInvalidate('activity:');
+                        _cacheInvalidate('notifications:');
                     }
                     // 触发自定义事件，页面可监听
                     document.dispatchEvent(new CustomEvent('data:changed', { detail: ev }));

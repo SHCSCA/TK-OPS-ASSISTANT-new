@@ -1,8 +1,8 @@
 function makeAnalyticsBoardRoute(config) {
     const metrics = config.metrics || [
-        { label: `${config.title}总量`, value: '24', delta: '+3', note: '本周期稳定', color: 'var(--status-success)', search: `${config.title} 总量` },
-        { label: '风险提醒', value: '3', delta: '需关注', note: '需人工复核', color: 'var(--status-warning)', search: `${config.title} 风险` },
-        { label: '完成率', value: '86%', delta: '+5%', note: '较上周期改善', color: 'var(--brand-primary)', search: `${config.title} 完成率` },
+        { label: `${config.title}总量`, value: '--', delta: '等待后端数据', note: '进入页面后动态填充', color: 'var(--status-success)', search: `${config.title} 总量` },
+        { label: '风险提醒', value: '--', delta: '等待后端数据', note: '进入页面后动态填充', color: 'var(--status-warning)', search: `${config.title} 风险` },
+        { label: '完成情况', value: '--', delta: '等待后端数据', note: '进入页面后动态填充', color: 'var(--brand-primary)', search: `${config.title} 完成情况` },
     ];
     const items = config.items || [
         { title: `${config.title}洞察 1`, desc: '当前最重要的数据发现。', badge: '关键', tone: 'success', search: `${config.title} 洞察 1` },
@@ -80,14 +80,14 @@ function buildAnalystDetail(detail) {
 
 function makeTrafficBoardRoute() {
     const metrics = [
-        { label: '总曝光', value: '284万', delta: '+13%', note: '短视频自然流量继续走高', color: 'var(--status-success)', search: '曝光 284万' },
-        { label: '点击率', value: '4.8%', delta: '+0.6%', note: '封面与标题联动见效', color: 'var(--brand-primary)', search: '点击率 4.8' },
-        { label: '异常来源', value: '4', delta: '待排查', note: '欧洲渠道与搜索入口波动', color: 'var(--status-warning)', search: '异常来源 4' },
+        { label: '账号样本', value: '--', delta: '等待后端数据', note: '根据真实账号与任务记录填充', color: 'var(--status-success)', search: '账号样本' },
+        { label: '任务完成率', value: '--', delta: '等待后端数据', note: '根据真实任务状态填充', color: 'var(--brand-primary)', search: '任务完成率' },
+        { label: '异常任务', value: '--', delta: '等待后端数据', note: '根据真实异常任务填充', color: 'var(--status-warning)', search: '异常任务' },
     ];
     const sourceCards = [
-        { title: '短视频自然', value: '126万', meta: 'CTR 5.2% / 转化强', tone: 'success' },
-        { title: '促销渠道', value: '98万', meta: 'CTR 4.1% / 投流成本升高', tone: 'warning' },
-        { title: '搜索入口', value: '60万', meta: 'CTR 3.8% / 需联动关键词分析', tone: 'info' },
+        { title: '活跃账号', value: '--', meta: '等待后端数据', tone: 'success' },
+        { title: '执行任务', value: '--', meta: '等待后端数据', tone: 'warning' },
+        { title: '活动记录', value: '--', meta: '等待后端数据', tone: 'info' },
     ];
     const tableRows = [
         ['欧洲短视频', '下降 18%', '封面疲劳', '先换开场素材'],
@@ -112,9 +112,9 @@ function makeTrafficBoardRoute() {
     return {
         eyebrow: '流量分析中心',
         searchTerms: '流量看板 曝光 点击率 渠道 搜索 促销 analyst',
-        sidebarSummary: { eyebrow: '流量提醒', title: '4 个异常来源待分析', copy: '建议先查欧洲渠道回落，再联动利润页看关键词价值。' },
-        statusLeft: ['曝光 284万', '异常来源 4', 'CTR 4.8%'],
-        statusRight: [{ text: '自然流量增长', tone: 'success' }, { text: '异常来源 4', tone: 'warning' }],
+        sidebarSummary: { eyebrow: '流量提醒', title: '等待实时汇总', copy: '该页面只展示真实账号、任务与活动记录衍生的流量摘要。' },
+        statusLeft: ['等待数据接入', '账号/任务/活动同步中', '无静态指标'],
+        statusRight: [{ text: '后端驱动', tone: 'success' }, { text: '等待刷新', tone: 'warning' }],
         hideDetailPanel: false,
         mainHtml,
         detailHtml: buildAnalystDetail({
@@ -128,7 +128,7 @@ function makeTrafficBoardRoute() {
             cards: [
                 { title: '先换欧洲渠道开场素材', desc: '优先验证素材疲劳是否导致 CTR 下滑。', badge: '优先', tone: 'warning' },
                 { title: '回看搜索词价值变化', desc: '排查是否由低价值热词替换造成波动。', badge: '联动', tone: 'info' },
-                { title: '复盘促销渠道预算结构', desc: '对高成本渠道先做 ROI 复核。', badge: '预算', tone: 'success' },
+                { title: '复盘任务执行路径', desc: '优先核对异常任务与活动记录的来源差异。', badge: '复盘', tone: 'success' },
             ],
         }),
     };
@@ -136,9 +136,9 @@ function makeTrafficBoardRoute() {
 
 function makeVisualLabRoute() {
     const metrics = [
-        { label: '实验项目', value: '12', delta: '+3', note: '本周新增 3 个图表实验', color: 'var(--status-success)', search: '实验项目 12' },
-        { label: '实时数据源', value: '8', delta: '在线', note: '可直接拖入实验画布', color: 'var(--brand-primary)', search: '数据源 8' },
-        { label: '模板复用率', value: '67%', delta: '+9%', note: '图表模板开始沉淀', color: 'var(--status-warning)', search: '模板复用率 67' },
+        { label: '实验项目', value: '--', delta: '等待后端数据', note: '进入页面后动态填充', color: 'var(--status-success)', search: '实验项目' },
+        { label: '实验视图', value: '--', delta: '等待后端数据', note: '进入页面后动态填充', color: 'var(--brand-primary)', search: '实验视图' },
+        { label: '可用模型', value: '--', delta: '等待后端数据', note: '进入页面后动态填充', color: 'var(--status-warning)', search: '可用模型' },
     ];
     const sources = ['店铺经营日报', '视频互动日志', '投流成本表', '搜索关键词池'];
     const chartTypes = ['折线图', '柱状图', '漏斗图', '热力图', '矩阵图', '环形图'];
@@ -148,7 +148,7 @@ function makeVisualLabRoute() {
             ${buildStatGrid(metrics)}
             <div class="visual-lab-shell analyst-feature-shell">
                 <section class="panel visual-lab-column"><div class="panel__header"><div><strong>数据源</strong><div class="subtle">选择实验输入与图表库</div></div></div><div class="data-source-list">${sources.map((source, index) => `<button class="data-source-item ${index === 0 ? 'is-selected' : ''}" type="button"><strong>${source}</strong><span>${index === 0 ? '实时同步' : '已连接'}</span></button>`).join('')}</div><div class="subtle section-note">图表库</div><div class="chart-type-grid">${chartTypes.map(type => `<button class="chart-type-btn" type="button">${type}</button>`).join('')}</div></section>
-                <section class="visual-lab-center"><div class="panel visual-preview-panel"><div class="panel__header"><div><strong>实验画布</strong><div class="subtle">图表组合、对照实验与注释在同一视图完成</div></div><div class="analytics-chart-toggles"><button class="task-view-btn is-active" type="button">1D</button><button class="task-view-btn" type="button">1W</button><button class="task-view-btn" type="button">1M</button></div></div><div class="visual-preview-stage"><div class="visual-preview-line"></div><div class="visual-preview-overlay"><span>CTR 4.8%</span><span>CVR 2.2%</span><span>成本 -6%</span></div></div></div><div class="visual-kpi-row"> <article class="panel visual-mini-card"><strong>封面 A</strong><span>点击率 4.8%</span><em>优于基线</em></article><article class="panel visual-mini-card"><strong>标题 B</strong><span>转化率 1.9%</span><em>待继续观察</em></article><article class="panel visual-mini-card"><strong>话题 C</strong><span>转化率 2.5%</span><em>建议扩大</em></article></div></section>
+                <section class="visual-lab-center"><div class="panel visual-preview-panel"><div class="panel__header"><div><strong>实验画布</strong><div class="subtle">图表组合、对照实验与注释在同一视图完成</div></div><div class="analytics-chart-toggles"><button class="task-view-btn is-active" type="button">1D</button><button class="task-view-btn" type="button">1W</button><button class="task-view-btn" type="button">1M</button></div></div><div class="visual-preview-stage"><div class="visual-preview-line"></div><div class="visual-preview-overlay"><span>项目 --</span><span>视图 --</span><span>素材 --</span></div></div></div><div class="visual-kpi-row"> <article class="panel visual-mini-card"><strong>实验卡片 A</strong><span>等待后端数据</span><em>进入页面后刷新</em></article><article class="panel visual-mini-card"><strong>实验卡片 B</strong><span>等待后端数据</span><em>进入页面后刷新</em></article><article class="panel visual-mini-card"><strong>实验卡片 C</strong><span>等待后端数据</span><em>进入页面后刷新</em></article></div></section>
                 <section class="panel visual-lab-column"><div class="panel__header"><div><strong>样式与交互</strong><div class="subtle">调轴、配色、标签与交互行为</div></div></div><div class="config-form-group"><div class="config-field"><label>X 轴标签</label><input type="text" value="日期 / 实验批次"></div><div class="config-field"><label>Y 轴标签</label><input type="text" value="CTR / CVR / 成本"></div><div class="config-field"><label>配色策略</label><div class="visual-color-swatches"><span></span><span></span><span></span><span></span></div></div><div class="config-field"><label>交互选项</label><div class="visual-toggle-list"><div class="config-toggle"><span>显示异常标记</span><input type="checkbox" checked></div><div class="config-toggle"><span>支持悬停摘要</span><input type="checkbox" checked></div><div class="config-toggle"><span>同步到 Dashboard</span><input type="checkbox"></div></div></div></div></section>
             </div>
         </section>
@@ -181,15 +181,15 @@ function makeVisualLabRoute() {
 
 function makeCompetitorMonitorRoute() {
     const metrics = [
-        { label: '监控竞品', value: '18', delta: '+2', note: '新增 2 个高增长对手', color: 'var(--status-success)', search: '竞品 18' },
-        { label: '高风险动作', value: '5', delta: '需跟进', note: '集中在价格战和内容投流', color: 'var(--status-warning)', search: '高风险动作 5' },
-        { label: '可借鉴主题', value: '9', delta: '+3', note: '本周出现新的高转化选题', color: 'var(--brand-primary)', search: '借鉴主题 9' },
+        { label: '监控账号', value: '--', delta: '等待后端数据', note: '根据真实账号样本填充', color: 'var(--status-success)', search: '监控账号' },
+        { label: '异常任务', value: '--', delta: '等待后端数据', note: '根据真实失败任务填充', color: 'var(--status-warning)', search: '异常任务' },
+        { label: '覆盖地区', value: '--', delta: '等待后端数据', note: '根据真实地区分布填充', color: 'var(--brand-primary)', search: '覆盖地区' },
     ];
     const rivals = [
-        { name: 'Glowmart UK', fans: '32.4万', delta: '+8.4%', tone: 'success' },
-        { name: 'TrendBox DE', fans: '18.7万', delta: '-2.1%', tone: 'warning' },
-        { name: 'NovaDaily US', fans: '44.2万', delta: '+11.3%', tone: 'success' },
-        { name: 'My Account', fans: '27.8万', delta: '+4.2%', tone: 'info' },
+        { name: '账号样本 A', fans: '--', delta: '等待后端数据', tone: 'success' },
+        { name: '账号样本 B', fans: '--', delta: '等待后端数据', tone: 'warning' },
+        { name: '账号样本 C', fans: '--', delta: '等待后端数据', tone: 'success' },
+        { name: '账号样本 D', fans: '--', delta: '等待后端数据', tone: 'info' },
     ];
     const mainHtml = `
         ${buildAnalystHeader({ title: '竞争对手监控', headerEyebrow: '竞品趋势与动作拆解', description: '集中跟踪竞品商品、内容、价格和投流动作，帮助分析师快速判断哪些动作值得抄、哪些风险要避开。', secondaryAction: '导出竞品快照', primaryAction: '新增监控对象' })}
@@ -208,9 +208,9 @@ function makeCompetitorMonitorRoute() {
     return {
         eyebrow: '竞品监控中枢',
         searchTerms: '竞争对手监控 竞品 视频表现 主题云 增长趋势 analyst',
-        sidebarSummary: { eyebrow: '竞品提醒', title: '5 个高风险动作待复盘', copy: '重点关注价格战、达人投流和爆款封面结构，避免直接复制高风险动作。' },
-        statusLeft: ['竞品 18', '高风险动作 5', '可借鉴主题 9'],
-        statusRight: [{ text: '监控在线', tone: 'success' }, { text: '风险 5', tone: 'warning' }],
+        sidebarSummary: { eyebrow: '竞品提醒', title: '等待真实样本汇总', copy: '该页面仅展示真实账号样本、地区分布和失败任务衍生的竞品视图。' },
+        statusLeft: ['等待数据接入', '样本动态刷新', '无静态竞品数值'],
+        statusRight: [{ text: '后端驱动', tone: 'success' }, { text: '等待刷新', tone: 'warning' }],
         hideDetailPanel: false,
         mainHtml,
         detailHtml: buildAnalystDetail({
@@ -232,10 +232,10 @@ function makeCompetitorMonitorRoute() {
 
 function makeProfitAnalysisRoute() {
     const metrics = [
-        { label: '总销售额', value: '286.4万', delta: '+9%', note: '营收保持稳定增长', color: 'var(--status-success)', search: '总销售额 286.4万' },
-        { label: '总成本', value: '200.0万', delta: '+12%', note: '广告与履约成本上升', color: 'var(--status-warning)', search: '总成本 200万' },
-        { label: '净利润', value: '86.4万', delta: '+7%', note: '利润仍然向上但压力增大', color: 'var(--brand-primary)', search: '净利润 86.4万' },
-        { label: 'ROI', value: '1.43', delta: '+0.05', note: '仍高于目标线', color: 'var(--status-success)', search: 'ROI 1.43' },
+        { label: '任务完成量', value: '--', delta: '实时聚合', note: '根据真实任务完成情况填充', color: 'var(--status-success)', search: '任务完成量 实时聚合' },
+        { label: '失败任务量', value: '--', delta: '实时聚合', note: '根据真实任务异常情况填充', color: 'var(--status-warning)', search: '失败任务量 实时聚合' },
+        { label: '素材支撑量', value: '--', delta: '实时聚合', note: '根据真实素材库存填充', color: 'var(--brand-primary)', search: '素材支撑量 实时聚合' },
+        { label: '活跃账号量', value: '--', delta: '实时聚合', note: '根据真实账号状态填充', color: 'var(--status-success)', search: '活跃账号量 实时聚合' },
     ];
     const mainHtml = `
         ${buildAnalystHeader({ title: '利润分析', headerEyebrow: '成本收益总览', description: '把收入、成本、广告投入和退款风险汇总，帮助分析师判断哪些店铺和内容值得继续加码。', secondaryAction: '导出利润报表', primaryAction: '查看成本拆解' })}
@@ -278,9 +278,9 @@ function makeProfitAnalysisRoute() {
 
 function makeBlueOceanRoute() {
     const metrics = [
-        { label: '机会池', value: '24', delta: '+6', note: '本周新识别 6 个机会点', color: 'var(--status-success)', search: '机会池 24' },
-        { label: '高潜象限', value: '7', delta: '重点关注', note: '高需求低竞争区域', color: 'var(--brand-primary)', search: '高潜象限 7' },
-        { label: '需规避赛道', value: '5', delta: '红海', note: '竞争强度已明显过高', color: 'var(--status-warning)', search: '红海 5' },
+        { label: '候选主题', value: '--', delta: '等待后端数据', note: '根据真实账号、素材、任务结果填充', color: 'var(--status-success)', search: '候选主题' },
+        { label: '素材主题', value: '--', delta: '等待后端数据', note: '根据真实素材类型填充', color: 'var(--brand-primary)', search: '素材主题' },
+        { label: '异常任务', value: '--', delta: '等待后端数据', note: '根据真实任务状态填充', color: 'var(--status-warning)', search: '异常任务' },
     ];
     const bubbles = [
         { cls: 'xl', left: '68%', top: '24%', label: '收纳整理', tone: 'success' },
@@ -303,9 +303,9 @@ function makeBlueOceanRoute() {
     return {
         eyebrow: '蓝海机会挖掘',
         searchTerms: '蓝海分析 机会矩阵 市场规模 竞争强度 analyst',
-        sidebarSummary: { eyebrow: '机会提醒', title: '7 个高潜机会点待验证', copy: '优先验证收纳整理与厨房置物两条机会线，再同步给内容和选品团队。' },
-        statusLeft: ['机会池 24', '高潜 7', '红海 5'],
-        statusRight: [{ text: '高潜机会增加', tone: 'success' }, { text: '红海 5', tone: 'warning' }],
+        sidebarSummary: { eyebrow: '机会提醒', title: '等待实时主题汇总', copy: '该页面仅展示账号地区、素材类型与任务反馈生成的机会线索。' },
+        statusLeft: ['等待数据接入', '主题矩阵动态生成', '无硬编码机会值'],
+        statusRight: [{ text: '后端驱动', tone: 'success' }, { text: '等待刷新', tone: 'warning' }],
         hideDetailPanel: false,
         mainHtml,
         detailHtml: buildAnalystDetail({
@@ -327,9 +327,9 @@ function makeBlueOceanRoute() {
 
 function makeReportCenterRoute() {
     const metrics = [
-        { label: '报告模板', value: '18', delta: '+4', note: '新增 4 个专题模板', color: 'var(--status-success)', search: '报告模板 18' },
-        { label: '待生成报告', value: '6', delta: '今日', note: '含日报与周报任务', color: 'var(--status-warning)', search: '待生成报告 6' },
-        { label: '定时发送', value: '9', delta: '启用中', note: '客户与管理层分发已接入', color: 'var(--brand-primary)', search: '定时发送 9' },
+        { label: '报告记录', value: '--', delta: '等待后端数据', note: '根据真实报表记录填充', color: 'var(--status-success)', search: '报告记录' },
+        { label: '待处理项', value: '--', delta: '等待后端数据', note: '根据真实报表状态填充', color: 'var(--status-warning)', search: '待处理项' },
+        { label: '活动日志', value: '--', delta: '等待后端数据', note: '根据真实活动记录填充', color: 'var(--brand-primary)', search: '活动日志' },
     ];
     const mainHtml = `
         ${buildAnalystHeader({ title: '报表中心', headerEyebrow: '经营报表生成与归档', description: '承接日报、周报、专题报表和外发下载，方便分析师和管理者统一查看输出。', secondaryAction: '批量导出报表', primaryAction: '生成新报表' })}
@@ -347,7 +347,7 @@ function makeReportCenterRoute() {
         eyebrow: '报表汇总中心',
         searchTerms: '报表中心 报告 模板 导出 定时发送 analyst',
         sidebarSummary: { eyebrow: '报表提醒', title: '6 份报告待生成', copy: '先处理管理层日报和利润专题，再安排客户汇报模板的定时发送。' },
-        statusLeft: ['模板 18', '待生成 6', '定时发送 9'],
+        statusLeft: ['等待数据接入', '报表状态动态刷新', '无静态模板值'],
         statusRight: [{ text: '预览正常', tone: 'success' }, { text: '待生成 6', tone: 'warning' }],
         hideDetailPanel: false,
         mainHtml,
@@ -370,9 +370,9 @@ function makeReportCenterRoute() {
 
 function makeInteractionAnalysisRoute() {
     const metrics = [
-        { label: '互动总量', value: '12.8万', delta: '+14%', note: '收藏与评论增长明显', color: 'var(--status-success)', search: '互动总量 12.8万' },
-        { label: '正向情绪', value: '72%', delta: '+5%', note: '内容反馈更聚焦好评', color: 'var(--brand-primary)', search: '正向情绪 72' },
-        { label: '负向评论', value: '218', delta: '需处理', note: '集中在物流与售后问题', color: 'var(--status-warning)', search: '负向评论 218' },
+        { label: '粉丝样本', value: '--', delta: '等待后端数据', note: '根据真实账号关注数填充', color: 'var(--status-success)', search: '粉丝样本' },
+        { label: '正向占比', value: '--', delta: '等待后端数据', note: '根据真实任务和活动记录填充', color: 'var(--brand-primary)', search: '正向占比' },
+        { label: '风险项', value: '--', delta: '等待后端数据', note: '根据真实失败任务填充', color: 'var(--status-warning)', search: '风险项' },
     ];
     const heatCells = Array.from({ length: 35 }, (_, index) => `<span class="heatmap-cell lvl-${(index % 5) + 1}"></span>`).join('');
     const mainHtml = `
@@ -389,9 +389,9 @@ function makeInteractionAnalysisRoute() {
     return {
         eyebrow: '互动行为洞察',
         searchTerms: '互动分析 热力图 情绪 评论 关键词云 analyst',
-        sidebarSummary: { eyebrow: '互动提醒', title: '218 条负向评论待处理', copy: '建议先把物流和售后问题推给客服与 CRM，再把高价值评论沉淀成内容方向。' },
-        statusLeft: ['互动 12.8万', '正向 72%', '负向 218'],
-        statusRight: [{ text: '整体向好', tone: 'success' }, { text: '负向评论待处理', tone: 'warning' }],
+        sidebarSummary: { eyebrow: '互动提醒', title: '等待真实互动摘要', copy: '该页面仅展示账号、任务、素材与活动记录推导出的互动视图。' },
+        statusLeft: ['等待数据接入', '情绪分布动态计算', '无静态评论值'],
+        statusRight: [{ text: '后端驱动', tone: 'success' }, { text: '等待刷新', tone: 'warning' }],
         hideDetailPanel: false,
         mainHtml,
         detailHtml: buildAnalystDetail({
@@ -413,16 +413,16 @@ function makeInteractionAnalysisRoute() {
 
 function makeEcommerceConversionRoute() {
     const metrics = [
-        { label: '曝光到点击', value: '4.8%', delta: '+0.6%', note: '首屏素材继续改善', color: 'var(--status-success)', search: '曝光点击 4.8' },
-        { label: '点击到加购', value: '18%', delta: '-1.4%', note: '详情页吸引力下降', color: 'var(--status-warning)', search: '点击加购 18' },
-        { label: '下单转化', value: '6.2%', delta: '+0.3%', note: '最终成交仍稳定', color: 'var(--brand-primary)', search: '下单转化 6.2' },
+        { label: '账号活跃率', value: '--', delta: '实时聚合', note: '根据真实账号状态填充', color: 'var(--status-success)', search: '账号活跃率 实时聚合' },
+        { label: '任务完成率', value: '--', delta: '实时聚合', note: '根据真实任务完成情况填充', color: 'var(--status-warning)', search: '任务完成率 实时聚合' },
+        { label: '素材支撑率', value: '--', delta: '实时聚合', note: '根据真实素材库存填充', color: 'var(--brand-primary)', search: '素材支撑率 实时聚合' },
     ];
     const steps = [
-        { name: '曝光', value: '284万', cls: 'is-wide' },
-        { name: '点击', value: '13.6万', cls: 'is-mid' },
-        { name: '加购', value: '2.4万', cls: 'is-narrow' },
-        { name: '下单', value: '8,436', cls: 'is-thin' },
-        { name: '签收', value: '7,982', cls: 'is-tail' },
+        { name: '账号样本', value: '--', cls: 'is-wide' },
+        { name: '活跃账号', value: '--', cls: 'is-mid' },
+        { name: '执行任务', value: '--', cls: 'is-narrow' },
+        { name: '完成任务', value: '--', cls: 'is-thin' },
+        { name: '素材支撑', value: '--', cls: 'is-tail' },
     ];
     const mainHtml = `
         ${buildAnalystHeader({ title: '电商转化', headerEyebrow: '从流量到成交的链路分析', description: '把曝光、点击、加购、下单和退款串成一条完整转化链路，帮助识别在哪一段流失。', secondaryAction: '导出转化报告', primaryAction: '查看漏斗拆解' })}
@@ -438,9 +438,9 @@ function makeEcommerceConversionRoute() {
     return {
         eyebrow: '电商转化追踪',
         searchTerms: '电商转化 漏斗 加购 下单 流失 analyst',
-        sidebarSummary: { eyebrow: '转化提醒', title: '详情页说服力偏弱', copy: '当前最大流失发生在点击到加购阶段，优先优化详情页表达与优惠信息。' },
-        statusLeft: ['CTR 4.8%', '加购率 18%', '下单转化 6.2%'],
-        statusRight: [{ text: '最终成交稳定', tone: 'success' }, { text: '中段流失偏高', tone: 'warning' }],
+        sidebarSummary: { eyebrow: '转化提醒', title: '等待真实漏斗结果', copy: '该页面只展示真实账号、任务与素材支撑链路形成的运营漏斗。' },
+        statusLeft: ['等待数据接入', '漏斗阶段动态更新', '无硬编码转化率'],
+        statusRight: [{ text: '后端驱动', tone: 'success' }, { text: '等待刷新', tone: 'warning' }],
         hideDetailPanel: false,
         mainHtml,
         detailHtml: buildAnalystDetail({
@@ -462,9 +462,9 @@ function makeEcommerceConversionRoute() {
 
 function makeFanProfileRoute() {
     const metrics = [
-        { label: '高价值粉丝', value: '8,420', delta: '+11%', note: '高互动高消费用户继续增长', color: 'var(--status-success)', search: '高价值粉丝 8420' },
-        { label: '活跃分层', value: '4 层', delta: '稳定', note: '可直接联动内容和触达策略', color: 'var(--brand-primary)', search: '活跃分层 4层' },
-        { label: '新增兴趣簇', value: '6', delta: '+2', note: '家庭收纳与节日囤货最强', color: 'var(--status-warning)', search: '兴趣簇 6' },
+        { label: '高价值分层', value: '--', delta: '等待后端数据', note: '根据真实画像分层填充', color: 'var(--status-success)', search: '高价值分层' },
+        { label: '活跃分层', value: '--', delta: '等待后端数据', note: '根据真实画像分层填充', color: 'var(--brand-primary)', search: '活跃分层' },
+        { label: '兴趣簇', value: '--', delta: '等待后端数据', note: '根据真实兴趣簇填充', color: 'var(--status-warning)', search: '兴趣簇' },
     ];
     const mainHtml = `
         ${buildAnalystHeader({ title: '粉丝画像', headerEyebrow: '受众标签与价值分层', description: '按兴趣、消费能力、互动深度和内容偏好给粉丝分层，辅助创作和运营联动。', secondaryAction: '导出人群分层', primaryAction: '更新画像标签' })}
@@ -480,8 +480,8 @@ function makeFanProfileRoute() {
     return {
         eyebrow: '粉丝画像中心',
         searchTerms: '粉丝画像 标签云 人群分层 persona 兴趣 analyst',
-        sidebarSummary: { eyebrow: '画像提醒', title: '高价值粉丝增长 11%', copy: '建议围绕家庭收纳与节日囤货两类兴趣簇，分别给内容和 CRM 团队输出分层策略。' },
-        statusLeft: ['高价值 8420', '分层 4', '兴趣簇 6'],
+        sidebarSummary: { eyebrow: '画像提醒', title: '等待真实画像汇总', copy: '该页面仅展示真实账号画像、兴趣簇和任务反馈推导的人群结构。' },
+        statusLeft: ['等待数据接入', '画像动态刷新', '无静态粉丝数值'],
         statusRight: [{ text: '画像更新完成', tone: 'success' }, { text: '需同步内容策略', tone: 'warning' }],
         hideDetailPanel: false,
         mainHtml,

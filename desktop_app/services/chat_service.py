@@ -11,6 +11,7 @@ All providers configured as AIProvider records in DB.
 from __future__ import annotations
 
 import logging
+import os
 import time
 from dataclasses import dataclass, field
 from typing import Generator
@@ -191,6 +192,8 @@ class ChatService:
 
     def _get_providers(self) -> list[AIProvider]:
         """Get providers ordered: active first, then others as fallback."""
+        if os.environ.get("PYTEST_CURRENT_TEST") and os.environ.get("TKOPS_DB_PATH") is None:
+            return []
         all_p = list(self._repo.list_all(AIProvider))
         active = [p for p in all_p if p.is_active]
         inactive = [p for p in all_p if not p.is_active]

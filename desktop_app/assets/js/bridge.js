@@ -46,9 +46,13 @@
             // Tasks
             listTasks: noop, createTask: noopObj, updateTask: noopObj,
             startTask: noopObj, completeTask: noopObj, failTask: noopObj, deleteTask: noopObj,
+            createTaskAction: noopObj,
             // AI Providers
             listProviders: noop, createProvider: noopObj,
             updateProvider: noopObj, setActiveProvider: noopObj, deleteProvider: noopObj,
+            // Assets
+            listAssets: noop, listAssetsByType: noop, createAsset: noopObj, updateAsset: noopObj, deleteAsset: noopObj,
+            getAssetStats: () => ok({ total: 0, byType: {} }),
             // Dashboard
             getDashboardStats: () => ok({
                 accounts: { total: 0, byStatus: {} },
@@ -56,6 +60,48 @@
                 devices:  { total: 0, byStatus: {} },
                 groups: 0, assets: 0, providers: 0,
             }),
+            getAnalyticsSummary: () => ok({
+                accounts: { total: 0, active: 0, by_region: {}, followers_total: 0 },
+                tasks: { total: 0, completed: 0, running: 0, failed: 0 },
+                assets: { total: 0, by_type: {} },
+                providers: { total: 0, active: 0, models: [] },
+                experiments: { projects: 0, views: 0 },
+            }),
+            getConversionAnalysis: () => ok({
+                counts: { accounts: 0, active_accounts: 0, tasks: 0, completed_tasks: 0, assets: 0 },
+                funnel: [],
+            }),
+            getPersonaAnalysis: () => ok({ segments: [], regions: [], interest_clusters: [] }),
+            getTrafficAnalysis: () => ok({ metrics: {}, sources: [], rows: [], trend: [] }),
+            getCompetitorAnalysis: () => ok({ metrics: {}, rivals: [], rows: [], bars: [] }),
+            getBlueOceanAnalysis: () => ok({ metrics: {}, topics: [], lead: {}, matrix: [] }),
+            getInteractionAnalysis: () => ok({ metrics: {}, sentiment: {}, keywords: [], heatmap: [], affinity: [] }),
+            // Analytics / Reports / Workflows / Experiments
+            listAnalysisSnapshots: noop,
+            createAnalysisSnapshot: noopObj,
+            listReportRuns: noop,
+            createReportRun: noopObj,
+            listWorkflowDefinitions: noop,
+            createWorkflowDefinition: noopObj,
+            listWorkflowRuns: noop,
+            startWorkflowRun: noopObj,
+            listExperimentProjects: noop,
+            createExperimentProject: noopObj,
+            listExperimentViews: noop,
+            createExperimentView: noopObj,
+            listNotifications: noop,
+            listActivityLogs: noop,
+            createActivityLog: noopObj,
+            runDevSeed: () => ok({ created: 0, counts: {} }),
+            // AI chat
+            chatSync: () => ok({ content: '未配置 AI 供应商，请先在「AI 供应商配置」页面添加。', model: '', provider: '', prompt_tokens: 0, completion_tokens: 0, total_tokens: 0, elapsed_ms: 0 }),
+            startChatStream: () => ok({ started: true }),
+            pollChatStream: () => ok({ chunks: [], finished: true }),
+            listAiPresets: noop,
+            getAiPreset: noopObj,
+            testAiProvider: noopObj,
+            getAiUsageStats: () => ok({ total: { prompt: 0, completion: 0, requests: 0 }, daily: {}, by_provider: {}, by_model: {} }),
+            getAiUsageToday: () => ok({ prompt: 0, completion: 0, requests: 0 }),
             // Settings
             getSetting: () => ok(''), setSetting: noopObj, setSettingsBatch: noopObj, getAllSettings: () => ok({}),
             // Theme
@@ -73,7 +119,10 @@
             checkRouteAccess: (route) => ok({ allowed: true, required_tier: 'free', current_tier: 'pro' }),
             // Utils
             copyToClipboard: () => ok({ copied: true }),
+            pickLocalFiles: () => ok([]),
+            exportTextFile: () => ok({ saved: false, path: '' }),
             getRecentLogs: () => ok({ path: 'C:/TK-OPS-ASSISTANT/logs/app.log', lines: ['[2026-03-19 10:30:00] INFO     desktop_app.app  Application started'], lineCount: 1, errorCount: 0, warningCount: 0, size: 128 }),
+            runNetworkDiagnostics: () => ok({ score: 100, checks: [], errorCount: 0, warningCount: 0, generatedAt: '', reportText: '' }),
             // Logging
             logFrontend: () => {},
             // Signals

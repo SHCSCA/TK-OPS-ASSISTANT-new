@@ -61,6 +61,42 @@ function formatTimeAgo(date) {
     return Math.floor(seconds / 86400) + ' 天前';
 }
 
+function syncNotifications(items) {
+    const readMap = {};
+    (uiState.notifications || []).forEach((item) => {
+        readMap[String(item.id)] = Boolean(item.read);
+    });
+
+    uiState.notifications = (items || []).map((item, index) => ({
+        id: item.id || ('notif-' + index),
+        title: item.title || '系统通知',
+        body: item.body || '暂无详细说明',
+        tone: item.tone || 'info',
+        read: readMap[String(item.id || ('notif-' + index))] || false,
+        time: item.created_at ? new Date(item.created_at) : new Date(),
+        source: item.source || 'backend',
+    }));
+    uiState.notificationId = uiState.notifications.length;
+    renderNotifications();
+    updateNotificationBadge();
+}
+
+function loadNotifications() {
+    if (!window.api || !window.api.notifications || typeof window.api.notifications.list !== 'function') {
+        syncNotifications([]);
+        return Promise.resolve([]);
+    }
+    return window.api.notifications.list()
+        .then((items) => {
+            syncNotifications(items || []);
+            return items || [];
+        })
+        .catch(() => {
+            syncNotifications([]);
+            return [];
+        });
+}
+
 function initNotificationSystem() {
     const btn = document.getElementById('notificationToggle');
     const panel = document.getElementById('notificationPanel');
@@ -87,11 +123,13 @@ function initNotificationSystem() {
         });
     }
 
-    // 模拟系统通知
-    setTimeout(() => addNotification('系统提醒', '有 12 个素材等待版权审核，请及时处理。', 'warning'), 1500);
-    setTimeout(() => addNotification('任务完成', '批量标题生成任务已完成，共生成 24 条标题。', 'success'), 3000);
-    setTimeout(() => addNotification('AI 模型更新', 'GPT-4o 模型已同步至所有 AI 工作台。', 'info'), 5000);
-    setTimeout(() => addNotification('性能告警', '数据采集任务 #0382 连续 3 次超时，建议检查代理配置。', 'error'), 8000);
+    loadNotifications();
+    document.addEventListener('data:changed', function (event) {
+        var detail = event && event.detail ? event.detail : {};
+        if (detail.entity === 'activity_log' || detail.entity === 'task' || detail.entity === 'dev_seed') {
+            loadNotifications();
+        }
+    });
 }
 
 /* ═══════════════════════════════════════════════
