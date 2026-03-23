@@ -14,7 +14,9 @@ dist/
 # 日志与本地数据库
 *.log
 build_log.txt
+*.db
 data/*.db
+!sample_data/*.db
 
 # 虚拟环境
 venv/

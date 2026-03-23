@@ -221,6 +221,54 @@ seed 特性：
 - 写入真实表
 - 覆盖 analyst / notification / report / workflow / experiment 页面查看场景
 
+### 仓库内测试数据库样本
+
+仓库现在附带一份可直接用于联调和界面测试的 SQLite 样本库：
+
+- 文件路径：`sample_data/tk_ops_test_seed.db`
+- 数据来源：基于本地真实开发库导出的完整一致性快照
+- 数据用途：用于页面联调、功能演示、自动化测试前的人工验证
+- 数据处理：已清空并重写 `app_settings`，不包含真实 `license_key` 和本机个性化配置
+
+当前样本库包含以下测试数据量：
+
+- `groups=4`
+- `devices=4`
+- `accounts=9`
+- `tasks=14`
+- `ai_providers=3`
+- `assets=15`
+- `analysis_snapshots=6`
+- `report_runs=4`
+- `workflow_definitions=3`
+- `workflow_runs=4`
+- `experiment_projects=3`
+- `experiment_views=6`
+- `activity_logs=12`
+
+### 如何使用仓库样本库
+
+应用默认数据库目录是 `%APPDATA%/TK-OPS-ASSISTANT/`。如果你想在本地直接使用仓库里的样本库进行测试，推荐：
+
+1. 新建一个临时数据目录，例如 `tmp/test-db/`
+2. 将 `sample_data/tk_ops_test_seed.db` 复制到该目录，并重命名为 `tk_ops.db`
+3. 启动应用前设置环境变量 `TK_OPS_DATA_DIR` 指向这个目录
+
+PowerShell 示例：
+
+```powershell
+$env:TK_OPS_DATA_DIR = "$PWD\tmp\test-db"
+New-Item -ItemType Directory -Force "$env:TK_OPS_DATA_DIR" | Out-Null
+Copy-Item ".\sample_data\tk_ops_test_seed.db" "$env:TK_OPS_DATA_DIR\tk_ops.db" -Force
+venv\Scripts\python.exe desktop_app\main.py
+```
+
+注意事项：
+
+- `sample_data/tk_ops_test_seed.db` 是仓库测试样本，不是生产数据库
+- 如需重新生成最新样本，应从本地开发库重新导出并再次脱敏
+- `.gitignore` 已默认忽略其他 `.db` 文件，仅允许提交 `sample_data/*.db`
+
 ## 打包
 
 ```powershell
