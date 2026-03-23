@@ -263,9 +263,9 @@ function makeProfitAnalysisRoute() {
     return {
         eyebrow: '利润分析中心',
         searchTerms: '利润分析 ROI 成本 营收 退款 库存 analyst',
-        sidebarSummary: { eyebrow: '利润提醒', title: '3 个店铺利润率下滑', copy: '建议先联动流量与订单页，确认是流量质量还是履约成本问题。' },
-        statusLeft: ['利润 86.4万', '下滑店铺 3', '广告占比 22%'],
-        statusRight: [{ text: '总体增长', tone: 'success' }, { text: '成本上升', tone: 'warning' }],
+        sidebarSummary: { eyebrow: '利润提醒', title: '等待运营准备度汇总', copy: '该页面只展示真实账号、任务、素材回填出的运营准备度，不伪造利润金额。' },
+        statusLeft: ['等待数据接入', '运营准备度动态刷新', '无静态利润金额'],
+        statusRight: [{ text: '后端驱动', tone: 'success' }, { text: '等待刷新', tone: 'warning' }],
         hideDetailPanel: false,
         mainHtml,
         detailHtml: buildAnalystDetail({
@@ -347,7 +347,7 @@ function makeReportCenterRoute() {
             <div class="report-center-shell analyst-feature-shell">
                 <section class="panel report-templates-panel"><div class="panel__header"><div><strong>模板库</strong><div class="subtle">选择常用模板或收藏模板快速开报</div></div></div><div class="report-template-list"><button class="data-source-item is-selected" type="button"><strong>经营日报</strong><span>默认模板</span></button><button class="data-source-item" type="button"><strong>利润专题</strong><span>财务复盘</span></button><button class="data-source-item" type="button"><strong>互动洞察</strong><span>评论与情绪</span></button><button class="data-source-item" type="button"><strong>蓝海调研</strong><span>机会发现</span></button></div></section>
                 <section class="panel report-builder-panel"><div class="panel__header"><div><strong>报告配置流程</strong><div class="subtle">字段、筛选、图表与发送规则分步完成</div></div></div><div class="report-builder-steps"><article><span>1</span><div><strong>选择字段</strong><p class="subtle">曝光、转化、利润、退款、情绪指数</p></div></article><article><span>2</span><div><strong>设置筛选</strong><p class="subtle">近 7 天 / 英德站 / 高价值账号组</p></div></article><article><span>3</span><div><strong>选择图表</strong><p class="subtle">柱图、折线、矩阵、情感环图</p></div></article><article><span>4</span><div><strong>配置发送</strong><p class="subtle">每周一 09:00 自动发送到管理群</p></div></article></div></section>
-                <section class="panel report-preview-panel"><div class="panel__header"><div><strong>实时预览</strong><div class="subtle">预览内容必须与导出内容保持一致</div></div><span class="pill success">在线预览</span></div><div class="report-preview-card"><div class="report-preview-chart"></div><div class="report-preview-table"><div><strong>核心结论</strong><span>欧洲店铺利润下滑，需先优化履约成本</span></div><div><strong>异常项</strong><span>搜索入口波动 + 退款率偏高</span></div><div><strong>建议动作</strong><span>先修关键词池，再排查售后流程</span></div></div></div></section>
+                <section class="panel report-preview-panel"><div class="panel__header"><div><strong>实时预览</strong><div class="subtle">预览内容必须与导出内容保持一致</div></div><span class="pill success">在线预览</span></div><div class="report-preview-card"><div class="report-preview-chart"></div><div class="report-preview-table"><div><strong>核心结论</strong><span>等待真实报表记录回填</span></div><div><strong>异常项</strong><span>等待活动日志与状态汇总</span></div><div><strong>建议动作</strong><span>等待运行时数据生成下一步建议</span></div></div></div></section>
             </div>
         </section>
     `;
@@ -355,9 +355,9 @@ function makeReportCenterRoute() {
     return {
         eyebrow: '报表汇总中心',
         searchTerms: '报表中心 报告 模板 导出 定时发送 analyst',
-        sidebarSummary: { eyebrow: '报表提醒', title: '6 份报告待生成', copy: '先处理管理层日报和利润专题，再安排客户汇报模板的定时发送。' },
+        sidebarSummary: { eyebrow: '报表提醒', title: '等待真实报表记录汇总', copy: '该页面只展示真实报表记录、活动日志和运行时预览结果。' },
         statusLeft: ['等待数据接入', '报表状态动态刷新', '无静态模板值'],
-        statusRight: [{ text: '预览正常', tone: 'success' }, { text: '待生成 6', tone: 'warning' }],
+        statusRight: [{ text: '预览由运行时回填', tone: 'success' }, { text: '等待刷新', tone: 'warning' }],
         hideDetailPanel: false,
         mainHtml,
         detailHtml: buildAnalystDetail({

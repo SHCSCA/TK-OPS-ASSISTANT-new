@@ -148,6 +148,79 @@
                 ],
             });
         },
+        'visual-lab': function (payload) {
+            payload = payload || {};
+            var projects = payload.projects || [];
+            var views = payload.views || [];
+            var summary = payload.summary || {};
+            var providerCount = (summary.providers && summary.providers.total) || 0;
+            _applyRuntimeSummary({
+                eyebrow: '实验提醒',
+                title: projects.length ? ('实验项目 ' + projects.length + ' 个已接入') : '暂无实验项目',
+                copy: '实验视图 ' + views.length + ' / 供应商 ' + providerCount + ' / 素材 ' + ((summary.assets && summary.assets.total) || 0),
+                statusLeft: ['实验项目 ' + projects.length, '实验视图 ' + views.length, '素材总量 ' + ((summary.assets && summary.assets.total) || 0)],
+                statusRight: [
+                    { text: projects.length ? '持久化已接入' : '等待创建项目', tone: projects.length ? 'success' : 'warning' },
+                    { text: providerCount ? ('模型池 ' + providerCount) : '等待模型配置', tone: providerCount ? 'info' : 'warning' },
+                ],
+            });
+        },
+        'profit-analysis': function (payload) {
+            payload = payload || {};
+            var summary = payload.summary || {};
+            var conversion = payload.conversion || {};
+            var counts = conversion.counts || {};
+            var activeAccounts = (summary.accounts && summary.accounts.active) || 0;
+            var totalAccounts = (summary.accounts && summary.accounts.total) || 0;
+            var assetsTotal = (summary.assets && summary.assets.total) || 0;
+            var completedTasks = counts.completed_tasks || (summary.tasks && summary.tasks.completed) || 0;
+            var failedTasks = (summary.tasks && summary.tasks.failed) || 0;
+            _applyRuntimeSummary({
+                eyebrow: '经营提醒',
+                title: totalAccounts ? ('活跃账号 ' + activeAccounts + ' / 完成任务 ' + completedTasks) : '暂无利润页基础样本',
+                copy: '失败任务 ' + failedTasks + ' / 素材支撑 ' + assetsTotal + ' / 该页只展示当前系统可支撑的运营准备度。',
+                statusLeft: ['账号样本 ' + totalAccounts, '完成任务 ' + completedTasks, '失败任务 ' + failedTasks],
+                statusRight: [
+                    { text: assetsTotal ? ('素材 ' + assetsTotal) : '素材待补齐', tone: assetsTotal ? 'success' : 'warning' },
+                    { text: failedTasks ? ('需排查 ' + failedTasks) : '无异常', tone: failedTasks ? 'error' : 'info' },
+                ],
+            });
+        },
+        'report-center': function (payload) {
+            payload = payload || {};
+            var reports = payload.reports || [];
+            var activity = payload.activity || [];
+            var pending = reports.filter(function (report) {
+                return String(report.status || '').toLowerCase() !== 'completed';
+            }).length;
+            _applyRuntimeSummary({
+                eyebrow: '报表提醒',
+                title: reports.length ? ('报告记录 ' + reports.length + ' 份') : '暂无报表记录',
+                copy: '待处理 ' + pending + ' / 活动日志 ' + activity.length + ' / 预览内容由真实记录回填。',
+                statusLeft: ['报告记录 ' + reports.length, '待处理 ' + pending, '活动日志 ' + activity.length],
+                statusRight: [
+                    { text: reports.length ? '报表已接线' : '等待生成报表', tone: reports.length ? 'success' : 'warning' },
+                    { text: pending ? ('待跟进 ' + pending) : '状态稳定', tone: pending ? 'warning' : 'info' },
+                ],
+            });
+        },
+        'creative-workshop': function (payload) {
+            payload = payload || {};
+            var projects = payload.projects || [];
+            var tasks = payload.tasks || [];
+            var assets = payload.assets || [];
+            var failed = tasks.filter(function (task) { return _normalizeTaskStatus(task.status) === 'failed'; }).length;
+            _applyRuntimeSummary({
+                eyebrow: '创意提醒',
+                title: projects.length ? ('创意实验 ' + projects.length + ' 个已接入') : '暂无创意实验项目',
+                copy: '素材 ' + assets.length + ' / 任务 ' + tasks.length + ' / 该页优先展示真实实验、素材和任务反馈。',
+                statusLeft: ['实验项目 ' + projects.length, '素材样本 ' + assets.length, '任务反馈 ' + tasks.length],
+                statusRight: [
+                    { text: assets.length ? ('素材充足 ' + assets.length) : '素材待补齐', tone: assets.length ? 'success' : 'warning' },
+                    { text: failed ? ('待排查 ' + failed) : '无阻塞', tone: failed ? 'error' : 'info' },
+                ],
+            });
+        },
     };
     var pageAudits = {
         'dashboard': {
@@ -177,6 +250,22 @@
         'asset-center': {
             dataSources: ['listAssets', 'getAssetStats'],
             interactions: ['create', 'edit', 'delete', 'filter', 'detail'],
+        },
+        'visual-lab': {
+            dataSources: ['getAnalyticsSummary', 'listExperimentProjects', 'listExperimentViews'],
+            interactions: ['create', 'detail', 'compare', 'persist'],
+        },
+        'profit-analysis': {
+            dataSources: ['getAnalyticsSummary', 'getConversionAnalysis'],
+            interactions: ['detail', 'filter', 'export'],
+        },
+        'report-center': {
+            dataSources: ['listReportRuns', 'getAnalyticsSummary', 'listActivityLogs'],
+            interactions: ['create', 'detail', 'preview', 'export'],
+        },
+        'creative-workshop': {
+            dataSources: ['listAccounts', 'listAssets', 'listTasks', 'listExperimentProjects'],
+            interactions: ['persist', 'compare', 'detail', 'handoff'],
         },
     };
 
@@ -1098,6 +1187,7 @@
                     ((summary.providers && summary.providers.models) || []).length,
                 ],
             });
+            runtimeSummaryHandlers['visual-lab']({ summary: summary, projects: projects, views: views });
             _bindAnalyticsHeaderActions('visual-lab', { stats: stats, assets: assetStats, providers: providers, experiments: projects, views: views });
             if (typeof bindRouteInteractions === 'function') bindRouteInteractions();
         }).catch(function (e) {
@@ -1142,6 +1232,7 @@
                     Math.max(26, Math.min(92, completedTasks * 10 + 26)),
                 ],
             });
+            runtimeSummaryHandlers['profit-analysis']({ summary: summary, conversion: conversion });
             _bindAnalyticsHeaderActions('profit-analysis', { summary: summary, conversion: conversion, accounts: new Array(accountsTotal), tasks: new Array((summary.tasks && summary.tasks.total) || 0), assets: { total: assetsTotal } });
             if (typeof bindRouteInteractions === 'function') bindRouteInteractions();
         }).catch(function (e) {
@@ -1318,6 +1409,7 @@
             _setAnalyticsSeed({
                 reportTrend: [reports.length, activity.length, ((summary.accounts && summary.accounts.total) || 0), ((summary.assets && summary.assets.total) || 0)],
             });
+            runtimeSummaryHandlers['report-center']({ reports: reports, activity: activity, summary: summary });
             _bindAnalyticsHeaderActions('report-center', { reports: reports, activity: activity, summary: summary, accounts: new Array((summary.accounts && summary.accounts.total) || 0), tasks: [], assets: { total: ((summary.assets && summary.assets.total) || 0) } });
             if (typeof bindRouteInteractions === 'function') bindRouteInteractions();
         }).catch(function (e) {
@@ -1484,6 +1576,8 @@
             _renderCreativeFocusCards(accounts, assets, tasks);
             _renderWorkbenchSideCards(tasks, '#mainHost .workbench-side-list');
             _renderStripCards(assets, '#mainHost .workbench-strip-grid', 'asset');
+            _renderCreativeWorkshopDetail(projects, tasks, assets);
+            runtimeSummaryHandlers['creative-workshop']({ projects: projects, tasks: tasks, assets: assets });
             _applyAiHandoffHint('creative-workshop', '#mainHost .workbench-strip-grid');
             if (typeof bindRouteInteractions === 'function') bindRouteInteractions();
         }).catch(function (e) {
@@ -2087,6 +2181,20 @@
         ];
         host.innerHTML = base.map(function (card, index) {
             return '<article class="focus-card ' + (index === 0 ? 'focus-card--wide' : '') + '"><div class="focus-card__head"><strong>' + _esc(card.title) + '</strong><span class="pill ' + card.tone + '">' + _esc(card.badge) + '</span></div><div class="subtle">' + _esc(card.desc) + '</div><div class="focus-card__meta">' + _esc(card.meta) + '</div></article>';
+        }).join('');
+    }
+
+    function _renderCreativeWorkshopDetail(projects, tasks, assets) {
+        var detailItems = document.querySelectorAll('#detailHost .detail-item strong');
+        if (detailItems.length >= 3) {
+            detailItems[0].textContent = projects[0] ? (projects[0].name || '已接入实验项目') : '暂无实验项目';
+            detailItems[1].textContent = tasks.filter(function (task) { return _normalizeTaskStatus(task.status) === 'failed'; }).length ? '存在失败任务待排查' : '当前无失败任务阻塞';
+            detailItems[2].textContent = assets.length ? ('优先基于 ' + assets.length + ' 条素材进入下一轮验证') : '建议先补充素材后再继续实验';
+        }
+        var sideHost = document.querySelector('#detailHost .workbench-side-list');
+        if (!sideHost) return;
+        sideHost.innerHTML = (tasks || []).slice(0, 3).map(function (task) {
+            return '<article class="workbench-sidecard"><div class="workbench-sidecard__head"><strong>' + _esc(task.title || '创意反馈') + '</strong><span class="pill ' + _taskStatusTone(task.status) + '">' + _esc(_taskStatusLabel(task.status)) + '</span></div><div class="subtle">' + _esc(task.result_summary || '已同步任务反馈') + '</div></article>';
         }).join('');
     }
 

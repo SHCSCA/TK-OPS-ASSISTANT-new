@@ -41,3 +41,17 @@ def test_profit_and_conversion_loaders_no_longer_use_fabricated_business_estimat
 
     assert '_trafficCtr(' not in conversion_window
     assert 'api.analytics.conversion()' in conversion_window
+
+
+def test_profit_and_report_templates_do_not_freeze_static_business_narratives() -> None:
+    text = ANALYTICS_JS.read_text(encoding='utf-8')
+    forbidden = [
+        '利润 86.4万',
+        '3 个店铺利润率下滑',
+        '欧洲店铺利润下滑，需先优化履约成本',
+        '搜索入口波动 + 退款率偏高',
+        '先修关键词池，再排查售后流程',
+        '6 份报告待生成',
+    ]
+    for marker in forbidden:
+        assert marker not in text, marker

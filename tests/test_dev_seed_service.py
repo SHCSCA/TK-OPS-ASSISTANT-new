@@ -77,3 +77,77 @@ def test_bridge_exposes_manual_dev_seed_entrypoint() -> None:
 
     bridge_stub_text = BRIDGE_JS.read_text(encoding='utf-8')
     assert 'runDevSeed:' in bridge_stub_text
+
+
+def test_dev_seed_service_can_reset_business_tables_and_preserve_app_settings() -> None:
+    result = _run_isolated_script(
+        """
+import json
+from desktop_app.database.models import (
+    Account,
+    ActivityLog,
+    AIProvider,
+    AnalysisSnapshot,
+    AppSetting,
+    Asset,
+    Device,
+    ExperimentProject,
+    ExperimentView,
+    Group,
+    ReportRun,
+    Task,
+    WorkflowDefinition,
+    WorkflowRun,
+)
+from desktop_app.database.repository import Repository
+from desktop_app.services.dev_seed_service import DevSeedService
+
+repo = Repository()
+repo.set_setting('theme', 'dark')
+repo.set_setting('license_key', 'seed-preserve-license')
+service = DevSeedService(repo)
+service.seed_development_data()
+result = service.reset_business_data_with_realistic_seed()
+
+models = [
+    Group,
+    Device,
+    Account,
+    Task,
+    AIProvider,
+    Asset,
+    AnalysisSnapshot,
+    ReportRun,
+    WorkflowDefinition,
+    WorkflowRun,
+    ExperimentProject,
+    ExperimentView,
+    ActivityLog,
+]
+counts = {model.__tablename__: repo.count(model) for model in models}
+settings = repo.get_all_settings()
+
+print(json.dumps({
+    'created': result['created'],
+    'counts': counts,
+    'settings': settings,
+}, ensure_ascii=False))
+"""
+    )
+
+    assert int(result['created']) >= 40
+    assert int(result['counts']['groups']) >= 3
+    assert int(result['counts']['devices']) >= 4
+    assert int(result['counts']['accounts']) >= 8
+    assert int(result['counts']['tasks']) >= 12
+    assert int(result['counts']['ai_providers']) >= 2
+    assert int(result['counts']['assets']) >= 12
+    assert int(result['counts']['analysis_snapshots']) >= 6
+    assert int(result['counts']['report_runs']) >= 4
+    assert int(result['counts']['workflow_definitions']) >= 3
+    assert int(result['counts']['workflow_runs']) >= 4
+    assert int(result['counts']['experiment_projects']) >= 3
+    assert int(result['counts']['experiment_views']) >= 6
+    assert int(result['counts']['activity_logs']) >= 10
+    assert result['settings']['theme'] == 'dark'
+    assert result['settings']['license_key'] == 'seed-preserve-license'

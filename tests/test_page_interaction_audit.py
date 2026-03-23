@@ -40,3 +40,9 @@ def test_page_loader_audit_registry_covers_primary_routes():
     for route_key in ["dashboard", "account", "ai-provider", "task-queue"]:
         assert f"'{route_key}':" in text or f'"{route_key}":' in text, route_key
     assert "window.__pageAudits" in text
+
+
+def test_page_loader_audit_registry_covers_remaining_realized_analytics_and_content_routes():
+    text = PAGE_LOADERS_JS.read_text(encoding="utf-8")
+    for route_key in ["visual-lab", "profit-analysis", "report-center", "creative-workshop"]:
+        assert f"'{route_key}':" in text or f'"{route_key}":' in text, route_key

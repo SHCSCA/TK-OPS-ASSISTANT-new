@@ -76,3 +76,17 @@ def test_runtime_summary_handlers_reference_real_data_sources() -> None:
     ]
     for source in required_sources:
         assert source in text, source
+
+
+def test_remaining_realized_analytics_and_content_routes_reference_runtime_data_sources() -> None:
+    text = PAGE_LOADERS_JS.read_text(encoding="utf-8")
+    required_sources = [
+        "api.experiments.projects()",
+        "api.experiments.views()",
+        "api.analytics.summary()",
+        "api.analytics.conversion()",
+        "api.reports.list()",
+        "api.activity.list()",
+    ]
+    for source in required_sources:
+        assert source in text, source

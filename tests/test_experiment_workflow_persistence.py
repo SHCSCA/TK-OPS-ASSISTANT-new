@@ -68,3 +68,16 @@ def test_runtime_loaders_read_persistent_records_for_visual_report_and_workflow_
     ]
     for marker in required:
         assert marker in text, marker
+
+
+def test_creative_workshop_route_does_not_freeze_prototype_competition_copy() -> None:
+    routes_text = (ROOT / 'desktop_app' / 'assets' / 'js' / 'routes.js').read_text(encoding='utf-8')
+    forbidden = [
+        '达人实测 vs 低价钩子',
+        '达人实测领先',
+        '方案 A: 达人实测',
+        '方案 B: 低价钩子',
+        '达人实测 + 低价钩子',
+    ]
+    for marker in forbidden:
+        assert marker not in routes_text, marker
