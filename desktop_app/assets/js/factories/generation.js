@@ -215,27 +215,25 @@ function makeViralTitleRoute() {
             </div>
             <section class="section-stack viral-title-page">
                 <div class="title-template-strip">
-                    <article class="template-showcase-card is-highlight"><span class="pill success">92% 成功率</span><strong>悬念钩子型</strong><div class="subtle">适合先制造认知缺口，拉高停留与点击。</div></article>
-                    <article class="template-showcase-card"><span class="pill info">88% 成功率</span><strong>利益直给型</strong><div class="subtle">直接抛结果和收益，适合强转化场景。</div></article>
-                    <article class="template-showcase-card"><span class="pill warning">85% 成功率</span><strong>认知偏差型</strong><div class="subtle">强调反常识与对比，适合做第二组变体。</div></article>
+                    <article class="template-showcase-card is-highlight"><span class="pill success">待生成</span><strong>悬念钩子型</strong><div class="subtle">制造认知缺口，拉高停留与点击。</div></article>
+                    <article class="template-showcase-card"><span class="pill info">待生成</span><strong>利益直给型</strong><div class="subtle">直接抛结果和收益，适合强转化场景。</div></article>
+                    <article class="template-showcase-card"><span class="pill warning">待生成</span><strong>认知偏差型</strong><div class="subtle">强调反常识与对比，适合做第二组变体。</div></article>
                 </div>
                 <section class="panel title-creation-editor">
                     <div class="panel__header"><div><strong>标题编辑区</strong><div class="subtle">输入主标题、标签和钩子方向，避免把解释卡片挤进主操作区</div></div></div>
                     <div class="title-editor-tags"><span># 建议收藏</span><span># 震惊</span><span># 避坑指南</span><span># 深度好文</span></div>
-                    <textarea class="title-editor-textarea" placeholder="在此输入或生成你的标题...">只有 1% 的人知道的理财秘籍，看完多赚一万！</textarea>
-                    <div class="title-editor-actions"><span class="subtle">18 / 64 字</span><div class="header-actions"><button class="secondary-button" type="button">插入标签</button><button class="primary-button" type="button">生成新方案</button></div></div>
+                    <textarea class="title-editor-textarea" placeholder="在此输入或生成你的标题..."></textarea>
+                    <div class="title-editor-actions"><span class="subtle">0 / 64 字</span><div class="header-actions"><button class="secondary-button" type="button">插入标签</button><button class="primary-button" type="button">生成新方案</button></div></div>
                 </section>
                 <div class="title-metric-grid">
-                    <article class="mini-metric-card"><span class="subtle">互动率预测</span><strong>8.4 / 10</strong><small>击败 94% 同类标题</small></article>
-                    <article class="mini-metric-card"><span class="subtle">情感共鸣度</span><strong>88%</strong><small>当前标题强于行业均值</small></article>
-                    <article class="mini-metric-card"><span class="subtle">可读性评分</span><strong>92%</strong><small>结构完整，适合直接进入测试</small></article>
+                    <article class="mini-metric-card"><span class="subtle">互动率预测</span><strong>--</strong><small>生成后显示预测评分</small></article>
+                    <article class="mini-metric-card"><span class="subtle">情感共鸣度</span><strong>--</strong><small>生成后显示共鸣度评估</small></article>
+                    <article class="mini-metric-card"><span class="subtle">可读性评分</span><strong>--</strong><small>生成后显示可读性评分</small></article>
                 </div>
                 <section class="panel title-variant-board">
                     <div class="panel__header"><div><strong>A/B 方案对比</strong><div class="subtle">主区域只保留可比较的候选标题，不再塞入泛说明卡</div></div></div>
                     <div class="variant-list">
-                        <article class="variant-card is-best"><div class="variant-card__head"><span class="pill success">A 方案</span><strong>预期 CTR 4.8%</strong></div><p>只有 1% 的人知道的理财秘籍，看完多赚一万！</p><small>当前最佳，建议作为首轮测试主版本。</small></article>
-                        <article class="variant-card"><div class="variant-card__head"><span class="pill info">B 方案</span><strong>预期 CTR 3.2%</strong></div><p>别再盲目理财了！这 3 个坑你一定踩过。</p><small>风险更低，但情绪张力弱于主版本。</small></article>
-                        <article class="variant-card"><div class="variant-card__head"><span class="pill warning">扩展方案</span><strong>预期 CTR 3.9%</strong></div><p>看完这套方法，你会重新理解“省钱”这件事。</p><small>适合做保守风格补位版本。</small></article>
+                        <article class="variant-card"><div class="variant-card__head"><span class="pill info">等待生成</span><strong>--</strong></div><p>输入内容后点击「生成新方案」获取标题候选。</p><small>生成结果将替换此区域。</small></article>
                     </div>
                 </section>
             </section>
@@ -260,9 +258,9 @@ function makeScriptExtractorRoute() {
     return {
         eyebrow: '脚本结构提取台',
         searchTerms: '脚本提取 工具 视频 结构 ASR OCR 关键帧',
-        sidebarSummary: { eyebrow: '提取提醒', title: '当前任务正在处理中', copy: '先看预览和结构结果，再决定是否继续深度抽帧。' },
-        statusLeft: ['分析模式 混合', '处理进度 45%', '预计剩余 02:45'],
-        statusRight: [{ text: '提取中', tone: 'warning' }, { text: '结构已输出', tone: 'success' }],
+        sidebarSummary: { eyebrow: '提取提醒', title: '等待输入视频地址', copy: '输入视频 URL 后点击「开始提取」，结构结果实时输出到右侧面板。' },
+        statusLeft: ['分析模式 混合', '处理进度 0%', '预计剩余 --:--'],
+        statusRight: [{ text: '等待输入', tone: 'info' }, { text: '就绪', tone: 'warning' }],
         hideDetailPanel: false,
         mainHtml: `
             <div class="breadcrumbs"><span>creator</span><span>/</span><span>脚本提取工具</span></div>
@@ -273,7 +271,7 @@ function makeScriptExtractorRoute() {
             <section class="section-stack script-extractor-page">
                 <section class="panel extractor-config-bar">
                     <div class="extractor-config-grid">
-                        <div class="form-field extractor-url-field"><label>视频源地址</label><input type="text" value="https://example.com/video/viral-case"></div>
+                        <div class="form-field extractor-url-field"><label>视频源地址</label><input type="text" placeholder="输入视频 URL 或视频描述..."></div>
                         <div class="form-field"><label>分析模式</label><select><option>混合模式 (ASR + 视觉)</option></select></div>
                         <div class="form-field"><label>关键帧间隔</label><select><option>自动抽帧</option></select></div>
                         <div class="form-field"><label>AI 模型</label><select><option>GPT-4o</option></select></div>
@@ -281,12 +279,12 @@ function makeScriptExtractorRoute() {
                 </section>
                 <div class="extractor-workspace">
                     <aside class="extractor-preview-column">
-                        <section class="panel extractor-preview-panel"><div class="panel__header"><div><strong>视频预览</strong><div class="subtle">左侧固定展示当前进度与视频摘要</div></div></div><div class="extractor-video-stage"><div class="play-button">播放</div></div><div class="extractor-progress-row"><span class="subtle">正在处理第 124 / 300 帧</span><strong>45%</strong></div><div class="progress-bar"><span style="width:45%"></span></div><div class="extractor-stat-grid"><article><span class="subtle">预计剩余</span><strong>02:45</strong></article><article><span class="subtle">已用时长</span><strong>01:12</strong></article></div></section>
-                        <section class="panel"><div class="panel__header"><div><strong>AI 实时摘要</strong><div class="subtle">把阶段性结论收成一块短摘要</div></div></div><p class="subtle">该视频当前已拆到第 3 阶段，重点结构是“高密度开场钩子 + 番茄钟示例 + 方法总结”。</p></section>
+                        <section class="panel extractor-preview-panel"><div class="panel__header"><div><strong>视频预览</strong><div class="subtle">左侧固定展示当前进度与视频摘要</div></div></div><div class="extractor-video-stage"><div class="play-button">播放</div></div><div class="extractor-progress-row"><span class="subtle">等待输入视频</span><strong>0%</strong></div><div class="progress-bar"><span style="width:0%"></span></div><div class="extractor-stat-grid"><article><span class="subtle">预计剩余</span><strong>--:--</strong></article><article><span class="subtle">已用时长</span><strong>--:--</strong></article></div></section>
+                        <section class="panel"><div class="panel__header"><div><strong>AI 实时摘要</strong><div class="subtle">把阶段性结论收成一块短摘要</div></div></div><p class="subtle">输入视频地址后，AI 将自动输出阶段性结构摘要。</p></section>
                     </aside>
                     <div class="extractor-results-column">
-                        <section class="panel"><div class="panel__header"><div><strong>提取结果</strong><div class="subtle">右侧主区只保留结果标签、时间轴和内容表格</div></div><div class="extractor-tabs"><span class="is-selected">脚本文案</span><span>视频关键帧</span><span>视觉分析</span></div></div><div class="extractor-result-table"><div class="extractor-result-row"><span>00:00:12</span><div><strong>[视觉描述]</strong><p>主讲人出现在镜头中央，背景为简约办公室风格，向观众挥手。</p></div><em>98%</em></div><div class="extractor-result-row"><span>00:00:15</span><div><strong>[ASR]</strong><p>大家好，欢迎来到本期高效生产力指南。今天我们聊如何掌控时间。</p></div><em>92%</em></div><div class="extractor-result-row"><span>00:00:28</span><div><strong>[视觉描述]</strong><p>画面切换到手机上的番茄钟应用，开始展示具体方法。</p></div><em>95%</em></div></div></section>
-                        <section class="panel"><div class="panel__header"><div><strong>衍生能力</strong><div class="subtle">底部保留真正可继续执行的后续动作</div></div></div><div class="extractor-capability-grid"><article class="strip-card"><strong>结构摘要</strong><div class="subtle">自动输出钩子、转折、CTA 三段结构。</div><span class="pill success">可导出</span></article><article class="strip-card"><strong>镜头拆解</strong><div class="subtle">按关键帧分解镜头用途和节奏变化。</div><span class="pill info">可复用</span></article><article class="strip-card" data-route-link="ai-copywriter" data-route-toast="已跳转到 AI 文案生成"><strong>脚本回写</strong><div class="subtle">提取结果可直接回传到 AI 文案生成页继续改写。</div><span class="pill warning">下一步 →</span></article></div></section>
+                        <section class="panel"><div class="panel__header"><div><strong>提取结果</strong><div class="subtle">右侧主区只保留结果标签、时间轴和内容表格</div></div><div class="extractor-tabs"><span class="is-selected">脚本文案</span><span>视频关键帧</span><span>视觉分析</span></div></div><div class="extractor-result-table"><div class="extractor-result-row"><span>--:--:--</span><div><strong>[等待提取]</strong><p>输入视频地址后点击「开始提取」，结果将在此显示。</p></div><em>--%</em></div></div></section>
+                        <section class="panel"><div class="panel__header"><div><strong>衍生能力</strong><div class="subtle">底部保留真正可继续执行的后续动作</div></div></div><div class="extractor-capability-grid"><article class="strip-card"><strong>结构摘要</strong><div class="subtle">自动输出钩子、转折、CTA 三段结构。</div><span class="pill info">提取后可用</span></article><article class="strip-card"><strong>镜头拆解</strong><div class="subtle">按关键帧分解镜头用途和节奏变化。</div><span class="pill info">提取后可用</span></article><article class="strip-card" data-route-link="ai-copywriter" data-route-toast="已跳转到 AI 文案生成"><strong>脚本回写</strong><div class="subtle">提取结果可直接回传到 AI 文案生成页继续改写。</div><span class="pill warning">下一步 →</span></article></div></section>
                     </div>
                 </div>
             </section>
@@ -311,9 +309,9 @@ function makeProductTitleRoute() {
     return {
         eyebrow: '商品标题生成器',
         searchTerms: '商品标题 标题优化 SEO 关键词 竞品 模板',
-        sidebarSummary: { eyebrow: '优化提醒', title: '当前标题适合继续收敛', copy: '优先确认关键词密度和竞品差异，再选最终版本。' },
-        statusLeft: ['核心词 3', '当前行业 服饰', '生成方案 2'],
-        statusRight: [{ text: '优化中', tone: 'warning' }, { text: '主方案可用', tone: 'success' }],
+        sidebarSummary: { eyebrow: '优化提醒', title: '等待输入商品名称', copy: '输入商品名称后点击「立即优化」，生成兼顾 SEO 和点击率的标题方案。' },
+        statusLeft: ['核心词 --', '当前行业 --', '生成方案 0'],
+        statusRight: [{ text: '等待优化', tone: 'info' }, { text: '就绪', tone: 'warning' }],
         hideDetailPanel: false,
         mainHtml: `
             <div class="breadcrumbs"><span>creator</span><span>/</span><span>商品标题大师</span></div>
@@ -325,16 +323,16 @@ function makeProductTitleRoute() {
                 <div class="product-title-shell">
                     <aside class="product-control-column">
                         <section class="panel"><div class="panel__header"><div><strong>控制台</strong><div class="subtle">左侧保留筛选、模板和行业入口</div></div></div><div class="product-nav-list"><button class="is-active">控制台</button><button>SEO 分析</button><button>分类模板</button><button>历史生成</button></div></section>
-                        <section class="panel product-saved-card"><div class="panel__header"><div><strong>已节省时间</strong><div class="subtle">用来承接辅助信息，而不是再放摘要说明</div></div></div><strong class="product-saved-value">124 小时</strong><p class="subtle">通过 AI 优化，当前工作流效率提升 85%。</p></section>
+                        <section class="panel product-saved-card"><div class="panel__header"><div><strong>优化历史</strong><div class="subtle">展示最近生成的标题记录</div></div></div><strong class="product-saved-value">--</strong><p class="subtle">输入商品名称后点击「立即优化」获取方案。</p></section>
                     </aside>
                     <div class="product-main-column">
-                        <section class="panel product-input-panel"><div class="panel__header"><div><strong>输入原始商品名称</strong><div class="subtle">先锁定原始商品名、品类和卖点，再展开下游分析</div></div></div><div class="product-input-row"><input type="text" value="夏季新款纯棉短袖T恤男装韩版潮牌"><button class="primary-button" type="button">立即优化</button></div><div class="product-chip-row"><span>快速生成</span><span>高点击率</span><span>合规检测</span></div></section>
+                        <section class="panel product-input-panel"><div class="panel__header"><div><strong>输入原始商品名称</strong><div class="subtle">先锁定原始商品名、品类和卖点，再展开下游分析</div></div></div><div class="product-input-row"><input type="text" placeholder="输入商品名称..."><button class="primary-button" type="button">立即优化</button></div><div class="product-chip-row"><span>快速生成</span><span>高点击率</span><span>合规检测</span></div></section>
                         <div class="product-insight-grid">
-                            <section class="panel"><div class="panel__header"><div><strong>关键词密度建议</strong><div class="subtle">当前最该看的不是大段解释，而是词层级分布</div></div></div><div class="metric-kv"><div class="detail-item"><span class="subtle">核心词</span><strong>纯棉T恤 2.4%</strong></div><div class="detail-item"><span class="subtle">属性词</span><strong>夏季新款 1.8%</strong></div><div class="detail-item"><span class="subtle">修饰词</span><strong>韩版潮流 0.5%</strong></div></div></section>
-                            <section class="panel"><div class="panel__header"><div><strong>竞品 TOP 标题</strong><div class="subtle">看竞品结构，而不是堆更多提示卡</div></div></div><div class="workbench-side-list"><article class="workbench-sidecard"><strong>竞品 A</strong><div class="subtle">2024夏季新款国潮重磅纯棉短袖T恤男宽松百搭体恤...</div></article><article class="workbench-sidecard"><strong>竞品 B</strong><div class="subtle">简约基础款圆领纯棉短袖T恤大码男装内搭上衣男...</div></article></div></section>
+                            <section class="panel"><div class="panel__header"><div><strong>关键词密度建议</strong><div class="subtle">当前最该看的不是大段解释，而是词层级分布</div></div></div><div class="metric-kv"><div class="detail-item"><span class="subtle">核心词</span><strong>--</strong></div><div class="detail-item"><span class="subtle">属性词</span><strong>--</strong></div><div class="detail-item"><span class="subtle">修饰词</span><strong>--</strong></div></div></section>
+                            <section class="panel"><div class="panel__header"><div><strong>竞品 TOP 标题</strong><div class="subtle">看竞品结构，而不是堆更多提示卡</div></div></div><div class="workbench-side-list"><article class="workbench-sidecard"><strong>竞品 A</strong><div class="subtle">优化后自动显示竞品参考。</div></article><article class="workbench-sidecard"><strong>竞品 B</strong><div class="subtle">优化后自动显示竞品参考。</div></article></div></section>
                         </div>
                         <section class="panel"><div class="panel__header"><div><strong>行业专属模板</strong><div class="subtle">这里保留模板入口，避免混在顶部工具区</div></div></div><div class="product-template-grid"><article class="template-card is-active"><strong>服饰内衣</strong><small>当前激活</small></article><article class="template-card"><strong>数码家电</strong><small>切换模板</small></article><article class="template-card"><strong>美妆护肤</strong><small>切换模板</small></article><article class="template-card"><strong>食品饮料</strong><small>切换模板</small></article></div></section>
-                        <section class="panel product-result-board"><div class="panel__header"><div><strong>AI 生成标题方案</strong><div class="subtle">主区只保留最终候选结果</div></div></div><div class="variant-list"><article class="variant-card is-best"><div class="variant-card__head"><span class="pill success">高转化型</span><strong>主推荐</strong></div><p>夏季新款【100%纯棉】重磅男士短袖T恤 2024潮牌宽松韩版百搭上衣</p><small>适合详情页广告投放。</small></article><article class="variant-card"><div class="variant-card__head"><span class="pill info">SEO 加强型</span><strong>备选方案</strong></div><p>【纯棉短袖T恤男】2024夏季新款男装韩版潮流 休闲宽松透气体恤衫</p><small>搜索权重更强，适合自然流量场景。</small></article></div></section>
+                        <section class="panel product-result-board"><div class="panel__header"><div><strong>AI 生成标题方案</strong><div class="subtle">主区只保留最终候选结果</div></div></div><div class="variant-list"><article class="variant-card"><div class="variant-card__head"><span class="pill info">等待优化</span><strong>--</strong></div><p>输入商品名称后点击「立即优化」获取高转化和 SEO 两类方案。</p><small>生成结果将替换此区域。</small></article></div></section>
                     </div>
                 </div>
             </section>
@@ -360,9 +358,9 @@ function makeAICopywriterRoute() {
     return {
         eyebrow: '文案生成控制台',
         searchTerms: 'AI 文案生成 文案 合规 标题 变体 渠道',
-        sidebarSummary: { eyebrow: '文案提醒', title: '需优先看合规结果', copy: '先改风险词，再决定是否采用当前版本。' },
-        statusLeft: ['写作风格 专业严谨', '长度 300 字', '合规分 72'],
-        statusRight: [{ text: '文案已生成', tone: 'success' }, { text: '中等风险', tone: 'warning' }],
+        sidebarSummary: { eyebrow: '文案提醒', title: '等待生成文案', copy: '选择风格、填写产品信息后点击「立即生成」，右侧合规区实时显示风险评估。' },
+        statusLeft: ['写作风格 专业严谨', '文案长度 300 字', '合规分 --'],
+        statusRight: [{ text: '等待生成', tone: 'info' }, { text: '就绪', tone: 'warning' }],
         hideDetailPanel: false,
         mainHtml: `
             <div class="breadcrumbs"><span>creator</span><span>/</span><span>AI 文案生成</span></div>
@@ -373,14 +371,14 @@ function makeAICopywriterRoute() {
             <section class="section-stack ai-copy-page">
                 <div class="copywriter-shell">
                     <aside class="copy-settings-column">
-                        <section class="panel"><div class="panel__header"><div><strong>生成参数设置</strong><div class="subtle">输入关键词、风格和长度</div></div></div><div class="form-field"><label>产品关键词</label><textarea>请输入产品名称、核心卖点或描述...</textarea></div><div class="copy-tone-list"><button class="is-active">专业严谨</button><button>亲切随性</button><button>幽默风趣</button></div><div class="form-field"><label>文案长度</label><input type="range" min="100" max="1000" value="300"></div></section>
+                        <section class="panel"><div class="panel__header"><div><strong>生成参数设置</strong><div class="subtle">输入关键词、风格和长度</div></div></div><div class="form-field"><label>产品关键词</label><textarea placeholder="请输入产品名称、核心卖点或描述..."></textarea></div><div class="copy-tone-list"><button class="is-active">专业严谨</button><button>亲切随性</button><button>幽默风趣</button></div><div class="form-field"><label>文案长度</label><input type="range" min="100" max="1000" value="300"></div></section>
                     </aside>
                     <div class="copy-results-column">
-                        <section class="panel"><div class="panel__header"><div><strong>输出版本</strong><div class="subtle">把标题推荐、文案脚本和热门话题放在同一结果容器内切换</div></div><div class="extractor-tabs"><span class="is-selected">标题推荐</span><span>文案脚本</span><span>热门话题</span></div></div><div class="variant-list"><article class="variant-card is-best"><div class="variant-card__head"><span class="pill success">Variant 01</span><strong>推荐采用</strong></div><p>这款划时代的智能助手，让你的工作效率瞬间翻倍！</p><small>适合强利益点的首屏标题。</small></article><article class="variant-card"><div class="variant-card__head"><span class="pill info">Variant 02</span><strong>保守版本</strong></div><p>告别繁琐，极简主义者的生产力新选择：[产品名称]深度体验。</p><small>更适合内容种草与口碑表达。</small></article><article class="variant-card"><div class="variant-card__head"><span class="pill warning">Variant 03</span><strong>建议修改</strong></div><p>全网最强性能，首批用户体验报告正式出炉！</p><small>存在绝对化表达，需先做合规修改。</small></article></div></section>
-                        <section class="panel"><div class="panel__header"><div><strong>继续创作</strong><div class="subtle">把下一步动作放在底部而不是侧边重复说明</div></div></div><div class="copy-action-grid"><article class="strip-card"><strong>继续扩写</strong><div class="subtle">补正文案脚本和口播版本。</div><span class="pill success">推荐</span></article><article class="strip-card"><strong>切换渠道</strong><div class="subtle">改成商品详情页或短视频开场。</div><span class="pill info">可切换</span></article><article class="strip-card"><strong>生成话题</strong><div class="subtle">从当前版本延展热词与标签。</div><span class="pill warning">下一步</span></article></div></section>
+                        <section class="panel"><div class="panel__header"><div><strong>输出版本</strong><div class="subtle">把标题推荐、文案脚本和热门话题放在同一结果容器内切换</div></div><div class="extractor-tabs"><span class="is-selected">标题推荐</span><span>文案脚本</span><span>热门话题</span></div></div><div class="variant-list"><article class="variant-card"><div class="variant-card__head"><span class="pill info">等待生成</span><strong>--</strong></div><p>填写产品信息后点击「立即生成文案」获取多版本输出。</p><small>生成结果将替换此区域。</small></article></div></section>
+                        <section class="panel"><div class="panel__header"><div><strong>继续创作</strong><div class="subtle">把下一步动作放在底部而不是侧边重复说明</div></div></div><div class="copy-action-grid"><article class="strip-card"><strong>继续扩写</strong><div class="subtle">补正文案脚本和口播版本。</div><span class="pill info">生成后可用</span></article><article class="strip-card"><strong>切换渠道</strong><div class="subtle">改成商品详情页或短视频开场。</div><span class="pill info">生成后可用</span></article><article class="strip-card"><strong>生成话题</strong><div class="subtle">从当前版本延展热词与标签。</div><span class="pill info">生成后可用</span></article></div></section>
                     </div>
                     <aside class="copy-compliance-column">
-                        <section class="panel"><div class="panel__header"><div><strong>合规自检报告</strong><div class="subtle">右列只承接风险分、风险词和改写建议</div></div></div><div class="copy-score-card"><strong>72</strong><small>中等风险</small></div><div class="metric-kv"><div class="detail-item"><span class="subtle">违规词</span><strong>1</strong></div><div class="detail-item"><span class="subtle">敏感词</span><strong>2</strong></div></div><div class="workbench-side-list"><article class="workbench-sidecard"><strong>风险词：最强</strong><div class="subtle">建议替换为“卓越性能”或“业界领先”。</div></article><article class="workbench-sidecard"><strong>风险词：赚钱</strong><div class="subtle">避免诱导性表达，改成“提升效率”更稳妥。</div></article></div><button class="secondary-button" type="button">导出合规报告</button></section>
+                        <section class="panel"><div class="panel__header"><div><strong>合规自检报告</strong><div class="subtle">右列只承接风险分、风险词和改写建议</div></div></div><div class="copy-score-card"><strong>--</strong><small>等待生成</small></div><div class="metric-kv"><div class="detail-item"><span class="subtle">违规词</span><strong>--</strong></div><div class="detail-item"><span class="subtle">敏感词</span><strong>--</strong></div></div><div class="workbench-side-list"><article class="workbench-sidecard"><strong>风险词</strong><div class="subtle">生成后自动显示风险评估。</div></article></div><button class="secondary-button" type="button">导出合规报告</button></section>
                     </aside>
                 </div>
             </section>
@@ -393,7 +391,7 @@ function makeAICopywriterRoute() {
             promptText: '根据产品卖点、投放渠道和目标受众生成多版本营销文案，并同步给出风险规避建议。',
             outputConstraint: '输出需要区分渠道语气，避免绝对化和收益承诺类表达，并优先给出可投放版本。',
             notes: [
-                { label: '当前供应商', value: 'Anthropic / Claude 3.7 Sonnet' },
+                { label: '当前供应商', value: '等待接入' },
                 { label: '当前 Agent', value: '营销文案与合规助手' },
                 { label: '应用范围', value: '当前文案页' },
             ],

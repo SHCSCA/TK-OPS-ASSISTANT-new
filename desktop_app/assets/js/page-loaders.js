@@ -221,6 +221,68 @@
                 ],
             });
         },
+        'viral-title': function (payload) {
+            payload = payload || {};
+            var providers = payload.providers || [];
+            var active = providers.filter(function (p) { return p.is_active === true || p.is_active === 'True'; });
+            var total = providers.length;
+            _applyRuntimeSummary({
+                eyebrow: '标题提醒',
+                title: total ? ('已接入 ' + total + ' 个供应商') : '尚未配置供应商',
+                copy: 'AI 生成标题依赖供应商配置，生成结果存于当前会话。',
+                statusLeft: ['供应商 ' + total, '启用中 ' + active.length, '标题生成就绪'],
+                statusRight: [
+                    { text: total ? '已配置' : '等待接入', tone: total ? 'success' : 'warning' },
+                    { text: '等待生成', tone: 'info' },
+                ],
+            });
+        },
+        'script-extractor': function (payload) {
+            payload = payload || {};
+            var providers = payload.providers || [];
+            var total = providers.length;
+            _applyRuntimeSummary({
+                eyebrow: '提取提醒',
+                title: total ? ('已接入 ' + total + ' 个供应商') : '尚未配置供应商',
+                copy: '视频 URL 输入后点击「开始提取」，结构结果实时输出到右侧面板。',
+                statusLeft: ['供应商 ' + total, '分析模式 混合', '等待输入视频'],
+                statusRight: [
+                    { text: total ? '已配置' : '等待接入', tone: total ? 'success' : 'warning' },
+                    { text: '等待提取', tone: 'info' },
+                ],
+            });
+        },
+        'product-title': function (payload) {
+            payload = payload || {};
+            var providers = payload.providers || [];
+            var active = providers.filter(function (p) { return p.is_active === true || p.is_active === 'True'; });
+            var total = providers.length;
+            _applyRuntimeSummary({
+                eyebrow: '优化提醒',
+                title: total ? ('已接入 ' + total + ' 个供应商') : '尚未配置供应商',
+                copy: '输入商品名称后点击「立即优化」，生成兼顾 SEO 和点击率的标题方案。',
+                statusLeft: ['供应商 ' + total, '启用中 ' + active.length, 'SEO 优化就绪'],
+                statusRight: [
+                    { text: total ? '已配置' : '等待接入', tone: total ? 'success' : 'warning' },
+                    { text: '等待优化', tone: 'info' },
+                ],
+            });
+        },
+        'ai-copywriter': function (payload) {
+            payload = payload || {};
+            var providers = payload.providers || [];
+            var total = providers.length;
+            _applyRuntimeSummary({
+                eyebrow: '文案提醒',
+                title: total ? ('已接入 ' + total + ' 个供应商') : '尚未配置供应商',
+                copy: '选择风格、填写产品信息后点击「立即生成」，右侧合规区实时显示风险评估。',
+                statusLeft: ['供应商 ' + total, '合规自检 就绪', '多版本输出'],
+                statusRight: [
+                    { text: total ? '已配置' : '等待接入', tone: total ? 'success' : 'warning' },
+                    { text: '等待生成', tone: 'info' },
+                ],
+            });
+        },
     };
     var pageAudits = {
         'dashboard': {
@@ -266,6 +328,22 @@
         'creative-workshop': {
             dataSources: ['listAccounts', 'listAssets', 'listTasks', 'listExperimentProjects'],
             interactions: ['persist', 'compare', 'detail', 'handoff'],
+        },
+        'viral-title': {
+            dataSources: ['listProviders', 'getAiUsageToday'],
+            interactions: ['generate', 'compare', 'select', 'copy'],
+        },
+        'script-extractor': {
+            dataSources: ['listProviders', 'getAiUsageToday'],
+            interactions: ['input', 'extract', 'preview', 'export'],
+        },
+        'product-title': {
+            dataSources: ['listProviders', 'getAiUsageToday'],
+            interactions: ['input', 'optimize', 'compare', 'select'],
+        },
+        'ai-copywriter': {
+            dataSources: ['listProviders', 'getAiUsageToday'],
+            interactions: ['configure', 'generate', 'evaluate', 'select'],
         },
     };
 
@@ -951,6 +1029,11 @@
        AI Generation 页面
        ══════════════════════════════════════════════ */
     loaders['viral-title'] = function () {
+        Promise.all([
+            api.providers.list().catch(function () { return []; }),
+        ]).then(function (results) {
+            runtimeSummaryHandlers['viral-title']({ providers: results[0] || [] });
+        });
         _loadAiGenerationPage({
             routeKey: 'viral-title',
             preset: 'title-generator',
@@ -989,6 +1072,11 @@
     };
 
     loaders['product-title'] = function () {
+        Promise.all([
+            api.providers.list().catch(function () { return []; }),
+        ]).then(function (results) {
+            runtimeSummaryHandlers['product-title']({ providers: results[0] || [] });
+        });
         _loadAiGenerationPage({
             routeKey: 'product-title',
             preset: 'seo-optimizer',
@@ -1013,6 +1101,11 @@
     };
 
     loaders['ai-copywriter'] = function () {
+        Promise.all([
+            api.providers.list().catch(function () { return []; }),
+        ]).then(function (results) {
+            runtimeSummaryHandlers['ai-copywriter']({ providers: results[0] || [] });
+        });
         _loadAiGenerationPage({
             routeKey: 'ai-copywriter',
             preset: 'copywriter',
@@ -1042,6 +1135,11 @@
     };
 
     loaders['script-extractor'] = function () {
+        Promise.all([
+            api.providers.list().catch(function () { return []; }),
+        ]).then(function (results) {
+            runtimeSummaryHandlers['script-extractor']({ providers: results[0] || [] });
+        });
         _loadAiGenerationPage({
             routeKey: 'script-extractor',
             preset: 'script-extractor',
