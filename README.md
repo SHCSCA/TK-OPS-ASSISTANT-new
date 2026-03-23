@@ -2,9 +2,35 @@
 
 TK-OPS 是一个面向 TikTok Shop 运营团队的 Windows 桌面应用。当前版本已经不再停留在纯前端原型阶段，而是以 Python 后端、SQLite 数据库、QWebChannel bridge、桌面 Web Shell 前端的组合方式运行。
 
-当前发布版本：`1.1.0`
+当前发布版本：`1.2.0`
 
 ## 这个版本更新了什么
+
+### 1.2.0 更新说明
+
+本次更新收口了 4 个 AI 生成页面的硬编码原型内容：
+
+1. **爆款标题页 (viral-title)**
+   - 移除了标题示例（"只有 1% 的人知道的理财秘籍"等）、模板成功率（92%/88%/85%）、指标值（8.4/10、88%、92%）和 A/B 方案硬编码
+   - 接入 `runtimeSummaryHandlers['viral-title']`，页面加载后根据供应商配置动态更新侧栏摘要
+   - 新增 `pageAudits` 审计条目
+
+2. **脚本提取页 (script-extractor)**
+   - 移除了示例视频 URL、提取进度（124/300 帧、02:45）、AI 实时摘要和脚本文案示例
+   - 接入 `runtimeSummaryHandlers['script-extractor']`，页面加载后根据供应商配置动态更新侧栏摘要
+   - 新增 `pageAudits` 审计条目
+
+3. **商品标题页 (product-title)**
+   - 移除了示例商品名称、竞品标题、关键词密度和 AI 生成方案
+   - 接入 `runtimeSummaryHandlers['product-title']`，页面加载后根据供应商配置动态更新侧栏摘要
+   - 新增 `pageAudits` 审计条目
+
+4. **AI 文案页 (ai-copywriter)**
+   - 移除了文案示例（"这款划时代的智能助手"等）、合规分（72）、风险词和建议
+   - 接入 `runtimeSummaryHandlers['ai-copywriter']`，页面加载后根据供应商配置动态更新侧栏摘要
+   - 新增 `pageAudits` 审计条目
+
+所有 4 个页面的 loader 函数均已改造，在加载时通过 `Promise.all` 并行拉取供应商数据并调用对应的 `runtimeSummaryHandlers`。
 
 ### 1.1.0 更新说明
 
