@@ -8,6 +8,22 @@ function addNotification(title, body, tone) {
     return notification.id;
 }
 
+let __notificationSystemBound = false;
+
+function setNotificationPanelOpen(panel, btn, open) {
+    if (!panel || !btn) return;
+    panel.classList.toggle('shell-hidden', !open);
+    panel.classList.toggle('is-open', open);
+    btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+}
+
+function closeNotificationPanel() {
+    const btn = document.getElementById('notificationToggle');
+    const panel = document.getElementById('notificationPanel');
+    if (!btn || !panel) return;
+    setNotificationPanelOpen(panel, btn, false);
+}
+
 function renderNotifications() {
     const list = document.getElementById('notificationList');
     if (!list) return;
@@ -101,17 +117,27 @@ function initNotificationSystem() {
     const btn = document.getElementById('notificationToggle');
     const panel = document.getElementById('notificationPanel');
     if (!btn || !panel) return;
+    if (__notificationSystemBound) {
+        updateNotificationBadge();
+        return;
+    }
+    __notificationSystemBound = true;
+
+    btn.setAttribute('aria-expanded', 'false');
 
     btn.addEventListener('click', (e) => {
         e.stopPropagation();
-        panel.classList.toggle('shell-hidden');
+        const isOpen = panel.classList.contains('is-open');
+        setNotificationPanelOpen(panel, btn, !isOpen);
     });
 
     document.addEventListener('click', (e) => {
         if (!e.target.closest('#notificationPanel') && !e.target.closest('#notificationToggle')) {
-            panel.classList.add('shell-hidden');
+            setNotificationPanelOpen(panel, btn, false);
         }
     });
+
+    window.addEventListener('resize', closeNotificationPanel);
 
     const clearBtn = document.getElementById('clearNotifications');
     if (clearBtn) {

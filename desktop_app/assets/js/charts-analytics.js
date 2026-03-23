@@ -1,6 +1,8 @@
 function bindAnalyticsInteractions() {
     const mainHost = document.getElementById('mainHost');
     if (!mainHost) return;
+    if (mainHost.dataset.analyticsBound === '1') return;
+    mainHost.dataset.analyticsBound = '1';
 
     const seed = window.__tkopsAnalyticsSeed || {};
 
@@ -21,8 +23,10 @@ function bindAnalyticsInteractions() {
     }
 
     function updateSideInsight(message) {
-        const first = mainHost.querySelector('.workbench-side-list .strip-card .subtle');
+        const first = document.querySelector('#detailHost .panel .detail-item strong');
         if (first) first.textContent = message;
+        const fallback = document.querySelector('#detailHost .panel .subtle');
+        if (!first && fallback) fallback.textContent = message;
     }
     // — 通用：data-source-item / chart-type-btn 选中切换
     mainHost.querySelectorAll('.data-source-list, .report-template-list').forEach(list => {

@@ -108,10 +108,8 @@ function bindEvents() {
 
     bindSearch();
     bindDetailPanelToggle();
-    window.addEventListener('resize', () => {
-        uiState.detailPanelForced = null;
-        syncResponsiveState();
-    });
+    bindStatusSummaryToggle();
+    window.addEventListener('resize', handleShellResize);
 
     /* ── 跨页导航：点击 [data-route-link] 元素跳转到目标路由 ── */
     document.addEventListener('click', (e) => {
@@ -137,6 +135,49 @@ function bindEvents() {
             文本: (btn.textContent || '').trim().slice(0, 48),
             类名: (btn.className || '').toString().slice(0, 120),
         });
+    });
+}
+
+function bindStatusSummaryToggle() {
+    const btn = document.getElementById('statusSummaryToggle');
+    const panel = document.getElementById('statusSummaryPanel');
+    if (!btn || !panel || btn.dataset.boundStatusSummary === '1') return;
+    btn.dataset.boundStatusSummary = '1';
+    btn.setAttribute('aria-expanded', 'false');
+
+    btn.addEventListener('click', (event) => {
+        event.stopPropagation();
+        const open = panel.classList.contains('shell-hidden');
+        panel.classList.toggle('shell-hidden', !open);
+        btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    });
+
+    document.addEventListener('click', (event) => {
+        if (!event.target.closest('#statusSummaryToggle') && !event.target.closest('#statusSummaryPanel')) {
+            panel.classList.add('shell-hidden');
+            btn.setAttribute('aria-expanded', 'false');
+        }
+    });
+}
+
+let __shellResizeFrame = 0;
+
+function handleShellResize() {
+    if (__shellResizeFrame) {
+        cancelAnimationFrame(__shellResizeFrame);
+    }
+    __shellResizeFrame = requestAnimationFrame(() => {
+        __shellResizeFrame = 0;
+        uiState.detailPanelForced = null;
+        document.body.classList.remove('has-stale-overlay');
+        document.querySelectorAll('.notification-panel.is-open').forEach((panel) => {
+            panel.classList.remove('is-open');
+            panel.classList.add('shell-hidden');
+        });
+        syncResponsiveState();
+        if (typeof renderAnalyticsCanvases === 'function') {
+            renderAnalyticsCanvases();
+        }
     });
 }
 

@@ -3,7 +3,7 @@
 .generation-studio-shell {
     display: grid;
     grid-template-columns: 380px 1fr;
-    gap: var(--space-4);
+    gap: 20px;
     align-items: start;
 }
 .gen-input-panel {
@@ -40,7 +40,7 @@
 .aicf-batch-grid {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: var(--space-3);
+    gap: 16px;
 }
 
 .template-showcase-card,
@@ -50,10 +50,10 @@
 .copy-score-card,
 .product-saved-card,
 .extractor-result-row {
-    padding: 16px 18px;
-    border: 1px solid var(--border-default);
+    padding: 18px 20px;
+    border: 1px solid var(--border-subtle);
     border-radius: var(--radius-lg);
-    background: color-mix(in srgb, var(--surface-secondary) 96%, transparent);
+    background: color-mix(in srgb, var(--surface-secondary) 98%, transparent);
 }
 
 .template-showcase-card,
@@ -70,8 +70,8 @@
 .variant-card.is-best,
 .workflow-stage-card.is-active,
 .template-card.is-active {
-    border-color: color-mix(in srgb, var(--brand-primary) 42%, var(--border-default));
-    background: color-mix(in srgb, var(--brand-primary) 10%, var(--surface-secondary));
+    border-color: color-mix(in srgb, var(--brand-primary) 24%, var(--border-subtle));
+    background: color-mix(in srgb, var(--brand-primary) 8%, var(--surface-secondary));
 }
 
 .title-creation-editor,
@@ -91,7 +91,7 @@
 .product-nav-list {
     display: flex;
     flex-wrap: wrap;
-    gap: var(--space-2);
+    gap: 10px;
 }
 
 .title-editor-tags span,
@@ -102,9 +102,9 @@
 .product-nav-list button,
 .aicf-toolbar-meta span {
     padding: 8px 12px;
-    border: 1px solid var(--border-default);
+    border: 1px solid var(--border-subtle);
     border-radius: 999px;
-    background: var(--surface-secondary);
+    background: color-mix(in srgb, var(--surface-secondary) 98%, transparent);
     color: var(--text-secondary);
     font-size: 12px;
     font-weight: 700;
@@ -113,8 +113,8 @@
 .extractor-tabs span.is-selected,
 .copy-tone-list button.is-active,
 .product-nav-list button.is-active {
-    border-color: color-mix(in srgb, var(--brand-primary) 42%, var(--border-default));
-    background: color-mix(in srgb, var(--brand-primary) 10%, var(--surface-secondary));
+    border-color: color-mix(in srgb, var(--brand-primary) 24%, var(--border-subtle));
+    background: color-mix(in srgb, var(--brand-primary) 8%, var(--surface-secondary));
     color: var(--text-primary);
 }
 
@@ -128,9 +128,9 @@
     width: 100%;
     min-height: 52px;
     padding: 14px 16px;
-    border: 1px solid var(--border-default);
+    border: 1px solid var(--border-subtle);
     border-radius: var(--radius-lg);
-    background: var(--surface-secondary);
+    background: color-mix(in srgb, var(--surface-secondary) 99%, transparent);
     color: var(--text-primary);
 }
 
@@ -156,7 +156,7 @@
 .product-insight-grid {
     display: flex;
     flex-direction: column;
-    gap: var(--space-3);
+    gap: 16px;
 }
 
 .title-creation-shell,
@@ -166,7 +166,7 @@
 .copywriter-shell,
 .aicf-shell {
     display: grid;
-    gap: var(--space-4);
+    gap: 20px;
     align-items: start;
 }
 
@@ -209,14 +209,14 @@
 .aicf-config-column {
     display: flex;
     flex-direction: column;
-    gap: var(--space-4);
+    gap: 20px;
     min-width: 0;
 }
 
 .extractor-config-grid {
     display: grid;
     grid-template-columns: minmax(0, 2fr) repeat(3, minmax(140px, 1fr));
-    gap: var(--space-3);
+    gap: 16px;
 }
 
 .extractor-video-stage {
@@ -224,7 +224,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    border: 1px dashed color-mix(in srgb, var(--border-strong) 78%, transparent);
+    border: 1px dashed color-mix(in srgb, var(--border-default) 82%, transparent);
     border-radius: var(--radius-lg);
     background: linear-gradient(180deg, rgba(2, 10, 12, 0.18), rgba(2, 10, 12, 0.72)), #111d20;
 }
@@ -288,9 +288,9 @@
 .asset-filter-row span,
 .asset-category-item {
     padding: 10px 12px;
-    border: 1px solid var(--border-default);
+    border: 1px solid var(--border-subtle);
     border-radius: var(--radius-md);
-    background: var(--surface-secondary);
+    background: color-mix(in srgb, var(--surface-secondary) 98%, transparent);
     color: var(--text-secondary);
     font-size: 12px;
     font-weight: 700;
@@ -298,8 +298,8 @@
 
 .asset-filter-row span.is-active,
 .asset-category-item.is-active {
-    border-color: color-mix(in srgb, var(--brand-primary) 42%, var(--border-default));
-    background: color-mix(in srgb, var(--brand-primary) 10%, var(--surface-secondary));
+    border-color: color-mix(in srgb, var(--brand-primary) 24%, var(--border-subtle));
+    background: color-mix(in srgb, var(--brand-primary) 8%, var(--surface-secondary));
     color: var(--text-primary);
 }
 
@@ -364,7 +364,7 @@
 .workflow-stage-card {
     flex: 1 1 148px;
     min-width: 148px;
-    min-height: 112px;
+    min-height: 124px;
     justify-content: center;
 }
 
@@ -418,7 +418,7 @@
 .tool-console-body {
     display: grid;
     grid-template-columns: 1fr 280px;
-    gap: var(--space-4);
+    gap: 20px;
     align-items: start;
 }
 .tool-main-area {

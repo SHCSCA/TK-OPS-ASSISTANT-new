@@ -1,7 +1,7 @@
 .content-workbench-shell {
     display: grid;
     grid-template-columns: 88px minmax(0, 1fr) 320px;
-    gap: 16px;
+    gap: 20px;
     align-items: start;
 }
 
@@ -12,17 +12,17 @@
 .workbench-summary-strip {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 12px;
+    gap: 16px;
 }
 
 .workbench-summary-chip {
     display: flex;
     flex-direction: column;
     gap: 6px;
-    padding: 16px 18px;
-    border: 1px solid var(--border-default);
+    padding: 18px 20px;
+    border: 1px solid var(--border-subtle);
     border-radius: var(--radius-lg);
-    background: color-mix(in srgb, var(--surface-secondary) 96%, transparent);
+    background: color-mix(in srgb, var(--surface-secondary) 98%, transparent);
 }
 
 .workbench-summary-chip strong {
@@ -42,7 +42,7 @@
 .workbench-side-list {
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 14px;
 }
 
 .workbench-tool {
@@ -51,18 +51,18 @@
     align-items: center;
     justify-content: center;
     gap: 8px;
-    min-height: 74px;
-    padding: 12px 8px;
-    border: 1px solid var(--border-default);
+    min-height: 70px;
+    padding: 12px 10px;
+    border: 1px solid var(--border-subtle);
     border-radius: var(--radius-lg);
-    background: var(--surface-secondary);
+    background: color-mix(in srgb, var(--surface-secondary) 98%, transparent);
     color: var(--text-secondary);
     font-weight: 700;
 }
 
 .workbench-tool.is-selected {
-    border-color: color-mix(in srgb, var(--brand-primary) 60%, var(--border-default));
-    background: color-mix(in srgb, var(--brand-primary) 12%, var(--surface-secondary));
+    border-color: color-mix(in srgb, var(--brand-primary) 26%, var(--border-subtle));
+    background: color-mix(in srgb, var(--brand-primary) 8%, var(--surface-secondary));
     color: var(--text-primary);
 }
 
@@ -72,12 +72,12 @@
 
 .workbench-canvas {
     min-height: 420px;
-    padding: 16px;
-    border: 1px solid var(--border-default);
+    padding: 20px;
+    border: 1px solid var(--border-subtle);
     border-radius: var(--radius-xl);
     background:
-        linear-gradient(145deg, color-mix(in srgb, var(--brand-primary) 8%, transparent), transparent 38%),
-        var(--surface-secondary);
+        linear-gradient(145deg, color-mix(in srgb, var(--brand-primary) 5%, transparent), transparent 42%),
+        color-mix(in srgb, var(--surface-secondary) 99%, transparent);
 }
 
 .canvas-stage {
@@ -86,10 +86,10 @@
     align-items: center;
     justify-content: center;
     min-height: 320px;
-    margin-top: 14px;
-    border: 1px dashed color-mix(in srgb, var(--border-strong) 78%, transparent);
+    margin-top: 18px;
+    border: 1px dashed color-mix(in srgb, var(--border-default) 82%, transparent);
     border-radius: var(--radius-lg);
-    background: color-mix(in srgb, var(--surface-primary) 60%, transparent);
+    background: color-mix(in srgb, var(--surface-primary) 78%, transparent);
 }
 
 .canvas-stage--portrait {
@@ -106,8 +106,8 @@
     left: 14px;
     padding: 6px 10px;
     border-radius: 999px;
-    background: color-mix(in srgb, var(--surface-secondary) 90%, transparent);
-    border: 1px solid var(--border-default);
+    background: color-mix(in srgb, var(--surface-secondary) 96%, transparent);
+    border: 1px solid var(--border-subtle);
     font-size: 11px;
     font-weight: 800;
     color: var(--text-secondary);
@@ -125,7 +125,7 @@
     border-radius: 28px;
     background: linear-gradient(180deg, rgba(0, 0, 0, 0.15), rgba(10, 22, 24, 0.88));
     color: #f7fffe;
-    box-shadow: 0 24px 48px rgba(5, 16, 18, 0.22);
+    box-shadow: 0 18px 36px rgba(5, 16, 18, 0.16);
 }
 
 .video-surface {
@@ -136,7 +136,7 @@
     border-radius: 18px;
     background:
         linear-gradient(180deg, rgba(2, 10, 12, 0.35), rgba(2, 10, 12, 0.72)),
-        radial-gradient(circle at 20% 20%, rgba(0, 242, 234, 0.25), transparent 35%),
+        radial-gradient(circle at 20% 20%, rgba(14, 165, 164, 0.16), transparent 35%),
         #111d20;
 }
 
@@ -169,10 +169,10 @@
 }
 
 .timeline-board {
-    margin-top: 14px;
+    margin-top: 18px;
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 14px;
 }
 
 .timeline-track {
@@ -193,32 +193,32 @@
     gap: 10px;
     align-items: center;
     min-height: 52px;
-    padding: 8px;
-    border: 1px solid var(--border-default);
+    padding: 10px;
+    border: 1px solid var(--border-subtle);
     border-radius: var(--radius-lg);
-    background: color-mix(in srgb, var(--surface-primary) 70%, transparent);
+    background: color-mix(in srgb, var(--surface-primary) 86%, transparent);
 }
 
 .timeline-block,
 .timeline-wave {
     padding: 10px 14px;
     border-radius: var(--radius-md);
-    background: color-mix(in srgb, var(--brand-primary) 10%, var(--surface-secondary));
+    background: color-mix(in srgb, var(--brand-primary) 8%, var(--surface-secondary));
     font-size: 12px;
     font-weight: 700;
     color: var(--text-primary);
 }
 
 .timeline-block--primary {
-    background: color-mix(in srgb, var(--brand-primary) 18%, var(--surface-secondary));
+    background: color-mix(in srgb, var(--brand-primary) 12%, var(--surface-secondary));
 }
 
 .timeline-block--accent {
-    background: color-mix(in srgb, var(--status-warning) 16%, var(--surface-secondary));
+    background: color-mix(in srgb, var(--status-warning) 12%, var(--surface-secondary));
 }
 
 .video-editing-studio {
-    gap: 16px;
+    gap: 20px;
 }
 
 .video-studio-topbar,
@@ -233,13 +233,13 @@
 
 .video-studio-topbar {
     padding-bottom: 12px;
-    border-bottom: 1px solid var(--border-default);
+    border-bottom: 1px solid var(--border-subtle);
 }
 
 .video-monitor-grid {
     display: grid;
     grid-template-columns: minmax(280px, 0.7fr) minmax(0, 1.3fr);
-    gap: 16px;
+    gap: 20px;
     align-items: stretch;
 }
 
@@ -251,7 +251,7 @@
 .video-studio-summary {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 12px;
+    gap: 16px;
 }
 
 .video-studio-summary .workbench-summary-chip {
@@ -259,20 +259,20 @@
 }
 
 .video-preview-shell {
-    padding: 16px;
-    border: 1px solid var(--border-default);
+    padding: 20px;
+    border: 1px solid var(--border-subtle);
     border-radius: var(--radius-lg);
-    background: color-mix(in srgb, var(--surface-primary) 70%, transparent);
+    background: color-mix(in srgb, var(--surface-secondary) 98%, transparent);
 }
 
 .source-browser-shell {
     display: flex;
     flex-direction: column;
-    gap: 10px;
-    padding: 14px;
-    border: 1px solid var(--border-default);
+    gap: 12px;
+    padding: 16px;
+    border: 1px solid var(--border-subtle);
     border-radius: var(--radius-lg);
-    background: color-mix(in srgb, var(--surface-primary) 76%, transparent);
+    background: color-mix(in srgb, var(--surface-secondary) 98%, transparent);
     overflow-y: auto;
 }
 
@@ -296,15 +296,15 @@
 
 .source-browser-tabs {
     display: flex;
-    gap: 6px;
+    gap: 8px;
     flex-wrap: wrap;
 }
 
 .source-browser-tabs span {
     padding: 6px 12px;
-    border: 1px solid var(--border-default);
+    border: 1px solid var(--border-subtle);
     border-radius: 999px;
-    background: color-mix(in srgb, var(--surface-secondary) 90%, transparent);
+    background: color-mix(in srgb, var(--surface-secondary) 96%, transparent);
     font-size: 12px;
     font-weight: 700;
     color: var(--text-secondary);
@@ -318,35 +318,35 @@
 }
 
 .source-browser-tabs span.is-selected {
-    border-color: color-mix(in srgb, var(--brand-primary) 58%, var(--border-default));
-    background: color-mix(in srgb, var(--brand-primary) 12%, var(--surface-secondary));
+    border-color: color-mix(in srgb, var(--brand-primary) 26%, var(--border-subtle));
+    background: color-mix(in srgb, var(--brand-primary) 8%, var(--surface-secondary));
     color: var(--text-primary);
 }
 
 .source-thumb-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 8px;
+    gap: 10px;
 }
 
 .source-thumb {
     display: flex;
     flex-direction: column;
     gap: 4px;
-    padding: 6px;
-    border: 2px solid transparent;
+    padding: 8px;
+    border: 1px solid var(--border-subtle);
     border-radius: var(--radius-md);
-    background: color-mix(in srgb, var(--surface-secondary) 60%, transparent);
+    background: color-mix(in srgb, var(--surface-secondary) 96%, transparent);
     cursor: pointer;
     transition: border-color 0.15s, background 0.15s;
 }
 
 .source-thumb:hover {
-    background: color-mix(in srgb, var(--surface-secondary) 90%, transparent);
+    background: color-mix(in srgb, var(--surface-secondary) 99%, transparent);
 }
 
 .source-thumb.is-selected {
-    border-color: var(--brand-primary);
+    border-color: color-mix(in srgb, var(--brand-primary) 28%, var(--border-subtle));
     background: color-mix(in srgb, var(--brand-primary) 8%, var(--surface-secondary));
 }
 
@@ -422,7 +422,7 @@
     gap: 10px;
     padding: 10px;
     margin-top: 2px;
-    border: 1px solid var(--border-default);
+    border: 1px solid var(--border-subtle);
     border-radius: var(--radius-md);
     background: color-mix(in srgb, var(--surface-primary) 88%, transparent);
     align-items: center;
@@ -500,23 +500,26 @@
 .video-preview-markers span,
 .video-inspector-tabs span {
     padding: 8px 12px;
-    border: 1px solid var(--border-default);
+    border: 1px solid var(--border-subtle);
     border-radius: 999px;
-    background: color-mix(in srgb, var(--surface-secondary) 90%, transparent);
+    background: color-mix(in srgb, var(--surface-secondary) 96%, transparent);
     font-size: 12px;
     font-weight: 700;
     color: var(--text-secondary);
 }
 
 .video-inspector-tabs .is-selected {
-    border-color: color-mix(in srgb, var(--brand-primary) 58%, var(--border-default));
-    background: color-mix(in srgb, var(--brand-primary) 12%, var(--surface-secondary));
+    border-color: color-mix(in srgb, var(--brand-primary) 26%, var(--border-subtle));
+    background: color-mix(in srgb, var(--brand-primary) 8%, var(--surface-secondary));
     color: var(--text-primary);
 }
 
 .video-preview-stage {
     min-height: 430px;
     overflow: hidden;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-xl);
+    background: color-mix(in srgb, var(--surface-primary) 92%, transparent);
 }
 
 
@@ -526,9 +529,9 @@
     min-height: 380px;
     border-radius: 22px;
     background:
-        linear-gradient(180deg, rgba(2, 10, 12, 0.35), rgba(2, 10, 12, 0.78)),
-        radial-gradient(circle at 20% 20%, rgba(0, 242, 234, 0.22), transparent 35%),
-        radial-gradient(circle at 80% 65%, rgba(0, 240, 232, 0.12), transparent 30%),
+        linear-gradient(180deg, rgba(2, 10, 12, 0.32), rgba(2, 10, 12, 0.72)),
+        radial-gradient(circle at 20% 20%, rgba(14, 165, 164, 0.18), transparent 35%),
+        radial-gradient(circle at 80% 65%, rgba(14, 165, 164, 0.1), transparent 30%),
         #091316;
 }
 
@@ -539,7 +542,7 @@
 .transport-bar {
     margin-top: 14px;
     padding-top: 14px;
-    border-top: 1px solid var(--border-default);
+    border-top: 1px solid var(--border-subtle);
 }
 
 .transport-controls {
@@ -552,10 +555,10 @@
 }
 
 .video-timeline-board {
-    padding: 16px;
-    border: 1px solid var(--border-default);
+    padding: 18px;
+    border: 1px solid var(--border-subtle);
     border-radius: var(--radius-lg);
-    background: color-mix(in srgb, var(--surface-primary) 76%, transparent);
+    background: color-mix(in srgb, var(--surface-secondary) 98%, transparent);
 }
 
 .timeline-ruler {

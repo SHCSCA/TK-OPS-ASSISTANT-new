@@ -4,7 +4,6 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TK-OPS Embedded Shell</title>
-    <link rel="stylesheet" href="../../prototype/assets/styles.css">
     <link rel="stylesheet" href="./css/variables.css">
     <link rel="stylesheet" href="./css/shell.css">
     <link rel="stylesheet" href="./css/components.css">
@@ -49,11 +48,19 @@
                 <button class="icon-button" id="detailToggle" aria-label="切换右侧面板" type="button" title="切换右侧面板"><span class="shell-icon">◧</span></button>
                 <button class="secondary-button" id="themeToggle" type="button">切换到深色</button>
                 <button class="icon-button" id="notificationToggle" aria-label="通知" type="button"><span class="shell-icon">铃</span></button>
-                <div class="notification-panel shell-hidden" id="notificationPanel">
+                <div class="notification-panel shell-floating-panel shell-hidden" id="notificationPanel">
                     <div class="notification-panel__header"><strong>通知中心</strong><button class="secondary-button" id="clearNotifications" type="button">全部已读</button></div>
                     <div class="notification-panel__list" id="notificationList"></div>
                 </div>
-                <button class="icon-button" aria-label="全局状态" type="button"><span class="shell-icon">态</span></button>
+                <button class="icon-button" id="statusSummaryToggle" aria-label="运行状态" type="button" title="运行状态"><span class="shell-icon">况</span></button>
+                <div class="status-summary-panel shell-hidden" id="statusSummaryPanel">
+                    <div class="notification-panel__header"><strong>运行状态</strong></div>
+                    <div class="detail-list">
+                        <div class="detail-item"><span class="subtle">当前环境</span><strong>桌面工作台</strong></div>
+                        <div class="detail-item"><span class="subtle">详情面板</span><strong>跟随窗口自适应</strong></div>
+                        <div class="detail-item"><span class="subtle">建议</span><strong>优先关注右下角运行摘要与状态栏异常项</strong></div>
+                    </div>
+                </div>
                 <div class="account-cell">
                     <div class="avatar">AD</div>
                     <div>
@@ -65,6 +72,7 @@
         </header>
 
         <aside class="sidebar">
+            <div class="sidebar__content">
             <div class="sidebar__section">
                 <div class="sidebar__title">主要工作台</div>
                 <button class="nav-link is-active" data-route="dashboard" type="button"><span class="shell-icon">览</span><span class="nav-link__label">概览数据看板</span></button>
@@ -143,7 +151,7 @@
                 <button class="nav-link" data-route="log-center" type="button"><span class="shell-icon">志</span><span class="nav-link__label">日志中心</span></button>
                 <button class="nav-link" data-route="version-upgrade" type="button"><span class="shell-icon">升</span><span class="nav-link__label">版本升级</span></button>
             </div>
-
+            </div>
             <div class="sidebar__footer" id="sidebarSummary"></div>
         </aside>
 

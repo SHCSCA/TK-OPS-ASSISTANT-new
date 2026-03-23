@@ -72,6 +72,15 @@ function buildStatGrid(metrics) {
     return `<div class="stat-grid">${metrics.map(metric => `<article class="stat-card" data-search="${metric.search || metric.label}"><div><div class="subtle">${metric.label}</div><div class="stat-card__value">${metric.value}</div></div><div class="stat-card__delta" style="color:${metric.color || 'var(--brand-primary)'};"><span>${metric.delta}</span><span class="subtle">${metric.note}</span></div></article>`).join('')}</div>`;
 }
 
+function buildAnalyticsSummary(options) {
+    return `
+        <div class="analytics-chart-card__summary">
+            <div class="analytics-chart-meta"><span>时间范围：${options.range}</span><span>维度：${options.dimension}</span></div>
+            <div class="analytics-key-takeaway">${options.takeaway}</div>
+        </div>
+    `;
+}
+
 function buildAnalystDetail(detail) {
     const items = detail.items || [];
     const cards = detail.cards || [];
@@ -429,8 +438,8 @@ function makeEcommerceConversionRoute() {
         <section class="section-stack">
             ${buildStatGrid(metrics)}
             <div class="conversion-shell analyst-feature-shell analytics-two-column">
-                <section class="panel"><div class="panel__header"><div><strong>转化漏斗</strong><div class="subtle">先定位最大流失点，再决定是改内容、详情页还是售后链路</div></div></div><div class="funnel-steps">${steps.map(step => `<article class="funnel-step ${step.cls}"><span>${step.name}</span><strong>${step.value}</strong></article>`).join('')}</div></section>
-                <section class="panel"><div class="panel__header"><div><strong>流失分析</strong><div class="subtle">每一层流失都要给出解释和动作</div></div></div><div class="leakage-grid"><article class="leakage-card"><strong>点击 -> 加购</strong><span>流失 82%</span><p>商品详情页说服力不足，价格优势表达不够。</p></article><article class="leakage-card"><strong>加购 -> 下单</strong><span>流失 64%</span><p>运费与优惠门槛影响下单决策。</p></article><article class="leakage-card"><strong>下单 -> 签收</strong><span>流失 5%</span><p>履约与取消订单仍有优化空间。</p></article></div></section>
+                <section class="panel analytics-chart-card"><div class="panel__header"><div><strong>转化漏斗</strong><div class="subtle">先定位最大流失点，再决定是改内容、详情页还是售后链路</div></div></div>${buildAnalyticsSummary({ range: '近 7 天', dimension: '曝光 / 点击 / 加购 / 下单 / 签收', takeaway: '结论：当前最大流失集中在点击到加购阶段，优先检查详情页卖点表达与优惠信息。' })}<div class="funnel-steps">${steps.map(step => `<article class="funnel-step ${step.cls}"><span>${step.name}</span><strong>${step.value}</strong></article>`).join('')}</div></section>
+                <section class="panel analytics-side-panel"><div class="panel__header"><div><strong>流失分析</strong><div class="subtle">每一层流失都要给出解释和动作</div></div></div><div class="leakage-grid"><article class="leakage-card"><strong>点击 -> 加购</strong><span>流失 82%</span><p>商品详情页说服力不足，价格优势表达不够。</p></article><article class="leakage-card"><strong>加购 -> 下单</strong><span>流失 64%</span><p>运费与优惠门槛影响下单决策。</p></article><article class="leakage-card"><strong>下单 -> 签收</strong><span>流失 5%</span><p>履约与取消订单仍有优化空间。</p></article></div></section>
             </div>
         </section>
     `;
@@ -471,8 +480,8 @@ function makeFanProfileRoute() {
         <section class="section-stack">
             ${buildStatGrid(metrics)}
             <div class="fan-profile-shell analyst-feature-shell analytics-two-column">
-                <section class="analytics-side-stack"><section class="panel"><div class="panel__header"><div><strong>标签云</strong><div class="subtle">先看人群在关心什么，再决定内容和商品方向</div></div></div><div class="topic-cloud keyword-cloud"><span class="xl">家庭收纳</span><span class="lg">节日囤货</span><span class="md">小户型整理</span><span class="md">低价好物</span><span class="sm">租房改造</span><span class="sm">厨房动线</span><span class="sm">亲子家庭</span></div></section><section class="panel"><div class="panel__header"><div><strong>人群分层</strong><div class="subtle">高价值、潜力、观望、沉默分层一眼可见</div></div></div><div class="segment-ring"><div class="segment-ring__inner"><strong>4 层</strong><span>活跃分层</span></div></div><div class="affinity-bars"><div><span>高价值粉丝</span><i style="width: 78%"></i></div><div><span>潜力粉丝</span><i class="info" style="width: 62%"></i></div><div><span>观望粉丝</span><i class="warning" style="width: 41%"></i></div><div><span>沉默粉丝</span><i style="width: 24%"></i></div></div></section></section>
-                <section class="panel"><div class="panel__header"><div><strong>核心 Persona</strong><div class="subtle">把抽象画像变成团队能理解的典型人群</div></div></div><div class="persona-grid"><article><strong>家居整理派</strong><span>28-36 岁 / 高收藏高复购</span><p>偏好强对比改造内容，接受中高客单的收纳解决方案。</p></article><article><strong>节日囤货派</strong><span>24-32 岁 / 高点击高促销敏感</span><p>关注限时折扣、组合套餐、节日氛围场景。</p></article><article><strong>租房实用派</strong><span>22-30 岁 / 高互动低客单</span><p>关注平价、易安装、空间利用率相关内容。</p></article><article><strong>静默潜力派</strong><span>历史有加购 / 近期互动下降</span><p>适合通过 CRM 或自动私信做二次唤醒。</p></article></div></section>
+                <section class="analytics-side-stack"><section class="panel analytics-chart-card"><div class="panel__header"><div><strong>标签云</strong><div class="subtle">先看人群在关心什么，再决定内容和商品方向</div></div></div>${buildAnalyticsSummary({ range: '近 30 天', dimension: '兴趣簇 / 消费倾向', takeaway: '结论：家庭收纳与节日囤货是当前最值得拆开的两类高价值兴趣簇。' })}<div class="topic-cloud keyword-cloud"><span class="xl">家庭收纳</span><span class="lg">节日囤货</span><span class="md">小户型整理</span><span class="md">低价好物</span><span class="sm">租房改造</span><span class="sm">厨房动线</span><span class="sm">亲子家庭</span></div></section><section class="panel analytics-chart-card"><div class="panel__header"><div><strong>人群分层</strong><div class="subtle">高价值、潜力、观望、沉默分层一眼可见</div></div></div><div class="analytics-chart-meta"><span>样本：活跃粉丝</span><span>更新：每日同步</span></div><div class="segment-ring"><div class="segment-ring__inner"><strong>4 层</strong><span>活跃分层</span></div></div><div class="affinity-bars"><div><span>高价值粉丝</span><i style="width: 78%"></i></div><div><span>潜力粉丝</span><i class="info" style="width: 62%"></i></div><div><span>观望粉丝</span><i class="warning" style="width: 41%"></i></div><div><span>沉默粉丝</span><i style="width: 24%"></i></div></div></section></section>
+                <section class="panel analytics-side-panel"><div class="panel__header"><div><strong>核心 Persona</strong><div class="subtle">把抽象画像变成团队能理解的典型人群</div></div></div>${buildAnalyticsSummary({ range: '近 14 天', dimension: '画像 / 内容偏好 / 复购倾向', takeaway: '结论：家居整理派与节日囤货派最适合优先联动内容和 CRM 触达。' })}<div class="persona-grid"><article><strong>家居整理派</strong><span>28-36 岁 / 高收藏高复购</span><p>偏好强对比改造内容，接受中高客单的收纳解决方案。</p></article><article><strong>节日囤货派</strong><span>24-32 岁 / 高点击高促销敏感</span><p>关注限时折扣、组合套餐、节日氛围场景。</p></article><article><strong>租房实用派</strong><span>22-30 岁 / 高互动低客单</span><p>关注平价、易安装、空间利用率相关内容。</p></article><article><strong>静默潜力派</strong><span>历史有加购 / 近期互动下降</span><p>适合通过 CRM 或自动私信做二次唤醒。</p></article></div></section>
             </div>
         </section>
     `;

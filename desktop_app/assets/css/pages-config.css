@@ -2,14 +2,14 @@
 .config-center-shell {
     display: grid;
     grid-template-columns: 200px minmax(0, 1fr);
-    gap: 20px;
+    gap: 24px;
     align-items: start;
 }
 
 .config-nav {
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 6px;
     position: sticky;
     top: 0;
 }
@@ -18,10 +18,10 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 10px 14px;
+    padding: 11px 14px;
     border: 1px solid transparent;
     border-radius: var(--radius-md);
-    background: transparent;
+    background: color-mix(in srgb, var(--surface-secondary) 94%, transparent);
     text-align: left;
     font-size: 13px;
     font-weight: 600;
@@ -31,13 +31,13 @@
 }
 
 .config-nav-item:hover {
-    background: color-mix(in srgb, var(--surface-secondary) 80%, transparent);
+    background: color-mix(in srgb, var(--brand-primary) 5%, var(--surface-secondary));
     color: var(--text-primary);
 }
 
 .config-nav-item.is-selected {
-    background: color-mix(in srgb, var(--brand-primary) 10%, var(--surface-secondary));
-    border-color: color-mix(in srgb, var(--brand-primary) 45%, var(--border-default));
+    background: color-mix(in srgb, var(--brand-primary) 8%, var(--surface-secondary));
+    border-color: color-mix(in srgb, var(--brand-primary) 24%, var(--border-subtle));
     color: var(--text-primary);
 }
 
@@ -59,28 +59,28 @@
 }
 
 .config-form-group {
-    padding: 18px;
-    border: 1px solid var(--border-default);
+    padding: 22px;
+    border: 1px solid var(--border-subtle);
     border-radius: var(--radius-lg);
-    background: color-mix(in srgb, var(--surface-primary) 72%, transparent);
+    background: color-mix(in srgb, var(--surface-secondary) 98%, transparent);
 }
 
 .config-form-group__header {
-    margin-bottom: 16px;
-    padding-bottom: 12px;
-    border-bottom: 1px solid var(--border-default);
+    margin-bottom: 18px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid var(--border-subtle);
 }
 
 .config-form-fields {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 18px 24px;
+    gap: 22px 28px;
 }
 
 .config-field {
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 8px;
 }
 
 .config-field__label {
@@ -99,12 +99,26 @@
 
 .config-input,
 .config-select {
-    padding: 10px 14px;
-    border: 1px solid var(--border-default);
+    padding: 12px 14px;
+    border: 1px solid var(--border-subtle);
     border-radius: var(--radius-md);
-    background: var(--surface-primary);
+    background: color-mix(in srgb, var(--surface-secondary) 99%, transparent);
     font-size: 13px;
     color: var(--text-primary);
+}
+
+.config-native-select {
+    width: 100%;
+}
+
+.config-section__footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 18px;
+    padding-top: 14px;
+    border-top: 1px solid var(--border-subtle);
 }
 
 .config-select {
@@ -163,6 +177,7 @@
 
 .config-field__hint {
     font-size: 11px;
+    color: var(--text-tertiary);
 }
 
 .notice-banner--info {
@@ -179,10 +194,10 @@
     display: flex;
     align-items: flex-start;
     gap: 0;
-    padding: 20px;
-    border: 1px solid var(--border-default);
+    padding: 22px;
+    border: 1px solid var(--border-subtle);
     border-radius: var(--radius-lg);
-    background: color-mix(in srgb, var(--surface-primary) 72%, transparent);
+    background: color-mix(in srgb, var(--surface-secondary) 98%, transparent);
 }
 
 .wizard-step {
@@ -198,7 +213,7 @@
 
 .wizard-step.is-active {
     opacity: 1;
-    background: color-mix(in srgb, var(--brand-primary) 8%, transparent);
+    background: color-mix(in srgb, var(--brand-primary) 6%, transparent);
 }
 
 .wizard-step.is-done {
@@ -220,7 +235,7 @@
 
 .wizard-step.is-active .wizard-step__num {
     border-color: var(--brand-primary);
-    background: color-mix(in srgb, var(--brand-primary) 15%, transparent);
+    background: color-mix(in srgb, var(--brand-primary) 10%, transparent);
     color: var(--brand-primary);
 }
 
@@ -259,7 +274,7 @@
 .focus-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 12px;
+    gap: 16px;
     margin-top: 14px;
 }
 
@@ -267,10 +282,10 @@
 .workbench-sidecard,
 .strip-card,
 .workflow-node {
-    padding: 16px;
-    border: 1px solid var(--border-default);
+    padding: 18px;
+    border: 1px solid var(--border-subtle);
     border-radius: var(--radius-lg);
-    background: color-mix(in srgb, var(--surface-secondary) 95%, transparent);
+    background: color-mix(in srgb, var(--surface-secondary) 98%, transparent);
 }
 
 .focus-card--wide {
@@ -289,7 +304,7 @@
 .focus-card__meta {
     margin-top: 12px;
     padding-top: 12px;
-    border-top: 1px solid var(--border-default);
+    border-top: 1px solid var(--border-subtle);
     font-size: 12px;
     color: var(--text-secondary);
 }
@@ -297,7 +312,7 @@
 .workflow-board {
     display: grid;
     grid-template-columns: repeat(7, minmax(0, 1fr));
-    gap: 12px;
+    gap: 16px;
     align-items: center;
     margin-top: 14px;
 }
@@ -311,8 +326,8 @@
 }
 
 .workflow-node.is-active {
-    border-color: color-mix(in srgb, var(--brand-primary) 65%, var(--border-default));
-    box-shadow: 0 10px 22px color-mix(in srgb, var(--brand-primary) 16%, transparent);
+    border-color: color-mix(in srgb, var(--brand-primary) 28%, var(--border-subtle));
+    box-shadow: 0 8px 18px color-mix(in srgb, var(--brand-primary) 10%, transparent);
 }
 
 .workflow-connector {

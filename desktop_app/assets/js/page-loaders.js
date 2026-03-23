@@ -444,6 +444,7 @@
             _bindBatchBar('.js-batch-task', function (ids) {
                 return _batchDelete(ids, api.tasks.remove, '任务', 'task-queue');
             });
+            ensurePagination(tbody.closest('.table-card, .panel'), '共 ' + tasks.length + ' 条任务，当前第 1 页');
         }).catch(function (e) {
             console.warn('[page-loaders] task-queue load failed:', e);
         });
@@ -1176,6 +1177,7 @@
                 tbody.innerHTML = (analysis.rows || []).slice(0, 4).map(function (row) {
                     return '<tr class="route-row" data-search="' + _esc((row.title || '') + ' ' + (row.meta || '')) + '"><td><strong>' + _esc(row.title || '账号') + '</strong></td><td>' + _formatNum(row.value || 0) + '</td><td>' + _esc(row.meta || '等待数据') + '</td><td>' + _esc(row.conclusion || '继续观察') + '</td></tr>';
                 }).join('');
+                ensurePagination(tbody.closest('.table-card, .panel'), '当前展示 ' + Math.min(accounts.length, 3) + ' / ' + accounts.length + ' 个竞品样本');
             }
             _setAnalyticsSeed({
                 rivalBars: (analysis.bars || []).slice(0, 6),
@@ -1214,6 +1216,7 @@
                 tbody.innerHTML = (analysis.rows || []).slice(0, 4).map(function (row) {
                     return '<tr class="route-row" data-search="' + _esc((row.label || '') + ' ' + (row.reason || '')) + '"><td><strong>' + _esc(row.label || '区域') + '</strong></td><td>' + _esc(row.delta || '等待数据') + '</td><td>' + _esc(row.reason || '等待数据') + '</td><td>' + _esc(row.action || '继续观察') + '</td></tr>';
                 }).join('');
+                ensurePagination(tbody.closest('.table-card, .panel'), '当前展示 ' + Math.min(accounts.length, 3) + ' / ' + accounts.length + ' 个流量区域');
             }
             _setAnalyticsSeed({
                 trafficTrend: (analysis.trend || []).slice(0, 12),
@@ -3543,6 +3546,11 @@
         });
     }
 
+    function ensurePagination(root, summaryText) {
+        if (!root || root.querySelector('.pagination')) return;
+        root.insertAdjacentHTML('beforeend', '<div class="list-footer"><div class="pagination"><div class="pagination__info">' + _esc(summaryText || '当前页 1 / 1') + '</div><div class="pagination__actions"><button class="secondary-button" type="button">上一页</button><button class="secondary-button" type="button">下一页</button></div></div></div>');
+    }
+
     function _hydrateAiSelects(providers) {
         var list = providers || [];
         var active = list.find(function (provider) {
@@ -3860,6 +3868,10 @@
                 return;
             }
             control.innerHTML = '<input class="config-native-input" data-setting-key="' + _esc(meta.key) + '" value="' + _esc(meta.value || '') + '">';
+        });
+        document.querySelectorAll('#mainHost .config-form-group').forEach(function (group, index) {
+            if (group.querySelector('.config-section__footer')) return;
+            group.insertAdjacentHTML('beforeend', '<div class="config-section__footer"><span class="subtle">当前分组 ' + (index + 1) + ' / ' + document.querySelectorAll('#mainHost .config-form-group').length + '</span><div class="pagination__actions"><button class="secondary-button" type="button">上一组</button><button class="secondary-button" type="button">下一组</button></div></div>');
         });
     }
 

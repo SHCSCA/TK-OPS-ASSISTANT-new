@@ -97,7 +97,15 @@ class Task(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     title: Mapped[str] = mapped_column(String(200), nullable=False)
     task_type: Mapped[str] = mapped_column(
-        Enum("publish", "interact", "scrape", "report", "maintenance", name="task_type"),
+        Enum(
+            "publish",
+            "interact",
+            "scrape",
+            "report",
+            "maintenance",
+            "analytics_action",
+            name="task_type",
+        ),
         default="publish",
     )
     priority: Mapped[str] = mapped_column(

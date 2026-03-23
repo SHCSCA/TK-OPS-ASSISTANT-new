@@ -10,7 +10,7 @@ function bindSegmentedButtons() {
 }
 
 function bindFilters() {
-    document.querySelectorAll('.filter-row select, .filter-row input').forEach((el) => {
+    document.querySelectorAll('.filter-row select, .filter-row input, .filter-bar select, .filter-bar input').forEach((el) => {
         el.addEventListener('change', () => applyCurrentRouteState());
     });
 }

@@ -1,16 +1,117 @@
+:root {
+    color-scheme: light;
+    --font-sans: "Segoe UI", "Microsoft YaHei UI", "PingFang SC", sans-serif;
+    --space-1: 4px;
+    --space-2: 8px;
+    --space-3: 12px;
+    --space-4: 16px;
+    --space-5: 20px;
+    --space-6: 24px;
+    --space-7: 32px;
+    --space-8: 40px;
+    --space-md: 8px;
+    --space-2xl: 28px;
+    --radius-s: 6px;
+    --radius-sm: 8px;
+    --radius-m: 10px;
+    --radius-md: 12px;
+    --radius-lg: 16px;
+    --radius-xl: 20px;
+    --radius-l: 18px;
+    --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06);
+    --shadow-md: 0 10px 26px rgba(15, 23, 42, 0.07);
+    --shadow-lg: 0 24px 48px rgba(15, 23, 42, 0.12);
+    --brand-primary: #0ea5a4;
+    --brand-primary-strong: #0b7f7e;
+    --text-on-brand: #f8fffe;
+    --surface-0: #f4f7fb;
+    --surface-1: #eef3f8;
+    --surface-primary: #fafcff;
+    --surface-secondary: #ffffff;
+    --surface-sunken: #e8edf4;
+    --text-primary: #172033;
+    --text-secondary: #5f6b85;
+    --text-tertiary: #8a94aa;
+    --border-default: #dbe3ec;
+    --border-subtle: #e8edf4;
+    --border-strong: #b8c5d7;
+    --border-focus: #2eb8b7;
+    --status-success: #1f9d63;
+    --status-warning: #c98912;
+    --status-error: #d9485f;
+    --status-info: #3483eb;
+    --sidebar-width: 292px;
+    --sidebar-collapsed-width: 84px;
+    --detail-width: 320px;
+    --titlebar-height: 72px;
+    --statusbar-height: 46px;
+    --page-gutter: 28px;
+    --page-section-gap: 22px;
+    --panel-padding: 20px;
+    --content-max-width: 1480px;
+    --card-gap: 16px;
+    --control-height-md: 40px;
+    --z-base: 1;
+    --z-sticky: 20;
+    --z-popover: 60;
+    --z-overlay: 80;
+    --bg-main: var(--surface-primary);
+    --fg: var(--text-primary);
+    --border: var(--border-default);
+    --accent: var(--brand-primary);
+}
+
+body[data-theme="dark"] {
+    color-scheme: dark;
+    --surface-0: #0d1422;
+    --surface-1: #121a2b;
+    --surface-primary: #0f1728;
+    --surface-secondary: #182235;
+    --surface-sunken: #0b1320;
+    --text-primary: #edf3ff;
+    --text-secondary: #9ba8c3;
+    --text-tertiary: #73809c;
+    --border-default: #2a364e;
+    --border-subtle: #223047;
+    --border-strong: #3d4d6b;
+    --border-focus: #53d1d1;
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+    --shadow-md: 0 12px 28px rgba(0, 0, 0, 0.28);
+    --shadow-lg: 0 28px 56px rgba(0, 0, 0, 0.36);
+    --bg-main: var(--surface-primary);
+    --fg: var(--text-primary);
+    --border: var(--border-default);
+}
+
 html,
 body {
     min-height: 100%;
 }
 
 body {
+    margin: 0;
     overflow: hidden;
     word-break: break-word;
     overflow-wrap: break-word;
     -webkit-font-smoothing: antialiased;
+    font-family: var(--font-sans);
+    background:
+        radial-gradient(circle at top left, color-mix(in srgb, var(--brand-primary) 6%, transparent), transparent 32%),
+        linear-gradient(180deg, var(--surface-0), var(--surface-1));
+    color: var(--text-primary);
 }
 
-/* ── Dark-mode overrides for custom components ── */
+* {
+    box-sizing: border-box;
+}
+
+button,
+input,
+select,
+textarea {
+    font: inherit;
+}
+
 body[data-theme="dark"] .notice-banner {
     background: color-mix(in srgb, var(--status-warning) 12%, var(--surface-secondary));
     border-color: color-mix(in srgb, var(--status-warning) 22%, transparent);
@@ -29,7 +130,7 @@ body[data-theme="dark"] .config-toggle__track {
 }
 
 body[data-theme="dark"] .device-env-card--idle {
-    opacity: .85;
+    opacity: 0.85;
 }
 
 body[data-theme="dark"] canvas {
@@ -55,4 +156,3 @@ body[data-theme="dark"] .matrix-bubble {
 body[data-theme="dark"] .calendar-slot {
     background: color-mix(in srgb, var(--brand-primary) 18%, var(--surface-secondary));
 }
-

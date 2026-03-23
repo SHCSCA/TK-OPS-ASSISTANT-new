@@ -16,17 +16,17 @@
 .task-item:hover,
 .workbench-sidecard:hover {
     transform: translateY(-1px);
-    box-shadow: var(--shadow-md);
+    box-shadow: 0 6px 16px rgba(15, 23, 42, 0.06);
 }
 
 .source-thumb:hover {
-    transform: scale(1.03);
-    box-shadow: var(--shadow-md);
+    transform: scale(1.01);
+    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.05);
 }
 
 .stat-card:hover {
-    border-color: var(--brand-primary);
-    box-shadow: 0 0 0 1px color-mix(in srgb, var(--brand-primary) 24%, transparent);
+    border-color: color-mix(in srgb, var(--brand-primary) 22%, var(--border-subtle));
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--brand-primary) 12%, transparent);
 }
 
 .board-card.is-selected,
@@ -61,18 +61,36 @@ tbody .route-row:hover {
 }
 
 .pill:hover {
-    transform: scale(1.06);
+    transform: scale(1.02);
 }
 
 /* 按钮微动效 */
 .primary-button,
-.secondary-button {
+.secondary-button,
+.ghost-button,
+.icon-button,
+.config-native-select,
+.form-select,
+select {
     transition: transform 0.1s ease, box-shadow 0.1s ease;
 }
 
 .primary-button:active,
-.secondary-button:active {
-    transform: scale(0.97);
+.secondary-button:active,
+.ghost-button:active,
+.icon-button:active {
+    transform: scale(0.985);
+}
+
+.primary-button:focus-visible,
+.secondary-button:focus-visible,
+.ghost-button:focus-visible,
+.icon-button:focus-visible,
+.config-native-select:focus-visible,
+.form-select:focus-visible,
+select:focus-visible {
+    outline: 0;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand-primary) 14%, transparent);
 }
 
 /* 面板header折叠指示 */
@@ -120,7 +138,7 @@ tbody .route-row:hover {
    响应式 — 面板平滑过渡
    ═══════════════════════════════════════════════ */
 .detail-panel {
-    transition: opacity 0.2s ease, transform 0.2s ease;
+    transition: opacity 0.18s ease, transform 0.18s ease;
     will-change: opacity, transform;
 }
 
@@ -221,7 +239,7 @@ tbody .route-row:hover {
     border-radius: var(--radius-lg);
     font-size: 13px;
     font-weight: 600;
-    box-shadow: var(--shadow-lg);
+    box-shadow: var(--shadow-md);
     transform: translateX(120%);
     opacity: 0;
     transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.25s ease;
@@ -236,25 +254,25 @@ tbody .route-row:hover {
 
 .toast-info {
     background: color-mix(in srgb, var(--brand-primary) 18%, var(--surface-secondary));
-    border: 1px solid var(--brand-primary);
+    border: 1px solid color-mix(in srgb, var(--brand-primary) 28%, var(--border-subtle));
     color: var(--text-primary);
 }
 
 .toast-success {
     background: color-mix(in srgb, var(--status-success) 18%, var(--surface-secondary));
-    border: 1px solid var(--status-success);
+    border: 1px solid color-mix(in srgb, var(--status-success) 28%, var(--border-subtle));
     color: var(--text-primary);
 }
 
 .toast-warning {
     background: color-mix(in srgb, var(--status-warning) 18%, var(--surface-secondary));
-    border: 1px solid var(--status-warning);
+    border: 1px solid color-mix(in srgb, var(--status-warning) 28%, var(--border-subtle));
     color: var(--text-primary);
 }
 
 .toast-error {
     background: color-mix(in srgb, #ef4444 18%, var(--surface-secondary));
-    border: 1px solid #ef4444;
+    border: 1px solid color-mix(in srgb, #ef4444 32%, var(--border-subtle));
     color: var(--text-primary);
 }
 
@@ -295,12 +313,27 @@ tbody .route-row:hover {
     width: 380px;
     max-height: 480px;
     overflow-y: auto;
-    border: 1px solid var(--border-default);
+    border: 1px solid var(--border-subtle);
     border-radius: var(--radius-xl);
     background: color-mix(in srgb, var(--surface-secondary) 97%, transparent);
-    box-shadow: var(--shadow-lg);
+    box-shadow: var(--shadow-md);
     backdrop-filter: blur(18px);
     z-index: 100;
+    opacity: 0;
+    transform: translateY(-6px);
+    pointer-events: none;
+    transition: opacity 0.16s ease, transform 0.16s ease;
+}
+
+.notification-panel.is-open {
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
+}
+
+.status-summary-panel {
+    opacity: 1;
+    transform: translateY(0);
 }
 
 .notification-panel__header {
@@ -308,7 +341,7 @@ tbody .route-row:hover {
     align-items: center;
     justify-content: space-between;
     padding: 14px 16px 10px;
-    border-bottom: 1px solid var(--border-default);
+    border-bottom: 1px solid var(--border-subtle);
 }
 
 .notification-panel__list {
@@ -326,6 +359,11 @@ tbody .route-row:hover {
 
 .notification-item:hover {
     background: color-mix(in srgb, var(--brand-primary) 6%, transparent);
+}
+
+.notification-item:focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--brand-primary) 34%, transparent);
+    outline-offset: -1px;
 }
 
 .notification-item.is-unread {
@@ -369,10 +407,10 @@ tbody .route-row:hover {
     z-index: 9998;
     min-width: 180px;
     padding: 6px;
-    border: 1px solid var(--border-default);
+    border: 1px solid var(--border-subtle);
     border-radius: var(--radius-lg);
     background: color-mix(in srgb, var(--surface-secondary) 97%, transparent);
-    box-shadow: var(--shadow-lg);
+    box-shadow: var(--shadow-md);
     backdrop-filter: blur(18px);
     animation: ctx-in 0.15s ease;
 }
@@ -399,7 +437,7 @@ tbody .route-row:hover {
 }
 
 .context-menu__item:hover {
-    background: color-mix(in srgb, var(--brand-primary) 10%, transparent);
+    background: color-mix(in srgb, var(--brand-primary) 6%, transparent);
 }
 
 .context-menu__item .shell-icon {
@@ -525,7 +563,7 @@ tbody .route-row:hover {
 .route-enter-active {
     opacity: 1;
     transform: translateY(0);
-    transition: opacity 0.3s ease, transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    transition: opacity 0.24s ease, transform 0.24s ease;
 }
 
 /* ═══════════════════════════════════════════════
@@ -651,10 +689,10 @@ kbd {
 .agent-panel {
     width: 540px;
     max-width: 92vw;
-    border: 1px solid var(--border-focus);
+    border: 1px solid var(--border-subtle);
     border-radius: var(--radius-xl);
     background: var(--surface-secondary);
-    box-shadow: var(--shadow-lg);
+    box-shadow: var(--shadow-md);
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -665,7 +703,7 @@ kbd {
     align-items: center;
     gap: 10px;
     padding: 14px 18px;
-    border-bottom: 1px solid var(--border-default);
+    border-bottom: 1px solid var(--border-subtle);
 }
 
 .agent-panel__header strong {
@@ -746,10 +784,10 @@ kbd {
     max-height: 85vh;
     display: flex;
     flex-direction: column;
-    border: 1px solid var(--border-default);
+    border: 1px solid var(--border-subtle);
     border-radius: var(--radius-xl);
     background: var(--surface-secondary);
-    box-shadow: var(--shadow-lg);
+    box-shadow: var(--shadow-md);
     animation: modal-slide-in 0.25s cubic-bezier(0.4, 0, 0.2, 1);
     overflow: hidden;
 }
@@ -767,7 +805,7 @@ kbd {
     align-items: center;
     justify-content: space-between;
     padding: 16px 20px;
-    border-bottom: 1px solid var(--border-default);
+    border-bottom: 1px solid var(--border-subtle);
 }
 .modal-header strong {
     font-size: 16px;
@@ -788,7 +826,7 @@ kbd {
     justify-content: flex-end;
     gap: 8px;
     padding: 12px 20px;
-    border-top: 1px solid var(--border-default);
+    border-top: 1px solid var(--border-subtle);
 }
 
 /* ── 表单元素 ── */
@@ -1029,10 +1067,10 @@ kbd {
     max-height: 72vh;
     display: flex;
     flex-direction: column;
-    border: 1px solid var(--border-focus);
+    border: 1px solid var(--border-subtle);
     border-radius: var(--radius-xl);
     background: var(--surface-secondary);
-    box-shadow: var(--shadow-lg);
+    box-shadow: var(--shadow-md);
     overflow: hidden;
     animation: overlay-in 0.18s ease;
 }

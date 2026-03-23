@@ -1,7 +1,7 @@
 .studio-shell {
     display: grid;
     grid-template-columns: 88px minmax(0, 1fr) 320px;
-    gap: 16px;
+    gap: 20px;
     align-items: start;
 }
 
@@ -23,12 +23,12 @@
 .report-preview,
 .calendar-stage {
     min-height: 360px;
-    padding: 16px;
-    border: 1px solid var(--border-default);
+    padding: 20px;
+    border: 1px solid var(--border-subtle);
     border-radius: var(--radius-xl);
     background:
-        linear-gradient(135deg, color-mix(in srgb, var(--brand-primary) 10%, transparent), transparent 35%),
-        var(--surface-secondary);
+        linear-gradient(135deg, color-mix(in srgb, var(--brand-primary) 5%, transparent), transparent 38%),
+        color-mix(in srgb, var(--surface-secondary) 98%, transparent);
 }
 
 .timeline-strip,
@@ -38,7 +38,7 @@
 .export-strip {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 10px;
+    gap: 14px;
 }
 
 .frame-chip,
@@ -46,16 +46,16 @@
 .timeline-chip,
 .history-chip,
 .export-chip {
-    padding: 12px;
-    border: 1px solid var(--border-default);
+    padding: 14px;
+    border: 1px solid var(--border-subtle);
     border-radius: var(--radius-md);
-    background: color-mix(in srgb, var(--surface-secondary) 94%, transparent);
+    background: color-mix(in srgb, var(--surface-secondary) 98%, transparent);
 }
 
 .asset-browser {
     display: grid;
     grid-template-columns: 220px minmax(0, 1fr);
-    gap: 16px;
+    gap: 20px;
     align-items: start;
 }
 
@@ -65,7 +65,7 @@
 .source-grid {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 12px;
+    gap: 16px;
 }
 
 .asset-tile {
@@ -78,7 +78,7 @@
 .prompt-shell,
 .system-shell {
     display: grid;
-    gap: 16px;
+    gap: 20px;
     align-items: start;
 }
 
@@ -101,8 +101,8 @@
 .ai-config-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 12px;
-    padding: 0 16px 16px;
+    gap: 16px;
+    padding: 0 20px 20px;
 }
 
 .ai-config-grid .form-field {
@@ -139,14 +139,14 @@
 .kanban-grid {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 14px;
+    gap: 18px;
 }
 
 .kanban-column {
-    padding: 14px;
-    border: 1px solid var(--border-default);
+    padding: 16px;
+    border: 1px solid var(--border-subtle);
     border-radius: var(--radius-lg);
-    background: color-mix(in srgb, var(--surface-secondary) 96%, transparent);
+    background: color-mix(in srgb, var(--surface-secondary) 98%, transparent);
     min-width: 0;
     overflow: hidden;
 }
@@ -190,15 +190,15 @@
 .calendar-grid {
     display: grid;
     grid-template-columns: repeat(7, minmax(0, 1fr));
-    gap: 10px;
+    gap: 14px;
 }
 
 .calendar-day {
     min-height: 128px;
-    padding: 12px;
-    border: 1px solid var(--border-default);
+    padding: 14px;
+    border: 1px solid var(--border-subtle);
     border-radius: var(--radius-lg);
-    background: var(--surface-secondary);
+    background: color-mix(in srgb, var(--surface-secondary) 98%, transparent);
 }
 
 .calendar-day strong {
@@ -207,10 +207,10 @@
 }
 
 .calendar-slot {
-    margin-top: 8px;
-    padding: 8px 10px;
+    margin-top: 10px;
+    padding: 8px 12px;
     border-radius: var(--radius-md);
-    background: color-mix(in srgb, var(--brand-primary) 12%, transparent);
+    background: color-mix(in srgb, var(--brand-primary) 8%, transparent);
     color: var(--text-primary);
     font-size: 12px;
 }
@@ -219,13 +219,13 @@
 .form-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 14px;
+    gap: 18px;
 }
 
 .form-field {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 10px;
 }
 
 .form-field label {
@@ -240,10 +240,10 @@
 .form-field textarea,
 .form-field select {
     width: 100%;
-    padding: 12px 14px;
-    border: 1px solid var(--border-default);
+    padding: 13px 15px;
+    border: 1px solid var(--border-subtle);
     border-radius: var(--radius-md);
-    background: var(--surface-secondary);
+    background: color-mix(in srgb, var(--surface-secondary) 99%, transparent);
     color: var(--text-primary);
 }
 
@@ -264,14 +264,14 @@
 .metric-kv {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 10px;
+    gap: 14px;
 }
 
 .metric-kv .detail-item,
 .settings-card .detail-item,
 .segment-card .detail-item {
-    padding: 10px 0;
-    border-bottom: 1px solid var(--border-default);
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border-subtle);
 }
 
 .metric-kv .detail-item:last-child,
@@ -281,9 +281,9 @@
 }
 
 .stub-note {
-    padding: 16px;
-    border: 1px dashed var(--border-strong);
+    padding: 18px;
+    border: 1px dashed var(--border-default);
     border-radius: var(--radius-lg);
-    background: color-mix(in srgb, var(--surface-secondary) 94%, transparent);
+    background: color-mix(in srgb, var(--surface-secondary) 98%, transparent);
     color: var(--text-secondary);
 }
