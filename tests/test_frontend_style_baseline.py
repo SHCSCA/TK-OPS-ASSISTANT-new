@@ -121,3 +121,16 @@ def test_ui_hardening_selectors_exist_for_controls_and_analytics() -> None:
 
     for selector in required_selectors:
         assert selector in combined
+
+
+def test_shell_css_contains_status_bar_layout_for_richer_runtime_chips() -> None:
+    shell_css = (ROOT / "desktop_app" / "assets" / "css" / "shell.css").read_text(encoding="utf-8")
+
+    required_selectors = [
+        ".status-bar__left {",
+        ".status-bar__right {",
+        ".status-text {",
+    ]
+
+    for selector in required_selectors:
+        assert selector in shell_css

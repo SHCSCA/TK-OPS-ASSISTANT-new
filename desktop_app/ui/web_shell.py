@@ -29,7 +29,7 @@ def _app_icon() -> QIcon:
 class WebShellWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
-        self.setWindowTitle("TK-OPS Desktop Prototype")
+        self.setWindowTitle("TK-OPS 运营助手")
         self.resize(1600, 960)
         self.setWindowIcon(_app_icon())
 

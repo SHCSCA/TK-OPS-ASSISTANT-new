@@ -23,6 +23,15 @@
 
     function setCachedTier(tier) {
         _cachedTier = tier || null;
+        if (uiState && uiState.shellRuntime && uiState.shellRuntime.systemStatus) {
+            uiState.shellRuntime.systemStatus.license = Object.assign({}, uiState.shellRuntime.systemStatus.license || {}, {
+                tier: _cachedTier,
+                activated: Boolean(_cachedTier),
+            });
+            if (typeof renderShellRuntimeSummary === 'function') {
+                renderShellRuntimeSummary();
+            }
+        }
         _applyNavTierBadges();
     }
 
@@ -176,21 +185,33 @@
     /* ── Check license at startup ── */
     function checkLicenseOnStartup() {
         api.license.status().then(function (status) {
+            if (uiState && uiState.shellRuntime && uiState.shellRuntime.systemStatus) {
+                uiState.shellRuntime.systemStatus.license = Object.assign({}, status || {});
+            }
             if (status.activated) {
                 setCachedTier(status.tier);
             } else {
                 setCachedTier(null);
                 showActivationScreen(status);
             }
+            if (typeof renderShellRuntimeSummary === 'function') {
+                renderShellRuntimeSummary();
+            }
         }).catch(function () {
             // Backend not ready yet — retry once
             setTimeout(function () {
                 api.license.status().then(function (s) {
+                    if (uiState && uiState.shellRuntime && uiState.shellRuntime.systemStatus) {
+                        uiState.shellRuntime.systemStatus.license = Object.assign({}, s || {});
+                    }
                     if (s.activated) {
                         setCachedTier(s.tier);
                     } else {
                         setCachedTier(null);
                         showActivationScreen(s);
+                    }
+                    if (typeof renderShellRuntimeSummary === 'function') {
+                        renderShellRuntimeSummary();
                     }
                 }).catch(function () {});
             }, 1000);

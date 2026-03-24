@@ -67,6 +67,17 @@ function updateNotificationBadge() {
     } else if (badge) {
         badge.remove();
     }
+    if (uiState.shellRuntime && uiState.shellRuntime.systemStatus) {
+        const existing = uiState.shellRuntime.systemStatus.notifications || {};
+        uiState.shellRuntime.systemStatus.notifications = {
+            total: existing.total || uiState.notifications.length,
+            unread,
+            hasUnread: unread > 0,
+        };
+    }
+    if (typeof renderShellRuntimeSummary === 'function') {
+        renderShellRuntimeSummary();
+    }
 }
 
 function formatTimeAgo(date) {
@@ -93,6 +104,13 @@ function syncNotifications(items) {
         source: item.source || 'backend',
     }));
     uiState.notificationId = uiState.notifications.length;
+    if (uiState.shellRuntime && uiState.shellRuntime.systemStatus) {
+        uiState.shellRuntime.systemStatus.notifications = {
+            total: uiState.notifications.length,
+            unread: uiState.notifications.filter((n) => !n.read).length,
+            hasUnread: uiState.notifications.some((n) => !n.read),
+        };
+    }
     renderNotifications();
     updateNotificationBadge();
 }

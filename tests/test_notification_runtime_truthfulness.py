@@ -8,6 +8,7 @@ UI_NOTIFICATIONS_JS = ROOT / "desktop_app" / "assets" / "js" / "ui-notifications
 BRIDGE_PY = ROOT / "desktop_app" / "ui" / "bridge.py"
 BRIDGE_JS = ROOT / "desktop_app" / "assets" / "js" / "bridge.js"
 DATA_JS = ROOT / "desktop_app" / "assets" / "js" / "data.js"
+MAIN_JS = ROOT / "desktop_app" / "assets" / "js" / "main.js"
 
 
 def test_notification_ui_no_longer_injects_simulated_timeout_messages() -> None:
@@ -31,3 +32,15 @@ def test_bridge_and_data_layer_expose_notification_loading_surface() -> None:
     assert "listNotifications:" in bridge_js_text
     assert "notifications:" in data_js_text
     assert "callBackend('listNotifications')" in data_js_text
+
+
+def test_main_shell_uses_notification_state_in_runtime_summary() -> None:
+    text = MAIN_JS.read_text(encoding="utf-8")
+    required = [
+        "loadNotifications()",
+        "uiState.shellRuntime.notifications",
+        "未读",
+        "通知",
+    ]
+    for snippet in required:
+        assert snippet in text, snippet

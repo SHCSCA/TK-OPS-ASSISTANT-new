@@ -23,7 +23,7 @@ def build_application():
     log.info("Application starting")
 
     app = QApplication.instance() or QApplication([])
-    app.setApplicationName("TK-OPS Desktop Prototype")
+    app.setApplicationName("TK-OPS 运营助手")
     app.setOrganizationName("TK-OPS")
     app.setQuitOnLastWindowClosed(True)
 

@@ -349,29 +349,15 @@
 
     function _applyRuntimeSummary(summary) {
         if (!summary) return;
-        if (typeof renderSidebarSummary === 'function') {
-            renderSidebarSummary({
+        if (typeof setShellRouteSummary === 'function') {
+            setShellRouteSummary({
                 eyebrow: summary.eyebrow || '',
                 title: summary.title || '',
                 copy: summary.copy || '',
+                statusLeft: Array.isArray(summary.statusLeft) ? summary.statusLeft.slice() : [],
+                statusRight: Array.isArray(summary.statusRight) ? summary.statusRight.slice() : [],
             });
-        } else {
-            var titleNode = document.getElementById('sidebarSummaryTitle');
-            var copyNode = document.getElementById('sidebarSummaryCopy');
-            if (titleNode) titleNode.textContent = summary.title || '';
-            if (copyNode) copyNode.textContent = summary.copy || '';
-        }
-        var leftHost = document.getElementById('statusLeft');
-        var rightHost = document.getElementById('statusRight');
-        if (leftHost && Array.isArray(summary.statusLeft)) {
-            leftHost.innerHTML = summary.statusLeft.map(function (text) {
-                return '<span class="status-text">' + _esc(text) + '</span>';
-            }).join('');
-        }
-        if (rightHost && Array.isArray(summary.statusRight)) {
-            rightHost.innerHTML = summary.statusRight.map(function (item) {
-                return '<span class="status-chip ' + _esc(item.tone || 'info') + '">' + _esc(item.text || '') + '</span>';
-            }).join('');
+            return;
         }
     }
 

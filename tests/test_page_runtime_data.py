@@ -8,6 +8,8 @@ ROUTES_JS = ROOT / "desktop_app" / "assets" / "js" / "routes.js"
 PAGE_LOADERS_JS = ROOT / "desktop_app" / "assets" / "js" / "page-loaders.js"
 OPERATIONS_JS = ROOT / "desktop_app" / "assets" / "js" / "factories" / "operations.js"
 GENERATION_JS = ROOT / "desktop_app" / "assets" / "js" / "factories" / "generation.js"
+MAIN_JS = ROOT / "desktop_app" / "assets" / "js" / "main.js"
+STATE_JS = ROOT / "desktop_app" / "assets" / "js" / "state.js"
 
 
 PRIMARY_RUNTIME_PAGES = [
@@ -90,3 +92,36 @@ def test_remaining_realized_analytics_and_content_routes_reference_runtime_data_
     ]
     for source in required_sources:
         assert source in text, source
+
+
+def test_shell_runtime_state_exists_for_global_summary_management() -> None:
+    text = STATE_JS.read_text(encoding="utf-8")
+    required_snippets = [
+        "shellRuntime:",
+        "defaultSummary",
+        "routeSummary",
+        "license:",
+        "notifications:",
+        "update:",
+        "onboarding:",
+        "boot:",
+    ]
+    for snippet in required_snippets:
+        assert snippet in text, snippet
+
+
+def test_main_js_builds_shell_runtime_summary_from_real_sources() -> None:
+    text = MAIN_JS.read_text(encoding="utf-8")
+    required_snippets = [
+        "api.dashboard.stats()",
+        "api.notifications.list()",
+        "api.license.status()",
+        "api.version.current()",
+        "api.version.check()",
+        "api.settings.get('onboarding.completed')",
+        "renderShellRuntimeSummary",
+        "setShellRouteSummary",
+        "setShellSystemStatus",
+    ]
+    for snippet in required_snippets:
+        assert snippet in text, snippet

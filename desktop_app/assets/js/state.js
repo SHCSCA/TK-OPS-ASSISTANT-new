@@ -12,6 +12,22 @@ const uiState = {
     detailPanelForced: null,
     notifications: [],
     notificationId: 0,
+    shellRuntime: {
+        defaultSummary: null,
+        routeSummary: null,
+        license: null,
+        notifications: null,
+        update: null,
+        onboarding: null,
+        boot: { stage: 'idle', ready: false, error: '' },
+        systemStatus: {
+            license: null,
+            notifications: null,
+            update: null,
+            onboarding: null,
+            boot: { stage: 'idle', ready: false, error: '' },
+        },
+    },
 };
 
 uiState['group-management'] = uiState['group-management'] || { keyword: '', selectedId: null };

@@ -39,9 +39,15 @@ function animateRouteTransition(routeKey) {
             detailHost.classList.remove('route-exit');
             document.getElementById('detailHost').classList.toggle('shell-hidden', route.hideDetailPanel === true || window.innerWidth < 1180);
 
-            renderSidebarSummary(route.sidebarSummary);
+            if (typeof renderShellRuntimeSummary === 'function') {
+                renderShellRuntimeSummary();
+            } else {
+                renderSidebarSummary(route.sidebarSummary);
+            }
             applyTheme(currentTheme);
-            renderStatus(route);
+            if (!(typeof renderShellRuntimeSummary === 'function')) {
+                renderStatus(route);
+            }
             mainHost.classList.remove('route-enter', 'skeleton-active');
             mainHost.classList.add('route-enter-active');
 
