@@ -67,7 +67,7 @@ def test_primary_page_route_summaries_no_longer_freeze_numeric_business_copy() -
 def test_runtime_summary_handlers_reference_real_data_sources() -> None:
     text = PAGE_LOADERS_JS.read_text(encoding="utf-8")
     required_sources = [
-        "api.dashboard.stats()",
+        "api.dashboard.overview(",
         "api.accounts.list()",
         "api.groups.list()",
         "api.devices.list()",

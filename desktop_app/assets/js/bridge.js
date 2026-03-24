@@ -60,6 +60,20 @@
                 devices:  { total: 0, byStatus: {} },
                 groups: 0, assets: 0, providers: 0,
             }),
+            getDashboardOverview: () => ok({
+                range: 'today',
+                stats: {
+                    accounts: { total: 0, byStatus: {} },
+                    tasks: { total: 0, byStatus: {} },
+                    devices: { total: 0, byStatus: {} },
+                    groups: 0,
+                    assets: 0,
+                    providers: 0,
+                },
+                trend: [],
+                activity: [],
+                systems: [],
+            }),
             getAnalyticsSummary: () => ok({
                 accounts: { total: 0, active: 0, by_region: {}, followers_total: 0 },
                 tasks: { total: 0, completed: 0, running: 0, failed: 0 },

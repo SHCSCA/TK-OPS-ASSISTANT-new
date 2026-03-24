@@ -153,6 +153,7 @@
         // -- Dashboard --
         dashboard: {
             stats: function () { return callCached('dashboard:stats', 15000, 'getDashboardStats'); },
+            overview: function (rangeKey) { return callBackend('getDashboardOverview', rangeKey || 'today'); },
         },
         analytics: {
             summary: function () { return callBackend('getAnalyticsSummary'); },

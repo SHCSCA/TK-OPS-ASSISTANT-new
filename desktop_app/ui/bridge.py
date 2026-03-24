@@ -451,6 +451,122 @@ class Bridge(QObject):
             "providers": self._repo.count(AIProvider),
         })
 
+    @Slot(str, result=str)
+    @_safe
+    def getDashboardOverview(self, range_key: str = "today") -> str:
+        import datetime as dt
+
+        now = dt.datetime.now()
+        if range_key == "7d":
+            bucket_count = 7
+            start = now - dt.timedelta(days=6)
+            bucket_starts = [
+                dt.datetime.combine((start.date() + dt.timedelta(days=index)), dt.time.min)
+                for index in range(bucket_count)
+            ]
+            labels = [(start.date() + dt.timedelta(days=index)).strftime("%m-%d") for index in range(bucket_count)]
+        elif range_key == "30d":
+            bucket_count = 30
+            start = now - dt.timedelta(days=29)
+            bucket_starts = [
+                dt.datetime.combine((start.date() + dt.timedelta(days=index)), dt.time.min)
+                for index in range(bucket_count)
+            ]
+            labels = [(start.date() + dt.timedelta(days=index)).strftime("%m-%d") for index in range(bucket_count)]
+        else:
+            bucket_count = 24
+            start_hour = now.replace(minute=0, second=0, microsecond=0) - dt.timedelta(hours=23)
+            bucket_starts = [start_hour + dt.timedelta(hours=index) for index in range(bucket_count)]
+            labels = [(start_hour + dt.timedelta(hours=index)).strftime("%H:00") for index in range(bucket_count)]
+
+        trend = []
+        for index, bucket_start in enumerate(bucket_starts):
+            bucket_end = bucket_starts[index + 1] if index + 1 < len(bucket_starts) else (now + dt.timedelta(seconds=1))
+            trend.append({
+                "label": labels[index],
+                "created": self._repo.count_tasks_created_between(bucket_start, bucket_end),
+                "completed": self._repo.count_tasks_completed_between(bucket_start, bucket_end),
+                "failed": self._repo.count_tasks_failed_between(bucket_start, bucket_end),
+            })
+
+        recent_logs = self._repo.list_recent_activity_logs(limit=8)
+        recent_tasks = self._repo.list_recent_tasks(limit=8)
+        activity = [
+            {
+                "title": item.title,
+                "entity": item.related_entity_type or "activity",
+                "category": item.category,
+                "status": "已记录",
+                "time": item.created_at.isoformat() if item.created_at else "",
+            }
+            for item in recent_logs
+        ]
+        if not activity:
+            activity = [
+                {
+                    "title": item.title,
+                    "entity": "task",
+                    "category": item.task_type,
+                    "status": item.status,
+                    "time": item.created_at.isoformat() if item.created_at else "",
+                }
+                for item in recent_tasks
+            ]
+
+        providers = self._repo.list_all(AIProvider, limit=20)
+        tasks_by_status = self._repo.count_tasks_by_status()
+        devices_by_status = self._repo.count_devices_by_status()
+
+        systems = [
+            {
+                "key": "tasks",
+                "title": "任务执行状态",
+                "summary": "运行中 %s / 排队 %s" % (tasks_by_status.get("running", 0), tasks_by_status.get("pending", 0)),
+                "status": "异常" if tasks_by_status.get("failed", 0) else "正常",
+                "tone": "error" if tasks_by_status.get("failed", 0) else "success",
+            },
+            {
+                "key": "providers",
+                "title": "AI 供应商接入",
+                "summary": "启用 %s / 总计 %s" % (len([p for p in providers if p.is_active]), len(providers)),
+                "status": "未配置" if not providers else "已接入",
+                "tone": "warning" if not providers else "success",
+            },
+            {
+                "key": "accounts",
+                "title": "账号同步准备",
+                "summary": "账号 %s / 分组 %s" % (self._repo.count(Account), self._repo.count(Group)),
+                "status": "正常",
+                "tone": "info",
+            },
+            {
+                "key": "devices",
+                "title": "设备与链路状态",
+                "summary": "健康 %s / 警告 %s / 错误 %s" % (
+                    devices_by_status.get("healthy", 0),
+                    devices_by_status.get("warning", 0),
+                    devices_by_status.get("error", 0),
+                ),
+                "status": "需关注" if devices_by_status.get("error", 0) or devices_by_status.get("warning", 0) else "正常",
+                "tone": "warning" if devices_by_status.get("error", 0) or devices_by_status.get("warning", 0) else "success",
+            },
+        ]
+
+        return _ok({
+            "range": range_key,
+            "stats": {
+                "accounts": {"total": self._repo.count(Account), "byStatus": self._repo.count_accounts_by_status()},
+                "tasks": {"total": self._repo.count(Task), "byStatus": tasks_by_status},
+                "devices": {"total": self._repo.count(Device), "byStatus": devices_by_status},
+                "groups": self._repo.count(Group),
+                "assets": self._repo.count(Asset),
+                "providers": len(providers),
+            },
+            "trend": trend,
+            "activity": activity,
+            "systems": systems,
+        })
+
     @Slot(result=str)
     @_safe
     def getAnalyticsSummary(self) -> str:

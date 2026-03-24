@@ -493,55 +493,155 @@
        Dashboard 页面
        ══════════════════════════════════════════════ */
     loaders['dashboard'] = function () {
-        api.dashboard.stats().then(function (stats) {
-            if (!stats) return;
-            runtimeSummaryHandlers['dashboard']({ stats: stats });
-            var cards = document.querySelectorAll('#mainHost .stat-card');
-            if (cards.length >= 4) {
-                // Total Accounts
-                var acVal = cards[0].querySelector('.stat-card__value');
-                if (acVal) acVal.textContent = _formatNum(stats.accounts ? stats.accounts.total : 0);
-                // AI Tasks (使用 tasks total)
-                var tkVal = cards[1].querySelector('.stat-card__value');
-                if (tkVal) tkVal.textContent = _formatNum(stats.tasks ? stats.tasks.total : 0);
-                // Providers count → System Health placeholder
-                var sysVal = cards[2].querySelector('.stat-card__value');
-                if (sysVal) {
-                    var provCount = stats.providers || 0;
-                    sysVal.textContent = provCount > 0 ? '正常' : '未配置';
-                }
-                // Groups → ROI placeholder
-                var grpVal = cards[3].querySelector('.stat-card__value');
-                if (grpVal) grpVal.textContent = _formatNum(stats.groups || 0) + ' 组';
-            }
-
-            // ── 更新侧栏 AI 引擎状态 ──
-            _updateDashboardSidebar(stats);
-        }).catch(function (e) {
-            console.warn('[page-loaders] dashboard load failed:', e);
-        });
+        _wireHeaderPrimary(function () { openTaskForm(); });
+        _loadDashboardOverview(uiState.dashboard && uiState.dashboard.dashboardRange ? uiState.dashboard.dashboardRange : 'today');
     };
 
-    function _updateDashboardSidebar(stats) {
-        // 更新任务 byStatus 显示
-        var taskItems = document.querySelectorAll('#mainHost .metric-list .task-item');
-        if (taskItems.length >= 1 && stats.tasks && stats.tasks.byStatus) {
-            var bs = stats.tasks.byStatus;
-            var running = bs['running'] || 0;
-            var pending = bs['pending'] || 0;
-            var completed = bs['completed'] || 0;
-            var failed = bs['failed'] || 0;
-            // 更新第一个 task-item 展示任务运行状态
-            var firstStrong = taskItems[0].querySelector('strong');
-            if (firstStrong) firstStrong.textContent = '任务执行引擎';
-            var firstSubtle = taskItems[0].querySelector('.subtle');
-            if (firstSubtle) firstSubtle.textContent = '运行中 ' + running + ' / 排队 ' + pending;
-            var firstPill = taskItems[0].querySelector('.pill');
-            if (firstPill) {
-                firstPill.textContent = failed > 0 ? failed + ' 异常' : '正常';
-                firstPill.className = 'pill ' + (failed > 0 ? 'error' : 'success');
-            }
+    function _loadDashboardOverview(rangeKey) {
+        if (!uiState.dashboard) uiState.dashboard = { dashboardRange: 'today', selectedSystemKey: null };
+        uiState.dashboard.dashboardRange = rangeKey || 'today';
+        api.dashboard.overview(uiState.dashboard.dashboardRange).then(function (overview) {
+            overview = overview || {};
+            runtimeSummaryHandlers['dashboard']({ stats: overview.stats || {} });
+            _renderDashboardStats(overview.stats || {});
+            _renderDashboardTrend(overview.trend || [], uiState.dashboard.dashboardRange);
+            _renderDashboardActivity(overview.activity || []);
+            _renderDashboardSystems(overview.systems || []);
+            _syncDashboardRangeButtons(uiState.dashboard.dashboardRange);
+        }).catch(function (e) {
+            console.warn('[page-loaders] dashboard overview load failed:', e);
+        });
+    }
+
+    function _renderDashboardStats(stats) {
+        var statMap = {
+            accounts: _formatNum(stats.accounts ? stats.accounts.total : 0),
+            tasks: _formatNum(stats.tasks ? stats.tasks.total : 0),
+            failed: _formatNum(stats.tasks && stats.tasks.byStatus ? (stats.tasks.byStatus.failed || 0) : 0),
+            providers: _formatNum(stats.providers || 0),
+        };
+        Object.keys(statMap).forEach(function (key) {
+            var node = document.querySelector('#mainHost [data-dashboard-stat="' + key + '"] .stat-card__value');
+            if (node) node.textContent = statMap[key];
+        });
+    }
+
+    function _renderDashboardTrend(trend, rangeKey) {
+        var host = document.querySelector('#mainHost [data-dashboard-chart]');
+        if (!host) return;
+        if (!trend.length) {
+            host.innerHTML = '<div class="subtle">当前时间范围暂无趋势数据</div>';
+            return;
         }
+        var maxValue = 1;
+        trend.forEach(function (item) {
+            maxValue = Math.max(maxValue, item.created || 0, item.completed || 0, item.failed || 0);
+        });
+        var rows = trend.map(function (item) {
+            var createdWidth = Math.max(4, Math.round(((item.created || 0) / maxValue) * 100));
+            var completedWidth = Math.max(4, Math.round(((item.completed || 0) / maxValue) * 100));
+            var failedWidth = Math.max(4, Math.round(((item.failed || 0) / maxValue) * 100));
+            return '<div class="dashboard-trend-row">'
+                + '<div class="dashboard-trend-row__label">' + _esc(item.label || '--') + '</div>'
+                + '<div class="dashboard-trend-row__bars">'
+                + '<span class="dashboard-trend-bar is-created" style="width:' + createdWidth + '%">新增 ' + _esc(String(item.created || 0)) + '</span>'
+                + '<span class="dashboard-trend-bar is-completed" style="width:' + completedWidth + '%">完成 ' + _esc(String(item.completed || 0)) + '</span>'
+                + '<span class="dashboard-trend-bar is-failed" style="width:' + failedWidth + '%">异常 ' + _esc(String(item.failed || 0)) + '</span>'
+                + '</div></div>';
+        }).join('');
+        host.innerHTML = '<div class="dashboard-axis-note">X 轴：' + _esc(rangeKey === 'today' ? '小时' : '日期') + '；Y 轴：任务数量</div>'
+            + '<div class="dashboard-trend-list">' + rows + '</div>';
+    }
+
+    function _renderDashboardActivity(activity) {
+        var tbody = document.querySelector('#mainHost [data-dashboard-activity]');
+        if (!tbody) return;
+        if (!activity.length) {
+            tbody.innerHTML = '<tr><td colspan="5" class="subtle">暂无活动数据</td></tr>';
+            return;
+        }
+        tbody.innerHTML = activity.map(function (item, index) {
+            return '<tr class="route-row' + (index === 0 ? ' is-selected' : '') + '" data-dashboard-activity-row="1">'
+                + '<td><strong>' + _esc(item.title || '未命名动作') + '</strong></td>'
+                + '<td class="mono">' + _esc(item.entity || '--') + '</td>'
+                + '<td>' + _esc(item.category || '--') + '</td>'
+                + '<td><span class="status-chip info">' + _esc(item.status || '--') + '</span></td>'
+                + '<td class="subtle">' + _esc(_formatDashboardTime(item.time)) + '</td>'
+                + '</tr>';
+        }).join('');
+    }
+
+    function _renderDashboardSystems(systems) {
+        var host = document.querySelector('#mainHost [data-dashboard-systems]');
+        var statusChip = document.querySelector('#mainHost [data-dashboard-systems-status]');
+        if (!host) return;
+        if (!systems.length) {
+            host.innerHTML = '<div class="task-item"><div><strong>暂无系统状态</strong><div class="subtle">等待后端返回摘要</div></div><span class="pill warning">空</span></div>';
+            if (statusChip) {
+                statusChip.textContent = '暂无数据';
+                statusChip.className = 'status-chip warning';
+            }
+            return;
+        }
+        var hasError = systems.some(function (item) { return item.tone === 'error'; });
+        var hasWarning = systems.some(function (item) { return item.tone === 'warning'; });
+        if (statusChip) {
+            statusChip.textContent = hasError ? '存在异常' : (hasWarning ? '需要关注' : '运行稳定');
+            statusChip.className = 'status-chip ' + (hasError ? 'error' : (hasWarning ? 'warning' : 'success'));
+        }
+        host.innerHTML = systems.map(function (item, index) {
+            return '<div class="task-item dashboard-system-item' + ((uiState.dashboard.selectedSystemKey ? uiState.dashboard.selectedSystemKey === item.key : index === 0) ? ' is-selected' : '') + '" data-dashboard-system-key="' + _esc(item.key || '') + '">'
+                + '<div><strong>' + _esc(item.title || '--') + '</strong><div class="subtle">' + _esc(item.summary || '--') + '</div></div>'
+                + '<span class="pill ' + _esc(item.tone || 'info') + '">' + _esc(item.status || '--') + '</span></div>';
+        }).join('');
+        _bindDashboardSystemItems(systems);
+    }
+
+    function _bindDashboardSystemItems(systems) {
+        var items = document.querySelectorAll('#mainHost [data-dashboard-system-key]');
+        if (!items.length) return;
+        items.forEach(function (item) {
+            item.addEventListener('click', function () {
+                var key = item.getAttribute('data-dashboard-system-key');
+                uiState.dashboard.selectedSystemKey = key;
+                items.forEach(function (node) { node.classList.remove('is-selected'); });
+                item.classList.add('is-selected');
+                var current = systems.filter(function (entry) { return entry.key === key; })[0] || null;
+                if (current) {
+                    var detailHost = document.getElementById('detailHost');
+                    if (detailHost) {
+                        detailHost.innerHTML = '<div class="detail-root"><section class="panel"><div class="panel__header"><div><strong>'
+                            + _esc(current.title || '系统状态') + '</strong><div class="subtle">实时状态摘要</div></div><span class="pill ' + _esc(current.tone || 'info') + '">' + _esc(current.status || '--') + '</span></div>'
+                            + '<div class="detail-list"><div class="detail-item"><span class="subtle">摘要</span><strong>' + _esc(current.summary || '--') + '</strong></div><div class="detail-item"><span class="subtle">来源</span><strong>dashboard 运行时聚合</strong></div></div></section></div>';
+                        detailHost.classList.remove('shell-hidden');
+                    }
+                }
+            });
+        });
+    }
+
+    function _syncDashboardRangeButtons(rangeKey) {
+        document.querySelectorAll('#mainHost [data-dashboard-range] button').forEach(function (btn) {
+            btn.classList.toggle('is-active', btn.getAttribute('data-range') === rangeKey);
+        });
+    }
+
+    function _formatDashboardTime(value) {
+        if (!value) return '--';
+        var text = String(value);
+        if (text.indexOf('T') !== -1) {
+            return text.replace('T', ' ').slice(5, 16);
+        }
+        return text;
+    }
+
+    function _esc(value) {
+        return String(value == null ? '' : value)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
     }
 
     /* ══════════════════════════════════════════════
@@ -4549,6 +4649,7 @@
     // ── 暴露全局 ──
     window.loadRouteData = loadRouteData;
     window._pageLoaders = loaders;
+    window.__loadDashboardOverview = _loadDashboardOverview;
     window.__pageAudits = pageAudits;
     window.__runtimeSummaryHandlers = runtimeSummaryHandlers;
 })();

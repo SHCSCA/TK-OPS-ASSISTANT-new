@@ -2,6 +2,7 @@ const RECENT_ROUTES_KEY = 'tkops.recentRoutes';
 
 const uiState = {
     globalSearch: '',
+    dashboard: { dashboardRange: 'today', selectedSystemKey: null },
     account: { statusFilter: 'all', view: 'card', sortMode: 'default' },
     'group-management': { keyword: '', selectedId: null },
     'device-management': { statusFilter: 'all', view: 'card', selectedId: null },
@@ -30,6 +31,7 @@ const uiState = {
     },
 };
 
+uiState.dashboard = uiState.dashboard || { dashboardRange: 'today', selectedSystemKey: null };
 uiState['group-management'] = uiState['group-management'] || { keyword: '', selectedId: null };
 uiState['device-management'] = uiState['device-management'] || { statusFilter: 'all', view: 'card', selectedId: null };
 uiState['task-queue'] = uiState['task-queue'] || { statusFilter: 'all' };

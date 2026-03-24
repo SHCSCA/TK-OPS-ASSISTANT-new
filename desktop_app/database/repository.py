@@ -1,9 +1,11 @@
 """Generic CRUD repository for TK-OPS models."""
 from __future__ import annotations
 
+import datetime as dt
+
 from typing import Any, Sequence, Type, TypeVar
 
-from sqlalchemy import func, select
+from sqlalchemy import and_, func, select
 from sqlalchemy.orm import Session
 
 from desktop_app.database import get_session
@@ -153,6 +155,14 @@ class Repository:
             stmt.order_by(ActivityLog.created_at.desc(), ActivityLog.id.desc())
         ).scalars().all()
 
+    def list_recent_tasks(self, *, limit: int = 20) -> Sequence[Task]:
+        stmt = select(Task).order_by(Task.created_at.desc(), Task.id.desc()).limit(limit)
+        return self._session.execute(stmt).scalars().all()
+
+    def list_recent_activity_logs(self, *, limit: int = 20) -> Sequence[ActivityLog]:
+        stmt = select(ActivityLog).order_by(ActivityLog.created_at.desc(), ActivityLog.id.desc()).limit(limit)
+        return self._session.execute(stmt).scalars().all()
+
     # ── app settings ──
 
     def get_setting(self, key: str, default: str = "") -> str:
@@ -190,6 +200,24 @@ class Repository:
             select(Device.status, func.count()).group_by(Device.status)
         ).all()
         return {status: cnt for status, cnt in rows}
+
+    def count_tasks_created_between(self, start: dt.datetime, end: dt.datetime) -> int:
+        stmt = select(func.count()).select_from(Task).where(
+            and_(Task.created_at >= start, Task.created_at < end)
+        )
+        return self._session.execute(stmt).scalar() or 0
+
+    def count_tasks_completed_between(self, start: dt.datetime, end: dt.datetime) -> int:
+        stmt = select(func.count()).select_from(Task).where(
+            and_(Task.finished_at.is_not(None), Task.finished_at >= start, Task.finished_at < end)
+        )
+        return self._session.execute(stmt).scalar() or 0
+
+    def count_tasks_failed_between(self, start: dt.datetime, end: dt.datetime) -> int:
+        stmt = select(func.count()).select_from(Task).where(
+            and_(Task.status == "failed", Task.created_at >= start, Task.created_at < end)
+        )
+        return self._session.execute(stmt).scalar() or 0
 
     def close(self) -> None:
         self._session.close()

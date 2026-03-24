@@ -1024,7 +1024,11 @@ function _bindRouteButtonPresets() {
         dashboard: {
             '查看历史': () => typeof renderRoute === 'function' ? renderRoute('task-queue') : null,
             'View History': () => typeof renderRoute === 'function' ? renderRoute('task-queue') : null,
-            'Launch New Task': () => typeof renderRoute === 'function' ? renderRoute('task-queue') : null,
+            '新建任务': () => typeof openTaskForm === 'function' ? openTaskForm() : null,
+            'Launch New Task': () => typeof openTaskForm === 'function' ? openTaskForm() : null,
+            '今日': () => typeof window.__loadDashboardOverview === 'function' ? window.__loadDashboardOverview('today') : null,
+            '近 7 天': () => typeof window.__loadDashboardOverview === 'function' ? window.__loadDashboardOverview('7d') : null,
+            '近 30 天': () => typeof window.__loadDashboardOverview === 'function' ? window.__loadDashboardOverview('30d') : null,
             '处理账号异常': () => typeof renderRoute === 'function' ? renderRoute('account') : null,
             '启动内容批量生成': () => typeof renderRoute === 'function' ? renderRoute('ai-content-factory') : null,
             '网络诊断': () => typeof renderRoute === 'function' ? renderRoute('device-management') : null,

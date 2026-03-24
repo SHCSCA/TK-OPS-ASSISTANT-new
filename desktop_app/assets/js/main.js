@@ -60,12 +60,16 @@ window.addEventListener('unhandledrejection', function (e) {
 });
 
 function _escShellText(value) {
-    return String(value == null ? '' : value)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;');
+    var text = String(value == null ? '' : value);
+    var doubleQuote = String.fromCharCode(34);
+    var singleQuote = String.fromCharCode(39);
+    var singleQuoteEntity = '&' + '#39;';
+    text = text.split('&').join('&amp;');
+    text = text.split('<').join('&lt;');
+    text = text.split('>').join('&gt;');
+    text = text.split(doubleQuote).join('&quot;');
+    text = text.split(singleQuote).join(singleQuoteEntity);
+    return text;
 }
 
 function setShellRouteSummary(summary) {
