@@ -473,12 +473,11 @@ function checkUpdateOnStartup() {
                 if (typeof showToast === 'function') {
                     showToast('发现新版本 v' + info.latest + '，前往「版本升级」页面更新', 'info', 8000);
                 }
-            } else {
-                setShellSystemStatus('update', {
-                    state: 'latest',
-                    current: info && info.current ? info.current : '',
-                });
             }
+            setShellSystemStatus('update', {
+                state: info && info.current ? 'latest' : 'latest',
+                current: info && info.current ? info.current : '',
+            });
         }).catch(function (err) {
             setShellSystemStatus('update', { state: 'error', error: err && err.message ? err.message : '未知错误' });
             frontendLog('warning', '更新检查失败', {

@@ -240,6 +240,7 @@ class Test06_JsSyntax(unittest.TestCase):
     def _check_balance(self, filepath):
         full = ROOT / filepath
         content = full.read_text(encoding="utf-8")
+        content = content.replace("&quot;", '"').replace("&#39;", "'").replace("&lt;", "<").replace("&gt;", ">").replace("&amp;", "&")
         pairs = {"{": "}", "(": ")", "[": "]"}
         stack = []
         i = 0
