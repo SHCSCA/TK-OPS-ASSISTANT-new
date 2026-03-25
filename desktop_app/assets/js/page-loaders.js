@@ -366,63 +366,64 @@
        ══════════════════════════════════════════════ */
     loaders['account'] = function () {
         _wireHeaderPrimary(function () { openAccountForm(); }, '新建账号');
+        if (!uiState.account) uiState.account = { statusFilter: 'all', view: 'card', sortMode: 'default', selectedId: null, batchMode: false };
+        if (typeof uiState.account.batchMode === 'undefined') uiState.account.batchMode = false;
 
-        api.accounts.list().then(function (accounts) {
-            accounts = accounts || [];
-            runtimeSummaryHandlers['account']({ accounts: accounts });
-            // ── 更新 tabs 计数 ──
-            var counts = { all: accounts.length, online: 0, offline: 0, error: 0 };
-            accounts.forEach(function (a) {
-                var s = (a.status || '').toLowerCase();
-                if (s === 'online' || s === '在线' || s === 'active') counts.online++;
-                else if (s === 'offline' || s === '离线' || s === 'idle') counts.offline++;
-                else if (s === 'error' || s === 'warning' || s === '异常' || s === 'suspended') counts.error++;
+        Promise.all([
+            api.accounts.list(),
+            api.devices.list(),
+            api.settings.get('account.isolation.notice.dismissed'),
+        ]).then(function (results) {
+            var accounts = results[0] || [];
+            var devices = results[1] || [];
+            var reminderSetting = String(results[2] || '').toLowerCase();
+            var reminderDismissed = reminderSetting === '1' || reminderSetting === 'true' || reminderSetting === 'yes';
+            var deviceMap = {};
+            devices.forEach(function (device) {
+                deviceMap[String(device.id)] = device;
             });
-            var tabs = document.querySelectorAll('#mainHost .local-tab');
-            if (tabs.length >= 4) {
-                tabs[0].textContent = '全部账号 (' + counts.all + ')';
-                tabs[1].textContent = '在线 (' + counts.online + ')';
-                tabs[2].textContent = '离线 (' + (counts.all - counts.online - counts.error) + ')';
-                tabs[3].textContent = '异常 (' + counts.error + ')';
-            }
 
-            // ── 渲染卡片 ──
-            var grid = document.querySelector('#mainHost .account-grid');
-            if (!grid) return;
-            if (accounts.length === 0) {
-                grid.innerHTML = '<div class="empty-state" style="padding:48px;text-align:center;"><p>暂无账号数据</p><p class="subtle">点击右上角「新建账号」添加第一个账号</p></div>';
-                return;
-            }
-            grid.innerHTML = accounts.map(function (a, i) {
-                var statusClass = _accountStatusTone(a.status);
-                var statusLabel = a.status || '未知';
-                return '<article class="account-card' + (i === 0 ? ' is-selected' : '') + '" data-id="' + (a.id || '') + '" data-status="' + _esc((a.status || '').toLowerCase()) + '" data-order="' + _esc(_accountSortOrder(a.status)) + '" data-search="' + _esc((a.username || '') + ' ' + (a.platform || '') + ' ' + (a.region || '') + ' ' + (a.status || '') + ' ' + (a.notes || '')) + '">'
-                    + '<input type="checkbox" class="batch-check js-batch-account" data-id="' + (a.id || '') + '">'
-                    + '<div class="account-card__head"><div><strong>' + _esc(a.username || '') + '</strong>'
-                    + '<div class="subtle">' + _esc(a.platform || '') + ' · ' + _esc(a.region || '') + '</div></div>'
-                    + '<span class="status-chip ' + statusClass + '">' + _esc(statusLabel) + '</span></div>'
-                    + '<div class="account-card__meta">'
-                    + '<div class="list-row"><span class="subtle">账号 ID</span><strong class="mono">' + (a.id || '-') + '</strong></div>'
-                    + '<div class="list-row"><span class="subtle">粉丝</span><strong>' + _formatNum(a.followers || 0) + '</strong></div>'
-                    + '<div class="list-row"><span class="subtle">创建时间</span><strong>' + _esc(a.created_at || '-') + '</strong></div>'
-                    + '</div>'
-                    + '<div class="detail-actions">'
-                    + '<button class="secondary-button js-edit-account" data-id="' + (a.id || '') + '">编辑</button>'
-                    + '<button class="ghost-button js-view-account" data-id="' + (a.id || '') + '">查看详情</button>'
-                    + '<button class="danger-button js-delete-account" data-id="' + (a.id || '') + '">删除</button>'
-                    + '</div></article>';
-            }).join('');
+            var viewModels = accounts.map(function (account) {
+                return _buildAccountViewModel(account, deviceMap[String(account.device_id || '')] || null);
+            });
+            window.__accountPageData = viewModels;
 
-            _bindAccountActions(accounts);
+            runtimeSummaryHandlers['account']({ accounts: accounts });
+            _updateAccountTabs(viewModels);
+            _syncAccountBanner(viewModels, reminderDismissed);
+            _syncAccountControls();
+            _renderAccountGrid(viewModels);
+            _bindAccountToolbar(viewModels);
+            _bindAccountActions(viewModels);
             _bindBatchBar('.js-batch-account', function (ids) {
                 return _batchDelete(ids, api.accounts.remove, '账号', 'account');
             });
+
+            if (!viewModels.length) {
+                window.__accountPageData = [];
+                _renderEmptyAccountDetail();
+                return;
+            }
+
+            var preferredId = uiState.account && uiState.account.selectedId ? String(uiState.account.selectedId) : String(viewModels[0].id || '');
+            _selectAccountCard(preferredId, viewModels);
+            if (typeof applyCurrentRouteState === 'function') applyCurrentRouteState();
         }).catch(function (e) {
+            console.warn('[page-loaders] account load failed:', e);
+            window.__accountPageData = [];
+            showToast('账号数据加载失败: ' + ((e && e.message) || '未知错误'), 'error');
+            _renderEmptyAccountDetail();
         });
     };
 
     function _bindAccountActions(accounts) {
-        // 编辑账号
+        document.querySelectorAll('#mainHost .account-card').forEach(function (card) {
+            card.addEventListener('click', function (event) {
+                if (event.target.closest('button, input, textarea, select, label')) return;
+                _selectAccountCard(card.dataset.id, accounts);
+            });
+        });
+
         document.querySelectorAll('.js-edit-account').forEach(function (btn) {
             btn.addEventListener('click', function (e) {
                 e.stopPropagation();
@@ -431,45 +432,1036 @@
                 if (acc) openAccountForm(acc);
             });
         });
-        // 删除账号
         document.querySelectorAll('.js-delete-account').forEach(function (btn) {
             btn.addEventListener('click', function (e) {
                 e.stopPropagation();
-                var id = parseInt(btn.dataset.id, 10);
-                if (!id) return;
-                confirmModal({
-                    title: '删除账号',
-                    message: '确定要删除此账号？此操作不可恢复。',
-                    confirmText: '删除',
-                    tone: 'danger',
-                }).then(function (ok) {
-                    if (!ok) return;
-                    api.accounts.remove(id).then(function () {
-                        showToast('账号已删除');
-                        loaders['account']();
-                    }).catch(function (err) {
-                        showToast('删除失败: ' + err.message, 'error');
-                    });
-                });
+                _confirmDeleteAccount(btn.dataset.id);
             });
         });
-        // 查看详情
         document.querySelectorAll('.js-view-account').forEach(function (btn) {
             btn.addEventListener('click', function (e) {
                 e.stopPropagation();
-                var id = btn.dataset.id;
-                var cards = document.querySelectorAll('.account-card');
-                cards.forEach(function (c) { c.classList.toggle('is-selected', c.dataset.id === id); });
-                _renderAccountDetail((accounts || []).find(function (a) { return String(a.id) === String(id); }));
+                _selectAccountCard(btn.dataset.id, accounts);
+            });
+        });
+
+        document.querySelectorAll('.js-account-open-environment').forEach(function (btn) {
+            btn.addEventListener('click', function (e) {
+                e.stopPropagation();
+                var acc = _findAccountViewModel(accounts, btn.dataset.id);
+                if (acc) _openAccountEnvironment(acc);
+            });
+        });
+
+        document.querySelectorAll('.js-account-manage-cookies').forEach(function (btn) {
+            btn.addEventListener('click', function (e) {
+                e.stopPropagation();
+                var acc = _findAccountViewModel(accounts, btn.dataset.id);
+                if (acc) _openAccountCookieModal(acc);
+            });
+        });
+
+        document.querySelectorAll('.js-validate-account-login').forEach(function (btn) {
+            btn.addEventListener('click', function (e) {
+                e.stopPropagation();
+                _runAccountLoginValidation(btn.dataset.id, btn);
+            });
+        });
+
+        document.querySelectorAll('.js-test-account-connection').forEach(function (btn) {
+            btn.addEventListener('click', function (e) {
+                e.stopPropagation();
+                _runAccountConnectionTest(btn.dataset.id, btn);
+            });
+        });
+
+        document.querySelectorAll('.js-account-configure-proxy').forEach(function (btn) {
+            btn.addEventListener('click', function (e) {
+                e.stopPropagation();
+                var acc = _findAccountViewModel(accounts, btn.dataset.id);
+                if (acc) _openAccountProxyConfig(acc);
+            });
+        });
+
+        document.querySelectorAll('.js-account-rebind-validate').forEach(function (btn) {
+            btn.addEventListener('click', function (e) {
+                e.stopPropagation();
+                var acc = _findAccountViewModel(accounts, btn.dataset.id);
+                if (acc) _openAccountProxyConfig(acc, { quickValidate: true });
             });
         });
     }
 
     function _renderAccountDetail(account) {
-        if (!account) return;
+        if (!account) {
+            _renderEmptyAccountDetail();
+            return;
+        }
         var detailHost = document.getElementById('detailHost');
         if (!detailHost) return;
-        detailHost.innerHTML = '<div class="detail-root"><section class="panel"><div class="panel__header"><div><strong>' + _esc(account.username || '账号详情') + '</strong><div class="subtle mono">ID ' + _esc(account.id || '-') + '</div></div><span class="status-chip ' + _accountStatusTone(account.status) + '">' + _esc(account.status || '未知') + '</span></div><div class="detail-list"><div class="detail-item"><span class="subtle">平台</span><strong>' + _esc(account.platform || '-') + '</strong></div><div class="detail-item"><span class="subtle">地区</span><strong>' + _esc(account.region || '-') + '</strong></div><div class="detail-item"><span class="subtle">粉丝数</span><strong>' + _formatNum(account.followers || 0) + '</strong></div><div class="detail-item"><span class="subtle">备注</span><strong>' + _esc(account.notes || '无') + '</strong></div></div></section></div>';
+        var globalAdvice = _buildAccountAdvice(account);
+        var dutySummary = _buildAccountDutySummary(account, globalAdvice);
+        detailHost.innerHTML = '<div class="detail-root">'
+            + '<section class="panel">'
+            + '<div class="panel__header"><div><strong>' + _esc(account.username || '账号详情') + '</strong><div class="subtle mono">ID ' + _esc(account.id || '-') + '</div><div class="subtle">' + _esc(account.subtitle || '账号详情') + '</div></div><span class="status-chip ' + account.statusTone + '">' + _esc(account.statusLabel) + '</span></div>'
+            + '<div class="detail-stack">'
+            + '<div class="data-points">'
+            + '<div class="data-point"><span class="subtle">Cookie 状态</span><strong>' + _esc(account.cookieLabel) + '</strong></div>'
+            + '<div class="data-point"><span class="subtle">登录态校验</span><strong>' + _esc(account.loginCheckLabel) + '</strong></div>'
+            + '<div class="data-point"><span class="subtle">隔离环境</span><strong>' + _esc(account.isolationLabel) + '</strong></div>'
+            + '<div class="data-point"><span class="subtle">Cookie 更新</span><strong>' + _esc(account.cookieUpdatedLabel) + '</strong></div>'
+            + '<div class="data-point"><span class="subtle">最近登录</span><strong>' + _esc(account.lastLoginLabel) + '</strong></div>'
+            + '<div class="data-point"><span class="subtle">代理检测</span><strong>' + _esc(account.connectionLabel) + '</strong></div>'
+            + '</div>'
+            + '<div class="detail-list">'
+            + '<div class="detail-item"><span class="subtle">平台 / 区域</span><strong>' + _esc(account.platformLabel + ' / ' + account.regionLabel) + '</strong></div>'
+            + '<div class="detail-item detail-item--stacked"><span class="subtle">代理地址</span><strong class="mono account-detail__mono-break">' + _esc(account.proxyLabel) + '</strong></div>'
+            + '<div class="detail-item"><span class="subtle">检测范围</span><strong>' + _esc(account.connectionScopeLabel) + '</strong></div>'
+            + '<div class="detail-item"><span class="subtle">Cookie 内容</span><strong>' + _esc(account.cookieContentSummary) + '</strong></div>'
+            + '<div class="detail-item detail-item--stacked"><span class="subtle">登录态说明</span><strong class="account-detail__message">' + _esc(account.loginCheckMessage) + '</strong></div>'
+            + '<div class="detail-item"><span class="subtle">标签</span><strong>' + _esc(account.tags.length ? account.tags.join(' / ') : '未打标签') + '</strong></div>'
+            + '<div class="detail-item"><span class="subtle">备注</span><strong>' + _esc(account.notes || '暂无备注') + '</strong></div>'
+            + '</div>'
+            + '<div class="detail-actions account-detail__actions">'
+            + '<button class="primary-button js-account-open-environment" data-id="' + account.id + '" type="button">进入环境</button>'
+            + '<button class="secondary-button js-account-manage-cookies" data-id="' + account.id + '" type="button">Cookie 状态</button>'
+            + '<button class="secondary-button js-account-rebind-validate" data-id="' + account.id + '" type="button">重绑并校验</button>'
+            + '<button class="secondary-button js-validate-account-login" data-id="' + account.id + '" type="button">校验登录态</button>'
+            + '<button class="secondary-button js-test-account-connection" data-id="' + account.id + '" type="button">检测代理</button>'
+            + '<button class="secondary-button js-account-configure-proxy" data-id="' + account.id + '" type="button">配置代理</button>'
+            + '<button class="ghost-button js-edit-account" data-id="' + account.id + '" type="button">编辑账号</button>'
+            + '<button class="danger-button js-delete-account" data-id="' + account.id + '" type="button">删除账号</button>'
+            + '</div>'
+            + '</div>'
+            + '</section>'
+            + '<section class="panel">'
+            + '<div class="panel__header"><div><strong>' + _esc(dutySummary.title) + '</strong><div class="subtle">' + _esc(dutySummary.copy) + '</div></div><span class="status-chip ' + dutySummary.tone + '">' + _esc(dutySummary.badge) + '</span></div>'
+            + '<div class="audit-list">'
+            + globalAdvice.map(function (item) {
+                return '<div class="audit-item"><div><strong>' + _esc(item.title) + '</strong><div class="subtle audit-item__copy">' + _esc(item.copy) + '</div></div><span class="pill ' + item.tone + '">' + _esc(item.badge) + '</span></div>';
+            }).join('')
+            + '</div>'
+            + '</section>'
+            + '</div>';
+        _bindAccountDetailActions(window.__accountPageData || [account]);
+    }
+
+    function _bindAccountDetailActions(accounts) {
+        var detailHost = document.getElementById('detailHost');
+        if (!detailHost) return;
+
+        detailHost.querySelectorAll('.js-edit-account').forEach(function (btn) {
+            btn.addEventListener('click', function (e) {
+                e.stopPropagation();
+                var acc = _findAccountViewModel(accounts, btn.dataset.id);
+                if (acc) openAccountForm(acc);
+            });
+        });
+
+        detailHost.querySelectorAll('.js-delete-account').forEach(function (btn) {
+            btn.addEventListener('click', function (e) {
+                e.stopPropagation();
+                _confirmDeleteAccount(btn.dataset.id);
+            });
+        });
+
+        detailHost.querySelectorAll('.js-account-open-environment').forEach(function (btn) {
+            btn.addEventListener('click', function (e) {
+                e.stopPropagation();
+                var acc = _findAccountViewModel(accounts, btn.dataset.id);
+                if (acc) _openAccountEnvironment(acc);
+            });
+        });
+
+        detailHost.querySelectorAll('.js-account-manage-cookies').forEach(function (btn) {
+            btn.addEventListener('click', function (e) {
+                e.stopPropagation();
+                var acc = _findAccountViewModel(accounts, btn.dataset.id);
+                if (acc) _openAccountCookieModal(acc);
+            });
+        });
+
+        detailHost.querySelectorAll('.js-validate-account-login').forEach(function (btn) {
+            btn.addEventListener('click', function (e) {
+                e.stopPropagation();
+                _runAccountLoginValidation(btn.dataset.id, btn);
+            });
+        });
+
+        detailHost.querySelectorAll('.js-test-account-connection').forEach(function (btn) {
+            btn.addEventListener('click', function (e) {
+                e.stopPropagation();
+                _runAccountConnectionTest(btn.dataset.id, btn);
+            });
+        });
+
+        detailHost.querySelectorAll('.js-account-configure-proxy').forEach(function (btn) {
+            btn.addEventListener('click', function (e) {
+                e.stopPropagation();
+                var acc = _findAccountViewModel(accounts, btn.dataset.id);
+                if (acc) _openAccountProxyConfig(acc);
+            });
+        });
+
+        detailHost.querySelectorAll('.js-account-rebind-validate').forEach(function (btn) {
+            btn.addEventListener('click', function (e) {
+                e.stopPropagation();
+                var acc = _findAccountViewModel(accounts, btn.dataset.id);
+                if (acc) _openAccountProxyConfig(acc, { quickValidate: true });
+            });
+        });
+    }
+
+    function _buildAccountViewModel(account, device) {
+        var tags = _splitAccountTags(account.tags);
+        var cookieMeta = _accountCookieMeta(account.cookie_status);
+        var loginCheckMeta = _accountLoginCheckMeta(account.last_login_check_status, account.last_login_check_message, account.last_login_check_at);
+        var lastConnectionMeta = _accountConnectionMeta(account.last_connection_status, account.last_connection_message, account.last_connection_checked_at);
+        return {
+            id: account.id,
+            username: account.username || '',
+            platform: account.platform || '',
+            platformLabel: _accountPlatformLabel(account.platform),
+            region: account.region || '',
+            regionLabel: _accountRegionLabel(account.region),
+            status: account.status || '',
+            statusLabel: _accountStatusLabel(account.status),
+            statusTone: _accountStatusTone(account.status),
+            filterStatus: _accountFilterStatus(account.status),
+            sortOrder: _accountSortOrder(account.status),
+            followers: parseInt(account.followers || 0, 10) || 0,
+            notes: account.notes || '',
+            created_at: account.created_at || '',
+            device_id: account.device_id || null,
+            device: device,
+            tags: tags,
+            cookieStatus: cookieMeta.value,
+            cookieLabel: cookieMeta.label,
+            cookieTone: cookieMeta.tone,
+            cookieContentRaw: account.cookie_content || '',
+            cookieContentSummary: _accountCookieContentSummary(account.cookie_content),
+            cookieUpdatedAt: account.cookie_updated_at || '',
+            cookieUpdatedLabel: _formatRelativeDate(account.cookie_updated_at),
+            loginCheckStatus: loginCheckMeta.value,
+            loginCheckStatusRaw: account.last_login_check_status || 'unknown',
+            loginCheckLabel: loginCheckMeta.label,
+            loginCheckTone: loginCheckMeta.tone,
+            loginCheckMessage: loginCheckMeta.message,
+            loginCheckAt: account.last_login_check_at || '',
+            loginCheckCheckedLabel: _formatRelativeDate(account.last_login_check_at),
+            isolationEnabled: _isTruthy(account.isolation_enabled),
+            isolationLabel: _isTruthy(account.isolation_enabled) ? '已启用' : '未启用',
+            isolationTone: _isTruthy(account.isolation_enabled) ? 'success' : 'warning',
+            lastLoginLabel: _formatRelativeDate(account.last_login_at),
+            lastLoginAt: account.last_login_at || '',
+            proxyLabel: _accountProxyLabel(device),
+            subtitle: _accountRegionLabel(account.region) + ' · ' + _accountSummaryLine(account, tags),
+            connectionLabel: lastConnectionMeta.label,
+            connectionTone: lastConnectionMeta.tone,
+            connectionMessage: lastConnectionMeta.message,
+            connectionScopeLabel: _accountConnectionScopeLabel(device),
+            lastConnectionStatus: account.last_connection_status || 'unknown',
+            detailTarget: 'account-' + String(account.id || ''),
+            searchText: _buildAccountSearchText(account, device, tags, cookieMeta, lastConnectionMeta),
+            raw: account,
+        };
+    }
+
+    function _renderAccountGrid(accounts) {
+        var grid = document.querySelector('#mainHost .account-grid');
+        if (!grid) return;
+        if (!accounts.length) {
+            grid.innerHTML = '<div class="empty-state" style="padding:48px;text-align:center;"><p>暂无账号数据</p><p class="subtle">点击右上角「新建账号」添加第一个账号</p></div>';
+            return;
+        }
+
+        grid.innerHTML = accounts.map(function (a) {
+            var tagMarkup = a.tags.slice(0, 3).map(function (tag) {
+                return '<span class="pill info">' + _esc(tag) + '</span>';
+            }).join('');
+            return '<article class="account-card detail-trigger" data-id="' + (a.id || '') + '" data-detail-target="' + _esc(a.detailTarget) + '" data-status="' + _esc(_accountFilterStatus(a.status)) + '" data-order="' + _esc(_accountSortOrder(a.status)) + '" data-search="' + _esc(_buildAccountSearchText(a.raw, a.device, a.tags, { label: a.cookieLabel }, { label: a.connectionLabel })) + '">'
+                + '<input type="checkbox" class="batch-check js-batch-account" data-id="' + (a.id || '') + '" aria-label="选择账号 ' + _esc(a.username || '') + '">'
+                + '<div class="account-card__head"><div><strong>' + _esc(a.username || '') + '</strong><div class="subtle">' + _esc(a.subtitle || '') + '</div></div><span class="status-chip ' + a.statusTone + '">' + _esc(a.statusLabel) + '</span></div>'
+                + '<div class="account-card__meta">'
+                + '<div class="list-row"><span class="subtle">账号 ID</span><strong class="mono">' + (a.id || '-') + '</strong></div>'
+                + '<div class="list-row"><span class="subtle">代理 IP</span><strong class="mono">' + _esc(a.proxyLabel) + '</strong></div>'
+                + '<div class="list-row"><span class="subtle">上次登录</span><strong>' + _esc(a.lastLoginLabel) + '</strong></div>'
+                + '<div class="list-row"><span class="subtle">Cookie 状态</span><span class="tag ' + a.cookieTone + '">' + _esc(a.cookieLabel) + '</span></div>'
+                + '<div class="list-row"><span class="subtle">登录态校验</span><span class="tag ' + a.loginCheckTone + '">' + _esc(a.loginCheckLabel) + '</span></div>'
+                + '<div class="list-row"><span class="subtle">标签</span><div class="account-card__tags">' + (tagMarkup || '<span class="subtle">未打标签</span>') + '</div></div>'
+                + '</div>'
+                + '<div class="detail-actions account-card__actions">'
+                + '<button class="primary-button js-account-open-environment" data-id="' + (a.id || '') + '" type="button">进入环境</button>'
+                + '<button class="secondary-button js-account-manage-cookies" data-id="' + (a.id || '') + '" type="button">Cookie 状态</button>'
+                + '<button class="secondary-button js-account-rebind-validate" data-id="' + (a.id || '') + '" type="button">重绑并校验</button>'
+                + '<button class="ghost-button js-view-account" data-id="' + (a.id || '') + '" type="button">查看详情与更多操作</button>'
+                + '</div></article>';
+        }).join('');
+    }
+
+    function _bindAccountToolbar(accounts) {
+        document.querySelectorAll('#mainHost .js-account-status-tab').forEach(function (tab) {
+            tab.addEventListener('click', function () {
+                if (!uiState.account) uiState.account = { statusFilter: 'all', view: 'card', sortMode: 'default' };
+                uiState.account.statusFilter = tab.dataset.filterValue || 'all';
+                _syncAccountControls();
+                if (typeof applyCurrentRouteState === 'function') applyCurrentRouteState();
+            });
+        });
+
+        document.querySelectorAll('#mainHost .js-account-view').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                if (!uiState.account) uiState.account = { statusFilter: 'all', view: 'card', sortMode: 'default' };
+                uiState.account.view = btn.dataset.view || 'card';
+                _syncAccountControls();
+                if (typeof applyCurrentRouteState === 'function') applyCurrentRouteState();
+            });
+        });
+
+        var exceptionBtn = document.querySelector('#mainHost .js-account-filter-exception');
+        if (exceptionBtn) {
+            exceptionBtn.addEventListener('click', function () {
+                if (!uiState.account) uiState.account = { statusFilter: 'all', view: 'card', sortMode: 'default' };
+                uiState.account.statusFilter = uiState.account.statusFilter === 'exception' ? 'all' : 'exception';
+                _syncAccountControls();
+                if (typeof applyCurrentRouteState === 'function') applyCurrentRouteState();
+            });
+        }
+
+        var sortBtn = document.querySelector('#mainHost .js-account-sort');
+        if (sortBtn) {
+            sortBtn.addEventListener('click', function () {
+                if (!uiState.account) uiState.account = { statusFilter: 'all', view: 'card', sortMode: 'default' };
+                uiState.account.sortMode = uiState.account.sortMode === 'anomaly' ? 'default' : 'anomaly';
+                _syncAccountControls();
+                if (typeof applyCurrentRouteState === 'function') applyCurrentRouteState();
+            });
+        }
+
+        var dismissBtn = document.querySelector('#mainHost .js-account-dismiss-reminder');
+        if (dismissBtn) {
+            dismissBtn.addEventListener('click', function () {
+                api.settings.set('account.isolation.notice.dismissed', '1').then(function () {
+                    var banner = document.querySelector('#mainHost .js-account-isolation-banner');
+                    if (banner) banner.classList.add('shell-hidden');
+                    showToast('本轮已隐藏隔离提醒', 'info');
+                }).catch(function (err) {
+                    showToast('提醒设置保存失败: ' + ((err && err.message) || '未知错误'), 'error');
+                });
+            });
+        }
+
+        var isolationBtn = document.querySelector('#mainHost .js-account-open-isolation');
+        if (isolationBtn) {
+            isolationBtn.addEventListener('click', function () {
+                if (typeof renderRoute === 'function') renderRoute('device-management');
+            });
+        }
+
+        var batchTagBtn = document.querySelector('#mainHost .js-account-tag-batch');
+        if (batchTagBtn) {
+            batchTagBtn.addEventListener('click', function () {
+                if (!uiState.account) uiState.account = { statusFilter: 'all', view: 'card', sortMode: 'default', selectedId: null, batchMode: false };
+                if (!uiState.account.batchMode) {
+                    _setAccountBatchMode(true);
+                    showToast('已进入批量模式，请勾选账号后继续打标签', 'info');
+                    return;
+                }
+                _openAccountTagBatchModal(accounts);
+            });
+        }
+
+        var batchCancelBtn = document.querySelector('#mainHost .js-account-batch-cancel');
+        if (batchCancelBtn) {
+            batchCancelBtn.addEventListener('click', function () {
+                _setAccountBatchMode(false);
+                showToast('已退出批量模式', 'info');
+            });
+        }
+    }
+
+    function _syncAccountControls() {
+        if (!uiState.account) return;
+        if (typeof uiState.account.batchMode === 'undefined') uiState.account.batchMode = false;
+
+        document.querySelectorAll('#mainHost .js-account-status-tab').forEach(function (tab) {
+            var active = (tab.dataset.filterValue || 'all') === uiState.account.statusFilter;
+            tab.classList.toggle('is-active', active);
+            tab.classList.toggle('is-selected', active);
+        });
+        document.querySelectorAll('#mainHost .js-account-view').forEach(function (btn) {
+            var active = (btn.dataset.view || 'card') === uiState.account.view;
+            btn.classList.toggle('is-active', active);
+            btn.classList.toggle('is-selected', active);
+        });
+
+        var exceptionBtn = document.querySelector('#mainHost .js-account-filter-exception');
+        if (exceptionBtn) {
+            exceptionBtn.classList.toggle('is-active', uiState.account.statusFilter === 'exception');
+            exceptionBtn.textContent = uiState.account.statusFilter === 'exception' ? '显示全部状态' : '只看异常';
+        }
+
+        var sortBtn = document.querySelector('#mainHost .js-account-sort');
+        if (sortBtn) {
+            sortBtn.classList.toggle('is-active', uiState.account.sortMode === 'anomaly');
+            sortBtn.textContent = uiState.account.sortMode === 'anomaly' ? '恢复默认排序' : '按最近异常排序';
+        }
+
+        var batchTagBtn = document.querySelector('#mainHost .js-account-tag-batch');
+        if (batchTagBtn) {
+            batchTagBtn.textContent = uiState.account.batchMode ? '为已选账号打标签' : '批量打标签';
+            batchTagBtn.classList.toggle('is-active', uiState.account.batchMode);
+        }
+
+        var batchCancelBtn = document.querySelector('#mainHost .js-account-batch-cancel');
+        if (batchCancelBtn) {
+            batchCancelBtn.classList.toggle('shell-hidden', !uiState.account.batchMode);
+        }
+
+        var grid = document.querySelector('#mainHost .account-grid');
+        if (grid) {
+            grid.classList.toggle('is-batch-mode', Boolean(uiState.account.batchMode));
+        }
+    }
+
+    function _updateAccountTabs(accounts) {
+        var counts = { all: accounts.length, online: 0, offline: 0, exception: 0 };
+        accounts.forEach(function (account) {
+            if (account.filterStatus === 'online') counts.online += 1;
+            else if (account.filterStatus === 'offline') counts.offline += 1;
+            else counts.exception += 1;
+        });
+        var tabs = document.querySelectorAll('#mainHost .local-tab');
+        if (tabs.length >= 4) {
+            tabs[0].textContent = '全部账号 (' + counts.all + ')';
+            tabs[1].textContent = '在线 (' + counts.online + ')';
+            tabs[2].textContent = '离线 (' + counts.offline + ')';
+            tabs[3].textContent = '异常 (' + counts.exception + ')';
+        }
+    }
+
+    function _syncAccountBanner(accounts, dismissed) {
+        var banner = document.querySelector('#mainHost .js-account-isolation-banner');
+        if (!banner) return;
+        var pending = accounts.filter(function (account) { return !account.isolationEnabled; });
+        var copy = banner.querySelector('.js-account-isolation-copy');
+        if (copy) {
+            if (!pending.length) copy.textContent = '当前账号已经全部启用隔离环境，可以继续执行批量登录和导入。';
+            else copy.textContent = '当前仍有 ' + pending.length + ' 个账号未启用隔离环境，建议先完成浏览器隔离配置，再继续登录和导入。';
+        }
+        banner.classList.toggle('shell-hidden', dismissed || pending.length === 0);
+    }
+
+    function _selectAccountCard(accountId, accounts) {
+        var selected = _findAccountViewModel(accounts, accountId);
+        if (!selected) {
+            selected = (accounts || [])[0] || null;
+        }
+        document.querySelectorAll('#mainHost .account-card').forEach(function (card) {
+            card.classList.toggle('is-selected', String(card.dataset.id || '') === String(selected ? selected.id : ''));
+        });
+        if (!uiState.account) uiState.account = { statusFilter: 'all', view: 'card', sortMode: 'default' };
+        uiState.account.selectedId = selected ? selected.id : null;
+        _renderAccountDetail(selected);
+    }
+
+    function _renderEmptyAccountDetail() {
+        var detailHost = document.getElementById('detailHost');
+        var template = document.getElementById('route-account-detail-default');
+        if (!detailHost || !template) return;
+        detailHost.innerHTML = template.innerHTML;
+    }
+
+    function _findAccountViewModel(accounts, accountId) {
+        return (accounts || []).find(function (item) {
+            return String(item.id || '') === String(accountId || '');
+        }) || null;
+    }
+
+    function _openAccountEnvironment(account) {
+        if (!account) return;
+        var updatePayload = {
+            isolation_enabled: true,
+            last_login_at: new Date().toISOString(),
+        };
+        api.accounts.update(account.id, updatePayload).then(function () {
+            if (uiState['device-management']) {
+                uiState['device-management'].selectedId = account.device_id || null;
+            }
+            showToast('已进入环境处理流程，正在跳转到设备环境页', 'success');
+            if (typeof renderRoute === 'function') {
+                renderRoute('device-management');
+            }
+        }).catch(function (err) {
+            showToast('打开环境失败: ' + ((err && err.message) || '未知错误'), 'error');
+        });
+    }
+
+    function _openAccountProxyConfig(account, options) {
+        if (!account) return;
+        var config = options || {};
+
+        api.devices.list().then(function (devices) {
+            devices = devices || [];
+            if (!devices.length) {
+                showToast('当前还没有设备，请先新增设备后再配置代理', 'warning');
+                return;
+            }
+
+            var deviceOptions = devices.map(function (device) {
+                var label = (device.name || device.device_code || '未命名设备')
+                    + ' / ' + (device.region || '-')
+                    + ' / ' + (device.proxy_ip || '未配置代理');
+                return { value: String(device.id), label: label };
+            });
+            var defaultDeviceId = String((account.device && account.device.id) || account.device_id || devices[0].id || '');
+
+            openModal({
+                title: (config.quickValidate ? '重绑并校验 / ' : '配置代理 / ') + (account.username || '账号'),
+                width: 560,
+                submitText: config.quickValidate ? '一键重绑并校验' : '保存代理配置',
+                fields: [
+                    {
+                        key: 'device_id',
+                        label: '选择设备',
+                        type: 'select',
+                        required: true,
+                        value: defaultDeviceId,
+                        options: deviceOptions,
+                        hint: '代理与地区归属于设备。这里绑定账号到目标设备，并同步更新该设备的代理配置。',
+                    },
+                    {
+                        key: 'proxy_ip',
+                        label: '代理 IP',
+                        required: true,
+                        value: _selectedAccountProxyDevice(devices, defaultDeviceId) ? (_selectedAccountProxyDevice(devices, defaultDeviceId).proxy_ip || '') : '',
+                        placeholder: '例如 23.88.14.10:8080 或 http://user:pass@23.88.14.10:8080',
+                    },
+                    {
+                        key: 'region',
+                        label: '地区',
+                        type: 'select',
+                        required: true,
+                        value: _selectedAccountProxyDevice(devices, defaultDeviceId) ? (_selectedAccountProxyDevice(devices, defaultDeviceId).region || 'US') : 'US',
+                        options: ['US', 'UK', 'DE', 'JP', 'MY', 'SG', 'ID', 'TH', 'VN', 'PH', 'BR', 'MX'],
+                    },
+                    {
+                        key: 'status_preview',
+                        label: '设备状态',
+                        type: 'text',
+                        value: '',
+                        disabled: true,
+                        hint: '',
+                    },
+                ],
+                onSubmit: function (data) {
+                    return _saveAccountProxyBinding(account, data, {
+                        validateAfterSave: !!config.quickValidate,
+                    });
+                },
+                onOpen: function (ctx) {
+                    var deviceField = ctx.form.elements.device_id;
+                    var proxyField = ctx.form.elements.proxy_ip;
+                    var regionField = ctx.form.elements.region;
+                    var previewField = ctx.form.elements.status_preview;
+                    var previewHint = previewField && previewField.parentNode ? previewField.parentNode.querySelector('.form-hint') : null;
+
+                    if (!config.quickValidate) {
+                        var quickBtn = document.createElement('button');
+                        quickBtn.type = 'button';
+                        quickBtn.className = 'primary-button';
+                        quickBtn.textContent = '一键重绑并校验';
+                        ctx.submitButton.className = 'secondary-button modal-submit-btn';
+                        ctx.footer.insertBefore(quickBtn, ctx.cancelButton);
+
+                        if (account.device_id) {
+                            var unbindBtn = document.createElement('button');
+                            unbindBtn.type = 'button';
+                            unbindBtn.className = 'ghost-button';
+                            unbindBtn.textContent = '解除绑定代理';
+                            ctx.footer.insertBefore(unbindBtn, ctx.cancelButton);
+
+                            unbindBtn.addEventListener('click', function () {
+                                confirmModal({
+                                    title: '解除绑定代理',
+                                    message: '确定解除当前账号与设备的代理绑定？设备上的代理配置会保留，但该账号将改为未绑定代理状态。',
+                                    confirmText: '解除绑定',
+                                    tone: 'warning',
+                                }).then(function (ok) {
+                                    if (!ok) return;
+                                    var originalText = unbindBtn.textContent;
+                                    unbindBtn.disabled = true;
+                                    quickBtn.disabled = true;
+                                    ctx.submitButton.disabled = true;
+                                    unbindBtn.textContent = '解绑中...';
+                                    _unbindAccountProxyBinding(account).then(function () {
+                                        ctx.close();
+                                    }).catch(function (err) {
+                                        showToast((err && err.message) || '解除绑定失败', 'error');
+                                    }).finally(function () {
+                                        unbindBtn.disabled = false;
+                                        quickBtn.disabled = false;
+                                        ctx.submitButton.disabled = false;
+                                        unbindBtn.textContent = originalText;
+                                    });
+                                });
+                            });
+                        }
+
+                        quickBtn.addEventListener('click', function () {
+                            var originalText = quickBtn.textContent;
+                            quickBtn.disabled = true;
+                            ctx.submitButton.disabled = true;
+                            quickBtn.textContent = '校验中...';
+                            _saveAccountProxyBinding(account, _readAccountProxyConfigForm(ctx.form), {
+                                validateAfterSave: true,
+                            }).then(function () {
+                                ctx.close();
+                            }).catch(function (err) {
+                                showToast((err && err.message) || '重绑并校验失败', 'error');
+                            }).finally(function () {
+                                quickBtn.disabled = false;
+                                ctx.submitButton.disabled = false;
+                                quickBtn.textContent = originalText;
+                            });
+                        });
+                    }
+
+                    function syncDeviceDraft() {
+                        var selected = _selectedAccountProxyDevice(devices, deviceField.value);
+                        if (!selected) return;
+
+                        if (!proxyField.value.trim() || String(selected.id) !== String(account.device_id || '')) {
+                            proxyField.value = selected.proxy_ip || '';
+                        }
+                        regionField.value = selected.region || 'US';
+                        var preview = _predictDeviceRuntimeState(proxyField.value, selected.fingerprint_status);
+                        previewField.value = preview.label;
+                        if (previewHint) {
+                            previewHint.textContent = '代理状态将自动同步为 ' + preview.proxyLabel + '，设备健康将显示为 ' + preview.label + '。';
+                        }
+                    }
+
+                    function syncProxyDraft() {
+                        var selected = _selectedAccountProxyDevice(devices, deviceField.value);
+                        var preview = _predictDeviceRuntimeState(proxyField.value, selected ? selected.fingerprint_status : 'normal');
+                        previewField.value = preview.label;
+                        if (previewHint) {
+                            previewHint.textContent = '代理状态将自动同步为 ' + preview.proxyLabel + '，设备健康将显示为 ' + preview.label + '。';
+                        }
+                    }
+
+                    deviceField.addEventListener('change', syncDeviceDraft);
+                    proxyField.addEventListener('input', syncProxyDraft);
+                    syncDeviceDraft();
+                },
+            });
+        }).catch(function (err) {
+            showToast('加载设备信息失败: ' + ((err && err.message) || '未知错误'), 'error');
+        });
+    }
+
+    function _readAccountProxyConfigForm(form) {
+        return {
+            device_id: form && form.elements.device_id ? form.elements.device_id.value : '',
+            proxy_ip: form && form.elements.proxy_ip ? form.elements.proxy_ip.value : '',
+            region: form && form.elements.region ? form.elements.region.value : 'US',
+        };
+    }
+
+    function _saveAccountProxyBinding(account, data, options) {
+        var settings = options || {};
+        var deviceId = parseInt(data.device_id, 10);
+        if (!deviceId) {
+            throw new Error('请先选择设备');
+        }
+
+        var proxyIp = String(data.proxy_ip || '').trim();
+        if (!proxyIp) {
+            throw new Error('请填写代理 IP');
+        }
+
+        return api.accounts.update(account.id, { device_id: deviceId }).then(function () {
+            return api.devices.update(deviceId, {
+                proxy_ip: proxyIp,
+                region: data.region,
+            });
+        }).then(function () {
+            if (!settings.validateAfterSave) {
+                showToast('代理配置已更新，设备状态已自动同步', 'success');
+                loaders['account']();
+                return { saved: true };
+            }
+            if (!String(account.cookieContentRaw || '').trim()) {
+                loaders['account']();
+                throw new Error('已完成重绑，但当前还没有 Cookie。请先在该设备环境中登录并导入 Cookie，再执行一键校验。');
+            }
+            return api.accounts.testConnection(account.id).then(function (connectionResult) {
+                if (!connectionResult || !connectionResult.ok) {
+                    loaders['account']();
+                    throw new Error((connectionResult && connectionResult.message) || '代理检测失败，请先修复代理连通性');
+                }
+                return api.accounts.validateLogin(account.id).then(function (loginResult) {
+                    loaders['account']();
+                    if (!loginResult || String(loginResult.status || '').toLowerCase() !== 'valid') {
+                        throw new Error(_buildRebindValidationMessage(loginResult, account));
+                    }
+                    var successMessage = '重绑完成，代理检测与登录态校验均通过';
+                    if (loginResult.username) {
+                        successMessage += ' / ' + loginResult.username;
+                    }
+                    showToast(successMessage, 'success');
+                    return {
+                        saved: true,
+                        connection: connectionResult,
+                        login: loginResult,
+                    };
+                });
+            });
+        });
+    }
+
+    function _unbindAccountProxyBinding(account) {
+        return api.accounts.update(account.id, {
+            device_id: null,
+            last_connection_status: 'unknown',
+            last_connection_checked_at: null,
+            last_connection_message: '已解除代理绑定',
+            last_login_check_status: 'unknown',
+            last_login_check_at: null,
+            last_login_check_message: '已解除代理绑定，请按当前环境重新校验登录态',
+        }).then(function () {
+            showToast('已解除代理绑定，账号当前不再绑定设备代理', 'success');
+            loaders['account']();
+            return { unbound: true };
+        });
+    }
+
+    function _buildRebindValidationMessage(loginResult, account) {
+        var status = String(loginResult && loginResult.status ? loginResult.status : 'unknown').toLowerCase();
+        if (status === 'proxy_mismatch') {
+            return _buildProxyMismatchGuidance((loginResult && loginResult.message) || '', account);
+        }
+        if (status === 'invalid') {
+            return '代理检测已通过，但平台没有确认当前 Cookie 处于已登录状态。请在当前绑定设备里重新登录，再导出新 Cookie。';
+        }
+        return (loginResult && loginResult.message) || '登录态校验没有得到明确结果，请检查代理与 Cookie 是否来自同一登录环境。';
+    }
+
+    function _selectedAccountProxyDevice(devices, deviceId) {
+        return (devices || []).find(function (item) {
+            return String(item.id || '') === String(deviceId || '');
+        }) || null;
+    }
+
+    function _predictDeviceRuntimeState(proxyIp, fingerprintStatus) {
+        var hasProxy = !!String(proxyIp || '').trim();
+        var fingerprintKey = String(fingerprintStatus || 'normal').trim().toLowerCase();
+        if (!hasProxy) {
+            return { status: 'idle', label: '闲置', proxyStatus: 'offline', proxyLabel: '离线' };
+        }
+        if (fingerprintKey === 'missing') {
+            return { status: 'error', label: '异常', proxyStatus: 'online', proxyLabel: '在线' };
+        }
+        if (fingerprintKey === 'drifted') {
+            return { status: 'warning', label: '警告', proxyStatus: 'online', proxyLabel: '在线' };
+        }
+        return { status: 'healthy', label: '健康', proxyStatus: 'online', proxyLabel: '在线' };
+    }
+
+    function _confirmDeleteAccount(accountId) {
+        var id = parseInt(accountId, 10);
+        if (!id) return;
+        confirmModal({
+            title: '删除账号',
+            message: '确定要删除此账号？系统会自动解绑相关任务和素材引用，此操作不可恢复。',
+            confirmText: '删除账号',
+            tone: 'danger',
+        }).then(function (ok) {
+            if (!ok) return;
+            api.accounts.remove(id).then(function () {
+                showToast('账号已删除', 'success');
+                if (uiState.account) uiState.account.selectedId = null;
+                loaders['account']();
+            }).catch(function (err) {
+                showToast('删除失败: ' + (((err && err.message) || '未知错误')), 'error');
+            });
+        });
+    }
+
+    function _openAccountCookieModal(account) {
+        var inferred = _inferAccountCookieHealth(account.cookieContentRaw || '');
+        openModal({
+            title: 'Cookie 状态 / ' + (account.username || '账号'),
+            submitText: '保存 Cookie',
+            width: 680,
+            fields: [
+                {
+                    key: 'cookie_status',
+                    label: 'Cookie 状态（推荐选系统判断）',
+                    type: 'select',
+                    value: 'auto',
+                    options: [
+                        { value: 'auto', label: '系统判断（推荐）' },
+                        { value: 'valid', label: '有效' },
+                        { value: 'expiring', label: '即将过期' },
+                        { value: 'invalid', label: '已失效' },
+                        { value: 'missing', label: '缺失' },
+                        { value: 'unknown', label: '待确认' },
+                    ],
+                    required: true,
+                    hint: '当前系统建议：' + inferred.label + '。如果你不确定，就保持“系统判断”。',
+                },
+                {
+                    key: 'cookie_content',
+                    label: 'Cookie 内容',
+                    type: 'textarea',
+                    rows: 10,
+                    mono: true,
+                    spellcheck: false,
+                    value: account.cookieContentRaw || '',
+                    placeholder: '支持粘贴 Cookie 字符串、JSON 数组，或 Netscape cookies 文件内容。',
+                    hint: '支持两种方式：1. 直接点下方“导入 Cookie 文件”；2. 先点“进入环境”并登录账号，再用 Cookie-Editor / EditThisCookie 导出并粘贴。保存后可继续点“校验登录态”，系统会用真实请求确认当前 Cookie 是否还能拿到已登录结果。',
+                },
+                {
+                    key: 'notes',
+                    label: '补充说明',
+                    type: 'textarea',
+                    value: account.notes || '',
+                    placeholder: '例如：已完成续签，等待下一次人工确认。',
+                },
+            ],
+            onSubmit: function (data) {
+                return _persistAccountCookieDraft(account, data);
+            },
+            onOpen: function (ctx) {
+                var actionBar = document.createElement('div');
+                actionBar.className = 'detail-actions';
+                actionBar.style.marginRight = 'auto';
+
+                var importBtn = document.createElement('button');
+                importBtn.type = 'button';
+                importBtn.className = 'secondary-button';
+                importBtn.textContent = '导入 Cookie 文件';
+                importBtn.addEventListener('click', function () {
+                    _importCookieFileIntoModal(ctx.form, importBtn);
+                });
+                actionBar.appendChild(importBtn);
+
+                var validateBtn = document.createElement('button');
+                validateBtn.type = 'button';
+                validateBtn.className = 'secondary-button';
+                validateBtn.textContent = '保存并校验登录态';
+                validateBtn.addEventListener('click', function () {
+                    var draft = _readAccountCookieModalForm(ctx.form);
+                    _persistAccountCookieDraft(account, draft, { skipToast: true, skipReload: true }).then(function () {
+                        return _runAccountLoginValidation(account.id, validateBtn, { suppressReload: true });
+                    }).then(function () {
+                        ctx.close();
+                        loaders['account']();
+                    }).catch(function (err) {
+                        showToast((err && err.message) || '登录态校验失败', 'error');
+                    });
+                });
+                actionBar.appendChild(validateBtn);
+
+                ctx.footer.insertBefore(actionBar, ctx.cancelButton);
+            },
+        });
+    }
+
+    function _readAccountCookieModalForm(form) {
+        return {
+            cookie_status: form && form.elements.cookie_status ? form.elements.cookie_status.value : 'auto',
+            cookie_content: form && form.elements.cookie_content ? form.elements.cookie_content.value : '',
+            notes: form && form.elements.notes ? form.elements.notes.value : '',
+        };
+    }
+
+    function _persistAccountCookieDraft(account, data, options) {
+        var cookieContent = (data.cookie_content || '').trim();
+        var cookieChanged = cookieContent !== String(account.cookieContentRaw || '');
+        var inferredStatus = _inferAccountCookieHealth(cookieContent);
+        var resolvedStatus = data.cookie_status === 'auto' ? inferredStatus.status : data.cookie_status;
+        if ((resolvedStatus === 'valid' || resolvedStatus === 'expiring') && !cookieContent) {
+            throw new Error('状态为有效或即将过期时，需要同时录入真实 Cookie 内容');
+        }
+
+        var payload = {
+            cookie_status: resolvedStatus,
+            cookie_content: cookieContent || null,
+            cookie_updated_at: cookieContent ? (cookieChanged ? new Date().toISOString() : (account.cookieUpdatedAt || null)) : null,
+            notes: data.notes || null,
+        };
+        if (cookieChanged) {
+            payload.last_login_check_status = 'unknown';
+            payload.last_login_check_at = null;
+            payload.last_login_check_message = cookieContent ? 'Cookie 已更新，请重新执行登录态校验' : null;
+        }
+
+        return api.accounts.update(account.id, payload).then(function () {
+            if (!options || !options.skipToast) {
+                showToast('Cookie 状态已更新：' + inferredStatus.label, 'success');
+            }
+            if (!options || !options.skipReload) {
+                loaders['account']();
+            }
+            return {
+                cookieContent: cookieContent,
+                cookieChanged: cookieChanged,
+                inferredStatus: inferredStatus,
+                resolvedStatus: resolvedStatus,
+            };
+        });
+    }
+
+    function _importCookieFileIntoModal(form, button) {
+        if (!api.utils || typeof api.utils.importTextFile !== 'function') {
+            showToast('当前环境暂不支持导入本地 Cookie 文件', 'warning');
+            return;
+        }
+        var btn = button || null;
+        var originalText = btn ? btn.textContent : '';
+        if (btn) {
+            btn.disabled = true;
+            btn.textContent = '导入中...';
+        }
+        api.utils.importTextFile().then(function (result) {
+            if (!result || !result.selected) return;
+            if (form && form.elements.cookie_content) {
+                form.elements.cookie_content.value = result.content || '';
+            }
+            showToast('已导入 Cookie 文件：' + (result.name || '未命名文件'), 'success');
+        }).catch(function (err) {
+            showToast('导入 Cookie 文件失败: ' + ((err && err.message) || '未知错误'), 'error');
+        }).finally(function () {
+            if (btn) {
+                btn.disabled = false;
+                btn.textContent = originalText || '导入 Cookie 文件';
+            }
+        });
+    }
+
+    function _openAccountTagBatchModal(accounts) {
+        var selectedIds = [];
+        document.querySelectorAll('.js-batch-account:checked').forEach(function (cb) {
+            selectedIds.push(String(cb.dataset.id || ''));
+        });
+        if (!selectedIds.length) {
+            showToast('请先勾选需要打标签的账号', 'warning');
+            return;
+        }
+
+        openModal({
+            title: '批量打标签',
+            submitText: '保存标签',
+            fields: [
+                {
+                    key: 'tags',
+                    label: '标签',
+                    placeholder: '例如：重点, 续签, 北美',
+                    hint: '用逗号分隔，可直接输入自定义标签。系统会在原有标签基础上合并去重。',
+                    required: true,
+                },
+            ],
+            onSubmit: function (data) {
+                var incoming = _splitAccountTags(data.tags || '');
+                if (!incoming.length) {
+                    throw new Error('请至少填写一个标签');
+                }
+                var jobs = selectedIds.map(function (id) {
+                    var account = _findAccountViewModel(accounts, id);
+                    return api.accounts.update(id, {
+                        tags: _mergeAccountTags(account ? account.tags : [], incoming),
+                    });
+                });
+                return Promise.all(jobs).then(function () {
+                    showToast('已为 ' + selectedIds.length + ' 个账号补充标签', 'success');
+                    loaders['account']();
+                });
+            },
+        });
+    }
+
+    function _runAccountConnectionTest(accountId, button) {
+        var btn = button || null;
+        var originalText = btn ? btn.textContent : '';
+        if (btn) {
+            btn.disabled = true;
+            btn.textContent = '检测中...';
+        }
+        api.accounts.testConnection(parseInt(accountId, 10)).then(function (result) {
+            var tone = result && result.ok ? 'success' : 'error';
+            var message = result && result.message ? result.message : '代理检测完成';
+            if (result && result.ok && result.latency_ms) {
+                message += ' / ' + result.latency_ms + 'ms';
+            }
+            if (result && result.target) {
+                message += ' / ' + result.target;
+            }
+            if (result && result.scope_label) {
+                message += ' / ' + result.scope_label;
+            }
+            showToast(message, tone);
+            if (!uiState.account) uiState.account = { statusFilter: 'all', view: 'card', sortMode: 'default', batchMode: false };
+            uiState.account.selectedId = parseInt(accountId, 10) || null;
+            loaders['account']();
+        }).catch(function (err) {
+            showToast('代理检测失败: ' + ((err && err.message) || '未知错误'), 'error');
+        }).finally(function () {
+            if (btn) {
+                btn.disabled = false;
+                btn.textContent = originalText || '检测代理';
+            }
+        });
+    }
+
+    function _runAccountLoginValidation(accountId, button, options) {
+        var btn = button || null;
+        var originalText = btn ? btn.textContent : '';
+        if (btn) {
+            btn.disabled = true;
+            btn.textContent = '校验中...';
+        }
+        return api.accounts.validateLogin(parseInt(accountId, 10)).then(function (result) {
+            var status = (result && result.status ? result.status : 'unknown').toLowerCase();
+            var tone = status === 'valid' ? 'success' : (status === 'invalid' ? 'error' : 'warning');
+            var message = result && result.message ? result.message : '登录态校验完成';
+            if (result && result.target) {
+                message += ' / ' + result.target;
+            }
+            showToast(message, tone);
+            if (!options || !options.suppressReload) {
+                if (!uiState.account) uiState.account = { statusFilter: 'all', view: 'card', sortMode: 'default', batchMode: false };
+                uiState.account.selectedId = parseInt(accountId, 10) || null;
+                loaders['account']();
+            }
+            return result;
+        }).catch(function (err) {
+            showToast('登录态校验失败: ' + ((err && err.message) || '未知错误'), 'error');
+            throw err;
+        }).finally(function () {
+            if (btn) {
+                btn.disabled = false;
+                btn.textContent = originalText || '校验登录态';
+            }
+        });
+    }
+
+    function _accountFilterStatus(status) {
+        var s = (status || '').toLowerCase();
+        if (s === 'active' || s === 'online' || s === '在线') return 'online';
+        if (s === 'idle' || s === 'offline' || s === '离线') return 'offline';
+        return 'exception';
+    }
+
+    function _accountStatusLabel(status) {
+        var s = (status || '').toLowerCase();
+        if (s === 'active' || s === 'online') return '在线';
+        if (s === 'idle' || s === 'offline') return '离线';
+        if (s === 'warming' || s === 'warning') return '预热中';
+        if (s === 'suspended' || s === 'error') return '异常';
+        return status || '未知';
     }
 
     function _accountStatusTone(status) {
@@ -489,6 +1481,421 @@
         return '4';
     }
 
+    function _accountPlatformLabel(platform) {
+        var key = (platform || '').toLowerCase();
+        if (key === 'tiktok_shop') return 'TikTok Shop';
+        if (key === 'instagram') return 'Instagram';
+        if (key === 'youtube') return 'YouTube';
+        return 'TikTok';
+    }
+
+    function _accountRegionLabel(region) {
+        var labels = {
+            US: '美国区',
+            UK: '英国区',
+            DE: '德国区',
+            SG: '新加坡区',
+            MY: '马来区',
+            JP: '日本区',
+            ID: '印尼区',
+            TH: '泰国区',
+            VN: '越南区',
+            PH: '菲律宾区',
+            BR: '巴西区',
+            MX: '墨西哥区',
+        };
+        return labels[String(region || '').toUpperCase()] || (region || '未知地区');
+    }
+
+    function _accountSummaryLine(account, tags) {
+        if (tags && tags.length) return tags.slice(0, 2).join(' · ');
+        if (account.notes) return String(account.notes).slice(0, 18);
+        return '待补充运营标签';
+    }
+
+    function _accountProxyLabel(device) {
+        if (!device || !device.proxy_ip) return '未配置代理';
+        var region = device.region ? ' (' + _accountRegionLabel(device.region).replace('区', '') + ')' : '';
+        return String(device.proxy_ip) + region;
+    }
+
+    function _accountCookieMeta(status) {
+        var key = String(status || 'unknown').toLowerCase();
+        if (key === 'valid') return { value: 'valid', label: '有效', tone: 'success' };
+        if (key === 'expiring') return { value: 'expiring', label: '48 小时内过期', tone: 'warning' };
+        if (key === 'invalid') return { value: 'invalid', label: '已失效', tone: 'error' };
+        if (key === 'missing') return { value: 'missing', label: '缺失', tone: 'warning' };
+        return { value: 'unknown', label: '待确认', tone: 'info' };
+    }
+
+    function _accountLoginCheckMeta(status, message, checkedAt) {
+        var key = String(status || 'unknown').toLowerCase();
+        if (key === 'valid') {
+            return {
+                value: 'valid',
+                label: checkedAt ? ('已通过 / ' + _formatRelativeDate(checkedAt)) : '已通过',
+                tone: 'success',
+                message: message || '最近一次真实登录态校验通过',
+            };
+        }
+        if (key === 'proxy_mismatch') {
+            return {
+                value: 'proxy_mismatch',
+                label: checkedAt ? ('代理冲突 / ' + _formatRelativeDate(checkedAt)) : '代理冲突',
+                tone: 'warning',
+                message: _buildProxyMismatchGuidance(message, null),
+            };
+        }
+        if (key === 'invalid') {
+            return {
+                value: 'invalid',
+                label: checkedAt ? ('已失效 / ' + _formatRelativeDate(checkedAt)) : '已失效',
+                tone: 'error',
+                message: message || '最近一次真实登录态校验失败',
+            };
+        }
+        if (checkedAt) {
+            return {
+                value: 'unknown',
+                label: '未确认 / ' + _formatRelativeDate(checkedAt),
+                tone: 'warning',
+                message: message || '最近一次真实登录态校验未得到明确结论',
+            };
+        }
+        return { value: 'unknown', label: '尚未校验', tone: 'info', message: message || '尚未执行真实登录态校验' };
+    }
+
+    function _accountCookieContentSummary(value) {
+        var content = String(value || '').trim();
+        if (!content) return '未录入';
+        return '已录入 ' + _formatNum(content.length) + ' 字符';
+    }
+
+    function _inferAccountCookieHealth(value) {
+        var facts = _extractCookieFacts(value);
+        var now = Date.now();
+        var within48h = 48 * 60 * 60 * 1000;
+        if (!facts.count) {
+            return { status: 'missing', label: '缺失', tone: 'warning', reason: '未录入 Cookie 内容' };
+        }
+        if (facts.hasExpiry && facts.validCount === 0 && facts.expiredCount > 0) {
+            return { status: 'invalid', label: '已失效', tone: 'error', reason: '检测到的 Cookie 已全部过期' };
+        }
+        if (facts.nearestExpiryMs && facts.nearestExpiryMs <= now) {
+            return { status: 'invalid', label: '已失效', tone: 'error', reason: '最近到期时间已经过去' };
+        }
+        if (facts.nearestExpiryMs && (facts.nearestExpiryMs - now) <= within48h) {
+            return { status: 'expiring', label: '48 小时内过期', tone: 'warning', reason: '最近到期时间在 48 小时内' };
+        }
+        return { status: 'valid', label: '有效', tone: 'success', reason: facts.hasExpiry ? '存在未过期 Cookie' : '已录入 Cookie 内容，未提供到期时间' };
+    }
+
+    function _extractCookieFacts(value) {
+        var raw = String(value || '').trim();
+        var facts = {
+            count: 0,
+            validCount: 0,
+            expiredCount: 0,
+            nearestExpiryMs: null,
+            hasExpiry: false,
+        };
+        if (!raw) return facts;
+
+        var parsedCookies = _parseCookieJson(raw);
+        if (!parsedCookies.length) {
+            parsedCookies = _parseCookieNetscape(raw);
+        }
+        if (!parsedCookies.length) {
+            parsedCookies = _parseCookieString(raw);
+        }
+
+        parsedCookies.forEach(function (cookie) {
+            var expiresAt = _resolveCookieExpiry(cookie);
+            facts.count += 1;
+            if (expiresAt) {
+                facts.hasExpiry = true;
+                if (facts.nearestExpiryMs === null || expiresAt < facts.nearestExpiryMs) {
+                    facts.nearestExpiryMs = expiresAt;
+                }
+                if (expiresAt <= Date.now()) facts.expiredCount += 1;
+                else facts.validCount += 1;
+            } else {
+                facts.validCount += 1;
+            }
+        });
+        return facts;
+    }
+
+    function _parseCookieJson(raw) {
+        try {
+            var parsed = JSON.parse(raw);
+            if (Array.isArray(parsed)) return parsed.filter(function (item) { return item && typeof item === 'object'; });
+            if (parsed && Array.isArray(parsed.cookies)) return parsed.cookies.filter(function (item) { return item && typeof item === 'object'; });
+        } catch (err) {
+            return [];
+        }
+        return [];
+    }
+
+    function _parseCookieNetscape(raw) {
+        var rows = raw.split(/\r?\n/).map(function (line) { return line.trim(); }).filter(Boolean);
+        var cookies = [];
+        rows.forEach(function (line) {
+            if (!line || line.charAt(0) === '#') return;
+            var parts = line.split(/\t+/);
+            if (parts.length >= 7) {
+                cookies.push({
+                    domain: parts[0],
+                    path: parts[2],
+                    expires: parts[4],
+                    name: parts[5],
+                    value: parts[6],
+                });
+            }
+        });
+        return cookies;
+    }
+
+    function _parseCookieString(raw) {
+        if (raw.indexOf('=') < 0) return [];
+        return raw.split(';').map(function (part) {
+            var pair = part.trim();
+            if (!pair || pair.indexOf('=') < 0) return null;
+            var eqIndex = pair.indexOf('=');
+            return {
+                name: pair.slice(0, eqIndex).trim(),
+                value: pair.slice(eqIndex + 1).trim(),
+            };
+        }).filter(Boolean);
+    }
+
+    function _resolveCookieExpiry(cookie) {
+        if (!cookie || typeof cookie !== 'object') return null;
+        var keys = ['expirationDate', 'expires', 'expiry', 'expiration', 'expiresAt'];
+        for (var i = 0; i < keys.length; i += 1) {
+            var value = cookie[keys[i]];
+            if (value === null || typeof value === 'undefined' || value === '') continue;
+            var numeric = Number(value);
+            if (!isNaN(numeric) && isFinite(numeric)) {
+                return numeric < 100000000000 ? numeric * 1000 : numeric;
+            }
+            var parsed = Date.parse(String(value));
+            if (!isNaN(parsed)) return parsed;
+        }
+        return null;
+    }
+
+    function _accountConnectionMeta(status, message, checkedAt) {
+        var key = String(status || 'unknown').toLowerCase();
+        if (key === 'reachable') {
+            return { label: '代理最近可达', tone: 'success', message: message || '最近一次代理检测通过' };
+        }
+        if (key === 'unreachable') {
+            return {
+                label: checkedAt ? ('代理检测失败 / ' + _formatRelativeDate(checkedAt)) : '代理检测失败',
+                tone: 'error',
+                message: message || '最近一次代理检测失败',
+            };
+        }
+        return { label: '尚未检测', tone: 'info', message: message || '尚未执行代理检测' };
+    }
+
+    function _accountConnectionScopeLabel(device) {
+        if (!device || !device.proxy_ip) return '当前仅支持检测已绑定代理的 TCP 可达性';
+        return '仅检测绑定代理是否可达，不校验平台登录态';
+    }
+
+    function _splitAccountTags(value) {
+        var seen = {};
+        return String(value || '')
+            .split(/[，,]/)
+            .map(function (item) { return item.trim(); })
+            .filter(function (item) {
+                if (!item || seen[item]) return false;
+                seen[item] = true;
+                return true;
+            });
+    }
+
+    function _mergeAccountTags(existing, incoming) {
+        return _splitAccountTags((existing || []).concat(incoming || []).join(','))
+            .join(', ');
+    }
+
+    function _buildAccountSearchText(account, device, tags, cookieMeta, connectionMeta) {
+        return [
+            account.username || '',
+            account.platform || '',
+            account.region || '',
+            account.status || '',
+            account.notes || '',
+            account.tags || '',
+            (tags || []).join(' '),
+            device && device.proxy_ip ? device.proxy_ip : '',
+            cookieMeta && cookieMeta.label ? cookieMeta.label : '',
+            connectionMeta && connectionMeta.label ? connectionMeta.label : '',
+            account.last_login_check_message || '',
+            account.last_login_check_status || '',
+        ].join(' ');
+    }
+
+    function _buildAccountAdvice(account) {
+        var items = [];
+        if (!account.isolationEnabled) {
+            items.push({ title: '隔离环境尚未启用', copy: '建议先进入环境，切到独立浏览器后再继续操作。', badge: '优先处理', tone: 'warning' });
+        }
+        if (account.cookieStatus === 'invalid' || account.cookieStatus === 'missing') {
+            items.push({ title: 'Cookie 状态需要处理', copy: '当前状态会直接影响登录和自动化执行，建议先在右侧面板更新 Cookie。', badge: account.cookieLabel, tone: account.cookieTone });
+        } else if (account.cookieStatus === 'expiring') {
+            items.push({ title: 'Cookie 即将过期', copy: '可以继续短时操作，但建议在下一个任务前完成续签，避免中途掉线。', badge: account.cookieLabel, tone: account.cookieTone });
+        }
+        if (account.loginCheckStatus === 'invalid') {
+            items.push({ title: '真实登录态校验失败', copy: account.loginCheckMessage || '平台没有确认当前 Cookie 仍处于已登录状态，建议重新登录并重新导入 Cookie。', badge: '需重新登录', tone: 'error' });
+        } else if (account.loginCheckStatus === 'proxy_mismatch') {
+            items.push({ title: '代理下登录态校验异常', copy: _buildProxyMismatchGuidance(account.loginCheckMessage, account), badge: '代理冲突', tone: 'warning' });
+        } else if (account.loginCheckStatus === 'unknown' && account.cookieContentRaw) {
+            items.push({ title: '还没有做真实登录态校验', copy: '当前只有 Cookie 内容和过期时间推断，建议更新 Cookie 后立刻点“校验登录态”，确认平台接口还能识别账号。', badge: '建议补做', tone: 'warning' });
+        } else if (account.loginCheckStatus === 'valid') {
+            items.push({ title: '真实登录态最近已通过', copy: account.loginCheckMessage || '平台最近一次已确认当前 Cookie 仍可识别账号，可继续值班处理。', badge: '已验活', tone: 'success' });
+        }
+        if (!account.cookieContentRaw) {
+            items.push({ title: '还没有录入 Cookie 内容', copy: '先点“进入环境”登录账号，再用 Cookie-Editor 或 EditThisCookie 导出，回到“Cookie 状态”里粘贴；如果不会判断状态，直接用系统判断。', badge: '新手指引', tone: 'info' });
+        }
+        if (account.lastConnectionStatus === 'unreachable') {
+            items.push({ title: '最近一次代理检测失败', copy: account.connectionMessage || '请优先检查代理地址、网络和设备状态。', badge: '检测失败', tone: 'error' });
+        } else if (account.lastConnectionStatus === 'reachable') {
+            items.push({ title: '代理链路最近可达', copy: '代理线路最近一次检测通过，可继续做环境登录或后续人工验活。', badge: '代理正常', tone: 'success' });
+        }
+        if (!items.length) {
+            items.push({ title: '当前账号可继续处理', copy: '隔离环境、Cookie 与连接检测暂无明显阻塞，可继续执行登录或批量任务。', badge: '已就绪', tone: 'success' });
+        }
+        items.push({ title: '粉丝与标签复核', copy: '当前粉丝 ' + _formatNum(account.followers) + '，标签为 ' + (account.tags.length ? account.tags.join(' / ') : '未配置') + '。', badge: '运营复核', tone: 'info' });
+        return items.slice(0, 3);
+    }
+
+    function _buildProxyMismatchGuidance(message, account) {
+        var lines = [];
+        var platformMessage = String(message || '').trim();
+        if (platformMessage) {
+            lines.push('平台反馈：' + platformMessage);
+        }
+        lines.push('当前现象：直连能识别账号，但当前代理下无法稳定验活。');
+        lines.push('优先处理：用当前绑定设备重新登录，并导出该设备环境下的新 Cookie。');
+        lines.push('检查代理：地区尽量与账号地区一致，协议与认证方式正确，出口 IP 保持稳定。');
+        if (account && account.regionLabel) {
+            lines.push('当前账号地区：' + account.regionLabel + '。优先选择同地区设备，不要频繁跨区切换。');
+        }
+        lines.push('如果暂时没有与 Cookie 适配的代理：不要强绑新代理继续验活；先切回原登录设备，或暂时解绑代理做直连复核，再重新登录获取新 Cookie。');
+        return lines.join('\n');
+    }
+
+    function _buildAccountDutySummary(account, items) {
+        var risk = 0;
+        var blockers = [];
+        if (!account.isolationEnabled) {
+            risk += 2;
+            blockers.push('先进入隔离环境');
+        }
+        if (account.cookieStatus === 'invalid' || account.cookieStatus === 'missing') {
+            risk += 3;
+            blockers.push('Cookie 需要修复');
+        } else if (account.cookieStatus === 'expiring') {
+            risk += 1;
+            blockers.push('Cookie 临近过期');
+        }
+        if (account.loginCheckStatus === 'invalid') {
+            risk += 3;
+            blockers.push('登录态校验失败');
+        } else if (account.loginCheckStatus === 'proxy_mismatch') {
+            risk += 2;
+            blockers.push('代理下登录态异常');
+        } else if (account.loginCheckStatus !== 'valid' && account.cookieContentRaw) {
+            risk += 1;
+            blockers.push('尚未做真实登录态校验');
+        }
+        if (account.lastConnectionStatus === 'unreachable') {
+            risk += 3;
+            blockers.push('代理检测失败');
+        }
+        if (account.filterStatus === 'exception') {
+            risk += 2;
+            blockers.push('账号处于异常状态');
+        }
+        if (risk >= 6) {
+            return {
+                title: '当前不建议直接值班操作',
+                copy: blockers.join('，') + '。建议先排障，再继续登录、导入或发布。',
+                badge: '高风险',
+                tone: 'error',
+            };
+        }
+        if (risk >= 3) {
+            return {
+                title: '建议先补齐环境条件',
+                copy: blockers.join('，') + '。完成这些准备后再继续主流程更稳妥。',
+                badge: '待处理',
+                tone: 'warning',
+            };
+        }
+        return {
+            title: '当前账号可继续值班处理',
+            copy: (items && items.length ? items[0].copy : '关键环境条件已满足，可继续进入账号操作流程。'),
+            badge: '可执行',
+            tone: 'success',
+        };
+    }
+
+    function _getCheckedAccountIds() {
+        var ids = [];
+        document.querySelectorAll('.js-batch-account:checked').forEach(function (cb) {
+            ids.push(String(cb.dataset.id || ''));
+        });
+        return ids;
+    }
+
+    function _clearAccountBatchSelection() {
+        document.querySelectorAll('.js-batch-account').forEach(function (cb) {
+            cb.checked = false;
+        });
+        document.querySelectorAll('.batch-bar').forEach(function (bar) { bar.remove(); });
+    }
+
+    function _setAccountBatchMode(enabled) {
+        if (!uiState.account) uiState.account = { statusFilter: 'all', view: 'card', sortMode: 'default', selectedId: null, batchMode: false };
+        uiState.account.batchMode = !!enabled;
+        if (!enabled) {
+            _clearAccountBatchSelection();
+        }
+        _syncAccountControls();
+        if (typeof applyCurrentRouteState === 'function') applyCurrentRouteState();
+    }
+
+    function _formatRelativeDate(value) {
+        if (!value) return '未记录';
+        var normalized = String(value).replace(' ', 'T');
+        var date = new Date(normalized);
+        if (isNaN(date.getTime())) return String(value);
+        var diff = Date.now() - date.getTime();
+        var minute = 60 * 1000;
+        var hour = 60 * minute;
+        var day = 24 * hour;
+        if (diff < minute) return '刚刚';
+        if (diff < hour) return Math.max(1, Math.round(diff / minute)) + ' 分钟前';
+        if (diff < day) return Math.max(1, Math.round(diff / hour)) + ' 小时前';
+        return Math.max(1, Math.round(diff / day)) + ' 天前';
+    }
+
+    function _isTruthy(value) {
+        if (value === true || value === false) return value;
+        return ['1', 'true', 'yes', 'on', 'enabled'].indexOf(String(value || '').toLowerCase()) >= 0;
+    }
+
+    window.__selectAccountCard = function (accountId) {
+        var cards = document.querySelectorAll('#mainHost .account-card');
+        if (!cards.length) return;
+        _selectAccountCard(accountId, (window.__accountPageData || []));
+    };
+
     /* ══════════════════════════════════════════════
        Dashboard 页面
        ══════════════════════════════════════════════ */
@@ -502,9 +1909,13 @@
         uiState.dashboard.dashboardRange = rangeKey || 'today';
         api.dashboard.overview(uiState.dashboard.dashboardRange).then(function (overview) {
             overview = overview || {};
+            var trend = Array.isArray(overview.trend) ? overview.trend : [];
+            if (!trend.length) {
+                trend = _buildDashboardFallbackTrend(overview.stats || {}, uiState.dashboard.dashboardRange);
+            }
             runtimeSummaryHandlers['dashboard']({ stats: overview.stats || {} });
             _renderDashboardStats(overview.stats || {});
-            _renderDashboardTrend(overview.trend || [], uiState.dashboard.dashboardRange);
+            _renderDashboardTrend(trend, uiState.dashboard.dashboardRange, overview.stats || {});
             _renderDashboardActivity(overview.activity || []);
             _renderDashboardSystems(overview.systems || []);
             _syncDashboardRangeButtons(uiState.dashboard.dashboardRange);
@@ -513,7 +1924,29 @@
         });
     }
 
+    function _buildDashboardFallbackTrend(stats, rangeKey) {
+        var total = stats && stats.tasks ? (stats.tasks.total || 0) : 0;
+        var byStatus = stats && stats.tasks && stats.tasks.byStatus ? stats.tasks.byStatus : {};
+        var completed = byStatus.completed || 0;
+        var failed = byStatus.failed || 0;
+        var pending = byStatus.pending || 0;
+        var running = byStatus.running || 0;
+        var label = rangeKey === 'today' ? '当前' : '今日';
+        return [{
+            label: label,
+            created: total,
+            completed: completed + running,
+            failed: failed + pending,
+        }];
+    }
+
     function _renderDashboardStats(stats) {
+        var routeMap = {
+            accounts: { route: 'account', toast: '正在打开账号管理' },
+            tasks: { route: 'task-queue', toast: '正在打开任务队列' },
+            failed: { route: 'task-queue', toast: '正在打开异常任务列表', filter: 'failed' },
+            providers: { route: 'ai-provider', toast: '正在打开 AI 供应商配置' },
+        };
         var statMap = {
             accounts: _formatNum(stats.accounts ? stats.accounts.total : 0),
             tasks: _formatNum(stats.tasks ? stats.tasks.total : 0),
@@ -521,36 +1954,90 @@
             providers: _formatNum(stats.providers || 0),
         };
         Object.keys(statMap).forEach(function (key) {
-            var node = document.querySelector('#mainHost [data-dashboard-stat="' + key + '"] .stat-card__value');
+            var card = document.querySelector('#mainHost [data-dashboard-stat="' + key + '"]');
+            if (!card) return;
+            var routeMeta = routeMap[key];
+            if (routeMeta) {
+                card.classList.add('dashboard-stat-link');
+                if (routeMeta.filter) {
+                    card.removeAttribute('data-route-link');
+                    card.removeAttribute('data-route-toast');
+                    card.dataset.dashboardTaskFilter = routeMeta.filter;
+                    _bindDashboardTaskFilterTrigger(card, routeMeta.filter, routeMeta.toast);
+                } else {
+                    delete card.dataset.dashboardTaskFilter;
+                    card.setAttribute('data-route-link', routeMeta.route);
+                    card.setAttribute('data-route-toast', routeMeta.toast);
+                    card.onclick = null;
+                }
+            }
+            var node = card.querySelector('.stat-card__value');
             if (node) node.textContent = statMap[key];
         });
     }
 
-    function _renderDashboardTrend(trend, rangeKey) {
+    function _renderDashboardTrend(trend, rangeKey, stats) {
         var host = document.querySelector('#mainHost [data-dashboard-chart]');
         if (!host) return;
-        if (!trend.length) {
+        var summary = _summarizeDashboardTrend(trend, rangeKey, stats);
+        if (!summary) {
             host.innerHTML = '<div class="subtle">当前时间范围暂无趋势数据</div>';
             return;
         }
-        var maxValue = 1;
-        trend.forEach(function (item) {
-            maxValue = Math.max(maxValue, item.created || 0, item.completed || 0, item.failed || 0);
+        var maxValue = Math.max(1, summary.created || 0, summary.completed || 0, summary.failed || 0);
+        var rows = '<div class="dashboard-trend-group dashboard-trend-group--summary">'
+            + '<div class="dashboard-trend-group__label">' + _esc(summary.label || '--') + '</div>'
+            + '<div class="dashboard-trend-group__metrics">'
+            + _renderDashboardTrendMetric('新增', 'created', summary.created || 0, maxValue)
+            + _renderDashboardTrendMetric('完成', 'completed', summary.completed || 0, maxValue)
+            + _renderDashboardTrendMetric('异常', 'failed', summary.failed || 0, maxValue)
+            + '</div></div>';
+        host.innerHTML = '<div class="dashboard-axis-note">当前展示的是所选时间范围内的汇总结果，不再按小时或日期拆分。</div>'
+            + '<div class="dashboard-trend-chart dashboard-trend-chart--summary">' + rows + '</div>';
+    }
+
+    function _summarizeDashboardTrend(trend, rangeKey, stats) {
+        var items = Array.isArray(trend) ? trend : [];
+        if (!items.length) {
+            var byStatus = stats && stats.tasks && stats.tasks.byStatus ? stats.tasks.byStatus : {};
+            var total = stats && stats.tasks ? (stats.tasks.total || 0) : 0;
+            if (!total && !(byStatus.completed || byStatus.failed || byStatus.pending || byStatus.running)) {
+                return null;
+            }
+            return {
+                label: _dashboardSummaryLabel(rangeKey),
+                created: total,
+                completed: (byStatus.completed || 0) + (byStatus.running || 0),
+                failed: (byStatus.failed || 0) + (byStatus.pending || 0),
+            };
+        }
+        return items.reduce(function (acc, item) {
+            acc.created += Number(item.created || 0);
+            acc.completed += Number(item.completed || 0);
+            acc.failed += Number(item.failed || 0);
+            return acc;
+        }, {
+            label: _dashboardSummaryLabel(rangeKey),
+            created: 0,
+            completed: 0,
+            failed: 0,
         });
-        var rows = trend.map(function (item) {
-            var createdWidth = Math.max(4, Math.round(((item.created || 0) / maxValue) * 100));
-            var completedWidth = Math.max(4, Math.round(((item.completed || 0) / maxValue) * 100));
-            var failedWidth = Math.max(4, Math.round(((item.failed || 0) / maxValue) * 100));
-            return '<div class="dashboard-trend-row">'
-                + '<div class="dashboard-trend-row__label">' + _esc(item.label || '--') + '</div>'
-                + '<div class="dashboard-trend-row__bars">'
-                + '<span class="dashboard-trend-bar is-created" style="width:' + createdWidth + '%">新增 ' + _esc(String(item.created || 0)) + '</span>'
-                + '<span class="dashboard-trend-bar is-completed" style="width:' + completedWidth + '%">完成 ' + _esc(String(item.completed || 0)) + '</span>'
-                + '<span class="dashboard-trend-bar is-failed" style="width:' + failedWidth + '%">异常 ' + _esc(String(item.failed || 0)) + '</span>'
-                + '</div></div>';
-        }).join('');
-        host.innerHTML = '<div class="dashboard-axis-note">X 轴：' + _esc(rangeKey === 'today' ? '小时' : '日期') + '；Y 轴：任务数量</div>'
-            + '<div class="dashboard-trend-list">' + rows + '</div>';
+    }
+
+    function _dashboardSummaryLabel(rangeKey) {
+        if (rangeKey === '30d') return '近 30 天汇总';
+        if (rangeKey === '7d') return '近 7 天汇总';
+        return '今日汇总';
+    }
+
+    function _renderDashboardTrendMetric(label, tone, value, maxValue) {
+        var numericValue = Number(value || 0);
+        var width = numericValue <= 0 ? 0 : Math.max(10, Math.round((numericValue / Math.max(1, maxValue)) * 100));
+        return '<div class="dashboard-trend-metric">'
+            + '<span class="dashboard-trend-metric__name">' + _esc(label) + '</span>'
+            + '<span class="dashboard-trend-track"><span class="dashboard-trend-fill is-' + _esc(tone) + '" style="width:' + width + '%"></span></span>'
+            + '<strong class="dashboard-trend-metric__value">' + _esc(String(numericValue)) + '</strong>'
+            + '</div>';
     }
 
     function _renderDashboardActivity(activity) {
@@ -561,14 +2048,115 @@
             return;
         }
         tbody.innerHTML = activity.map(function (item, index) {
+                var entityLabel = _dashboardActivityEntityLabel(item.entity);
+                var categoryLabel = _dashboardActivityCategoryLabel(item.category);
             return '<tr class="route-row' + (index === 0 ? ' is-selected' : '') + '" data-dashboard-activity-row="1">'
                 + '<td><strong>' + _esc(item.title || '未命名动作') + '</strong></td>'
-                + '<td class="mono">' + _esc(item.entity || '--') + '</td>'
-                + '<td>' + _esc(item.category || '--') + '</td>'
+                    + '<td>' + _esc(entityLabel) + '</td>'
+                    + '<td>' + _esc(categoryLabel) + '</td>'
                 + '<td><span class="status-chip info">' + _esc(item.status || '--') + '</span></td>'
                 + '<td class="subtle">' + _esc(_formatDashboardTime(item.time)) + '</td>'
                 + '</tr>';
         }).join('');
+        _bindDashboardActivityRows(activity);
+        _bindDashboardViewAllButton();
+    }
+
+        function _dashboardActivityEntityLabel(value) {
+            var key = String(value || '').trim().toLowerCase();
+            var labels = {
+                activity: '活动日志',
+                seed: '种子数据',
+                task: '任务',
+                report_run: '报告运行',
+                workflow_run: '工作流运行',
+                workflow_definition: '工作流定义',
+                experiment_project: '实验项目',
+                experiment_view: '实验视图',
+                analysis_snapshot: '分析快照',
+                provider: 'AI 服务商',
+                account: '账号',
+                group: '分组',
+                device: '设备',
+                asset: '素材'
+            };
+            return labels[key] || value || '--';
+        }
+
+        function _dashboardActivityCategoryLabel(value) {
+            var key = String(value || '').trim().toLowerCase();
+            var labels = {
+                seed: '数据初始化',
+                task: '任务',
+                warning: '预警',
+                report: '报告',
+                workflow: '工作流',
+                experiment: '实验',
+                maintenance: '维护',
+                publish: '发布',
+                interact: '互动',
+                scrape: '采集'
+            };
+            return labels[key] || value || '--';
+        }
+
+    function _bindDashboardTaskFilterTrigger(card, statusFilter, toast) {
+        if (!card) return;
+        card.onclick = function (event) {
+            if (event) {
+                event.preventDefault();
+                event.stopPropagation();
+            }
+            _openTaskQueueWithFilter(statusFilter, toast);
+        };
+    }
+
+    function _bindDashboardViewAllButton() {
+        var button = document.querySelector('#mainHost .table-card__header .ghost-button');
+        if (!button || button.dataset.dashboardViewAllBound === '1') return;
+        button.dataset.dashboardViewAllBound = '1';
+        button.addEventListener('click', function (event) {
+            event.preventDefault();
+            event.stopPropagation();
+            if (typeof renderRoute === 'function') renderRoute('report-center');
+            if (typeof showToast === 'function') showToast('正在打开完整活动日志', 'info');
+        });
+    }
+
+    function _openTaskQueueWithFilter(statusFilter, toast) {
+        uiState['task-queue'] = uiState['task-queue'] || { statusFilter: 'all' };
+        uiState['task-queue'].statusFilter = statusFilter || 'all';
+        if (currentRoute === 'task-queue') {
+            _syncTaskQueueFilterTabs(uiState['task-queue'].statusFilter);
+            if (typeof applyCurrentRouteState === 'function') applyCurrentRouteState();
+        } else if (typeof renderRoute === 'function') {
+            renderRoute('task-queue');
+        }
+        if (toast && typeof showToast === 'function') showToast(toast, 'info');
+    }
+
+    function _bindDashboardActivityRows(activity) {
+        var rows = document.querySelectorAll('#mainHost [data-dashboard-activity-row]');
+        if (!rows.length) return;
+        rows.forEach(function (row, index) {
+            row.addEventListener('click', function () {
+                rows.forEach(function (node) { node.classList.remove('is-selected'); });
+                row.classList.add('is-selected');
+                var item = activity[index] || {};
+                var entityLabel = _dashboardActivityEntityLabel(item.entity);
+                var categoryLabel = _dashboardActivityCategoryLabel(item.category);
+                var detailHost = document.getElementById('detailHost');
+                if (!detailHost) return;
+                detailHost.innerHTML = '<div class="detail-root"><section class="panel"><div class="panel__header"><div><strong>'
+                    + _esc(item.title || '活动详情') + '</strong><div class="subtle">来自活动流选中项</div></div><span class="status-chip info">'
+                    + _esc(item.status || '--') + '</span></div><div class="detail-list">'
+                    + '<div class="detail-item"><span class="subtle">关联对象</span><strong>' + _esc(entityLabel) + '</strong></div>'
+                    + '<div class="detail-item"><span class="subtle">分类</span><strong>' + _esc(categoryLabel) + '</strong></div>'
+                    + '<div class="detail-item"><span class="subtle">时间</span><strong>' + _esc(_formatDashboardTime(item.time)) + '</strong></div>'
+                    + '</div></section></div>';
+                detailHost.classList.remove('shell-hidden');
+            });
+        });
     }
 
     function _renderDashboardSystems(systems) {
@@ -589,10 +2177,15 @@
             statusChip.textContent = hasError ? '存在异常' : (hasWarning ? '需要关注' : '运行稳定');
             statusChip.className = 'status-chip ' + (hasError ? 'error' : (hasWarning ? 'warning' : 'success'));
         }
+        host.classList.add('dashboard-systems-grid');
         host.innerHTML = systems.map(function (item, index) {
-            return '<div class="task-item dashboard-system-item' + ((uiState.dashboard.selectedSystemKey ? uiState.dashboard.selectedSystemKey === item.key : index === 0) ? ' is-selected' : '') + '" data-dashboard-system-key="' + _esc(item.key || '') + '">'
-                + '<div><strong>' + _esc(item.title || '--') + '</strong><div class="subtle">' + _esc(item.summary || '--') + '</div></div>'
-                + '<span class="pill ' + _esc(item.tone || 'info') + '">' + _esc(item.status || '--') + '</span></div>';
+            return '<button class="dashboard-system-card' + ((uiState.dashboard.selectedSystemKey ? uiState.dashboard.selectedSystemKey === item.key : index === 0) ? ' is-selected' : '') + '" data-dashboard-system-key="' + _esc(item.key || '') + '" type="button">'
+                + '<div class="dashboard-system-card__head">'
+                + '<strong>' + _esc(item.title || '--') + '</strong>'
+                + '<span class="pill ' + _esc(item.tone || 'info') + '">' + _esc(item.status || '--') + '</span>'
+                + '</div>'
+                + '<div class="dashboard-system-card__summary">' + _esc(item.summary || '--') + '</div>'
+                + '</button>';
         }).join('');
         _bindDashboardSystemItems(systems);
     }
@@ -649,6 +2242,7 @@
        ══════════════════════════════════════════════ */
     loaders['task-queue'] = function () {
         _wireHeaderPrimary(function () { openTaskForm(); });
+        uiState['task-queue'] = uiState['task-queue'] || { statusFilter: 'all' };
 
         api.tasks.list().then(function (tasks) {
             tasks = tasks || [];
@@ -665,10 +2259,15 @@
             var tabs = document.querySelectorAll('#mainHost .local-tab');
             if (tabs.length >= 5) {
                 tabs[0].textContent = '全部任务 (' + counts.all + ')';
+                tabs[0].dataset.filterValue = 'all';
                 tabs[1].textContent = '进行中 (' + counts.running + ')';
+                tabs[1].dataset.filterValue = 'running';
                 tabs[2].textContent = '已完成 (' + counts.completed + ')';
+                tabs[2].dataset.filterValue = 'completed';
                 tabs[3].textContent = '排队中 (' + counts.pending + ')';
+                tabs[3].dataset.filterValue = 'pending';
                 tabs[4].textContent = '异常 (' + counts.failed + ')';
+                tabs[4].dataset.filterValue = 'failed';
             }
 
             // ── 渲染表格 ──
@@ -694,6 +2293,9 @@
             }).join('');
 
             _bindTaskActions(tasks);
+            _bindTaskQueueFilterTabs();
+            _syncTaskQueueFilterTabs(uiState['task-queue'].statusFilter || 'all');
+            if (typeof applyCurrentRouteState === 'function') applyCurrentRouteState();
             _bindBatchBar('.js-batch-task', function (ids) {
                 return _batchDelete(ids, api.tasks.remove, '任务', 'task-queue');
             });
@@ -746,6 +2348,25 @@
                     });
                 });
             });
+        });
+    }
+
+    function _bindTaskQueueFilterTabs() {
+        document.querySelectorAll('#mainHost [data-filter-group="tasks-status"] .local-tab').forEach(function (tab) {
+            if (tab.dataset.taskQueueTabBound === '1') return;
+            tab.dataset.taskQueueTabBound = '1';
+            tab.addEventListener('click', function () {
+                uiState['task-queue'] = uiState['task-queue'] || { statusFilter: 'all' };
+                uiState['task-queue'].statusFilter = tab.dataset.filterValue || 'all';
+                _syncTaskQueueFilterTabs(uiState['task-queue'].statusFilter);
+                if (typeof applyCurrentRouteState === 'function') applyCurrentRouteState();
+            });
+        });
+    }
+
+    function _syncTaskQueueFilterTabs(activeFilter) {
+        document.querySelectorAll('#mainHost [data-filter-group="tasks-status"] .local-tab').forEach(function (tab) {
+            tab.classList.toggle('is-active', (tab.dataset.filterValue || 'all') === (activeFilter || 'all'));
         });
     }
 
@@ -1043,6 +2664,15 @@
                     + '</div></article>';
             }).join('');
             _bindDeviceActions(devices);
+            var preferredDeviceId = uiState['device-management'] && uiState['device-management'].selectedId ? String(uiState['device-management'].selectedId) : '';
+            if (preferredDeviceId) {
+                document.querySelectorAll('#mainHost .device-env-card').forEach(function (node) {
+                    node.classList.toggle('is-selected', String(node.dataset.id || '') === preferredDeviceId);
+                });
+                _renderDeviceDetail((devices || []).find(function (d) { return String(d.id || '') === preferredDeviceId; }) || devices[0]);
+            } else {
+                _renderDeviceDetail(devices[0]);
+            }
             _bindBatchBar('.js-batch-device', function (ids) {
                 return _batchDelete(ids, api.devices.remove, '设备', 'device-management');
             });
@@ -4374,7 +6004,13 @@
         if (label) btn.textContent = label;
         var clone = btn.cloneNode(true);
         btn.parentNode.replaceChild(clone, btn);
-        clone.addEventListener('click', handler);
+        clone.dataset.tkopsPresetBound = '1';
+        clone.dataset.tkopsFallbackBound = '1';
+        clone.addEventListener('click', function (event) {
+            event.preventDefault();
+            event.stopPropagation();
+            handler(event);
+        });
     }
 
     /* ── 批量选择 ── */

@@ -66,6 +66,20 @@ class DevSeedService:
             "counts": self._counts(),
         }
 
+    def reset_business_data_with_localized_chinese_seed(self) -> dict[str, Any]:
+        """重建全量业务测试数据，并将可展示文本统一本地化为中文。"""
+        self._clear_business_tables()
+        created = self._seed_realistic_environment()
+        self._localize_seed_data_to_chinese()
+        return {
+            "created": created,
+            "counts": self._counts(),
+        }
+
+    def seed_localized_chinese(self) -> dict[str, Any]:
+        """兼容旧调用名：执行中文全量重建。"""
+        return self.reset_business_data_with_localized_chinese_seed()
+
     def _seed_minimal_environment(self) -> int:
         created = 0
         group = self._accounts.create_group(
@@ -94,6 +108,12 @@ class DevSeedService:
             followers=2800,
             group_id=group.id,
             device_id=device.id,
+            tags="北美,直播,种子",
+            cookie_status="valid",
+            cookie_content='[{"name":"sessionid","value":"seed-alpha-session","domain":".tiktok.com","path":"/"}]',
+            cookie_updated_at=_dt.datetime.now() - _dt.timedelta(minutes=25),
+            isolation_enabled=True,
+            last_login_at=_dt.datetime.now() - _dt.timedelta(minutes=15),
             notes="Development seed account",
         )
         account_b = self._accounts.create_account(
@@ -104,6 +124,12 @@ class DevSeedService:
             followers=5200,
             group_id=group.id,
             device_id=device.id,
+            tags="德区,预热,种子",
+            cookie_status="expiring",
+            cookie_content='[{"name":"sessionid","value":"seed-beta-session","domain":".tiktok.com","path":"/"}]',
+            cookie_updated_at=_dt.datetime.now() - _dt.timedelta(hours=6),
+            isolation_enabled=False,
+            last_login_at=_dt.datetime.now() - _dt.timedelta(hours=5),
             notes="Development seed account",
         )
         created += 2
@@ -341,6 +367,12 @@ class DevSeedService:
                 "followers": 18600,
                 "group": "North America Growth",
                 "device": "na-01",
+                "tags": "北美,收纳,直播",
+                "cookie_status": "valid",
+                "cookie_content": '[{"name":"sessionid","value":"nova-home-us","domain":".tiktok.com","path":"/"}]',
+                "cookie_updated_at": now - _dt.timedelta(hours=3),
+                "isolation_enabled": True,
+                "last_login_at": now - _dt.timedelta(minutes=12),
                 "notes": "High-volume home storage account with stable publishing cadence.",
             },
             {
@@ -350,6 +382,12 @@ class DevSeedService:
                 "followers": 7200,
                 "group": "North America Growth",
                 "device": "na-01",
+                "tags": "美区,美护,预热",
+                "cookie_status": "expiring",
+                "cookie_content": '[{"name":"sessionid","value":"glow-daily-us","domain":".tiktok.com","path":"/"}]',
+                "cookie_updated_at": now - _dt.timedelta(days=1),
+                "isolation_enabled": False,
+                "last_login_at": now - _dt.timedelta(hours=2, minutes=20),
                 "notes": "Beauty accessories account in warm-up stage.",
             },
             {
@@ -359,6 +397,12 @@ class DevSeedService:
                 "followers": 13100,
                 "group": "DACH Conversion",
                 "device": "de-02",
+                "tags": "德区,转化,搜索",
+                "cookie_status": "valid",
+                "cookie_content": '[{"name":"sessionid","value":"trend-box-de","domain":".tiktok.com","path":"/"}]',
+                "cookie_updated_at": now - _dt.timedelta(hours=8),
+                "isolation_enabled": True,
+                "last_login_at": now - _dt.timedelta(minutes=48),
                 "notes": "DACH conversion-focused account with strong search traffic.",
             },
             {
@@ -368,6 +412,12 @@ class DevSeedService:
                 "followers": 4400,
                 "group": "DACH Conversion",
                 "device": "de-02",
+                "tags": "德区,待投放",
+                "cookie_status": "missing",
+                "cookie_content": None,
+                "cookie_updated_at": None,
+                "isolation_enabled": False,
+                "last_login_at": now - _dt.timedelta(days=1, hours=3),
                 "notes": "Waiting for asset refresh before next campaign.",
             },
             {
@@ -377,6 +427,12 @@ class DevSeedService:
                 "followers": 9700,
                 "group": "DACH Conversion",
                 "device": "uk-04",
+                "tags": "英国,互动,上新",
+                "cookie_status": "valid",
+                "cookie_content": '[{"name":"sessionid","value":"urban-mix-uk","domain":".tiktok.com","path":"/"}]',
+                "cookie_updated_at": now - _dt.timedelta(hours=5),
+                "isolation_enabled": True,
+                "last_login_at": now - _dt.timedelta(minutes=36),
                 "notes": "UK storefront with high interaction density.",
             },
             {
@@ -386,6 +442,12 @@ class DevSeedService:
                 "followers": 5600,
                 "group": "Southeast Asia Labs",
                 "device": "sg-03",
+                "tags": "新加坡,实验,素材",
+                "cookie_status": "expiring",
+                "cookie_content": '[{"name":"sessionid","value":"shop-lab-sg","domain":".tiktok.com","path":"/"}]',
+                "cookie_updated_at": now - _dt.timedelta(days=2),
+                "isolation_enabled": True,
+                "last_login_at": now - _dt.timedelta(hours=4),
                 "notes": "SEA lab account for new creative themes.",
             },
             {
@@ -395,6 +457,12 @@ class DevSeedService:
                 "followers": 8300,
                 "group": "Southeast Asia Labs",
                 "device": "sg-03",
+                "tags": "马来,选品,自动化",
+                "cookie_status": "valid",
+                "cookie_content": '[{"name":"sessionid","value":"pulse-find-my","domain":".tiktok.com","path":"/"}]',
+                "cookie_updated_at": now - _dt.timedelta(minutes=55),
+                "isolation_enabled": True,
+                "last_login_at": now - _dt.timedelta(hours=1, minutes=10),
                 "notes": "MY account used for template and automation tests.",
             },
             {
@@ -404,6 +472,12 @@ class DevSeedService:
                 "followers": 3100,
                 "group": "Risk Recovery",
                 "device": "uk-04",
+                "tags": "恢复,风控,美国",
+                "cookie_status": "invalid",
+                "cookie_content": '[{"name":"sessionid","value":"recover-ops-us-expired","domain":".tiktok.com","path":"/"}]',
+                "cookie_updated_at": now - _dt.timedelta(days=6),
+                "isolation_enabled": False,
+                "last_login_at": now - _dt.timedelta(days=3, hours=6),
                 "notes": "Suspended account kept for replay and risk review.",
             },
             {
@@ -413,6 +487,12 @@ class DevSeedService:
                 "followers": 2100,
                 "group": "Risk Recovery",
                 "device": "uk-04",
+                "tags": "英国,重试,修复",
+                "cookie_status": "missing",
+                "cookie_content": None,
+                "cookie_updated_at": None,
+                "isolation_enabled": False,
+                "last_login_at": now - _dt.timedelta(days=2, hours=4),
                 "notes": "Retry lane account with pending remediation workflow.",
             },
         ]:
@@ -424,6 +504,12 @@ class DevSeedService:
                 followers=spec["followers"],
                 group_id=groups[spec["group"]].id,
                 device_id=devices[spec["device"]].id,
+                tags=spec["tags"],
+                cookie_status=spec["cookie_status"],
+                cookie_content=spec["cookie_content"],
+                cookie_updated_at=spec["cookie_updated_at"],
+                isolation_enabled=spec["isolation_enabled"],
+                last_login_at=spec["last_login_at"],
                 notes=spec["notes"],
             )
             created += 1
@@ -916,6 +1002,145 @@ class DevSeedService:
             Group,
         ]:
             session.execute(delete(model))
+        session.commit()
+        session.expire_all()
+
+    def _localize_seed_data_to_chinese(self) -> None:
+        """在保持主外键关系不变的前提下，本地化展示性文本字段。"""
+        session = self._repo.session
+
+        group_names = ["北美增长组", "德语区转化组", "东南亚实验组", "风控恢复组"]
+        group_descs = [
+            "负责美国与加拿大账号增长和流量扩展",
+            "聚焦德国与英国市场的转化与报表闭环",
+            "用于创意主题、自动化流程与实验验证",
+            "用于风险账号修复、回放与复盘",
+        ]
+        for idx, group in enumerate(session.query(Group).order_by(Group.id).all()):
+            group.name = group_names[idx] if idx < len(group_names) else f"运营分组{idx + 1}"
+            group.description = group_descs[idx] if idx < len(group_descs) else f"分组说明{idx + 1}"
+
+        device_names = ["浏览器集群-北美01", "浏览器集群-德区02", "浏览器集群-新加坡03", "浏览器集群-英国04"]
+        for idx, device in enumerate(session.query(Device).order_by(Device.id).all()):
+            device.name = device_names[idx] if idx < len(device_names) else f"浏览器设备{idx + 1}"
+
+        account_names = [
+            "北美收纳优选",
+            "每日美护精选",
+            "德区趋势盒子",
+            "德区家居信号",
+            "英国潮流仓",
+            "新加坡实验店",
+            "马来选品站",
+            "美国恢复专线",
+            "英国重试通道",
+        ]
+        account_notes = [
+            "高频发布账号，重点验证增长素材节奏。",
+            "美护类目账号，处于热启阶段。",
+            "德语区转化主力账号，搜索流量稳定。",
+            "等待素材刷新后进入下一轮投放。",
+            "英国站点账号，互动密度较高。",
+            "用于新主题和实验流程验证。",
+            "用于模板化投放与自动化回放测试。",
+            "风控恢复账号，用于封禁恢复链路验证。",
+            "重试通道账号，等待修复后重新上线。",
+        ]
+        account_tags = [
+            "北美,增长,直播",
+            "美护,热启,美国",
+            "德区,转化,搜索",
+            "德区,待激活",
+            "英国,互动,高频",
+            "新加坡,实验,创意",
+            "马来,模板,自动化",
+            "恢复,风控,美国",
+            "英国,重试,修复",
+        ]
+        cookie_statuses = ["valid", "expiring", "valid", "missing", "valid", "expiring", "valid", "invalid", "missing"]
+        isolation_flags = [True, False, True, False, True, True, True, False, False]
+        for idx, account in enumerate(session.query(Account).order_by(Account.id).all()):
+            account.username = account_names[idx] if idx < len(account_names) else f"中文测试账号{idx + 1}"
+            account.notes = account_notes[idx] if idx < len(account_notes) else f"中文测试备注{idx + 1}"
+            account.tags = account_tags[idx] if idx < len(account_tags) else "中文,测试,账号"
+            account.cookie_status = cookie_statuses[idx] if idx < len(cookie_statuses) else "unknown"
+            account.isolation_enabled = isolation_flags[idx] if idx < len(isolation_flags) else False
+            account.last_login_at = _dt.datetime.now() - _dt.timedelta(hours=(idx + 1) * 3)
+            account.last_connection_status = "unknown"
+            account.last_connection_checked_at = None
+            account.last_connection_message = None
+
+        provider_names = ["主AI服务", "备用AI服务", "本地审阅服务"]
+        for idx, provider in enumerate(session.query(AIProvider).order_by(AIProvider.id).all()):
+            provider.name = provider_names[idx] if idx < len(provider_names) else f"AI服务{idx + 1}"
+
+        asset_names = [
+            "北美收纳封面图", "北美收纳开场视频", "北美收纳文案", "美护角度图", "美护促销视频",
+            "德区排名看板模板", "德区漏斗简报", "德区商品宫格图", "英国评论回放音频", "英国上新视频",
+            "新加坡创作者矩阵", "新加坡标题包", "马来投放模板", "风控回放清单", "恢复检查图",
+        ]
+        for idx, asset in enumerate(session.query(Asset).order_by(Asset.id).all()):
+            base = asset_names[idx] if idx < len(asset_names) else f"素材{idx + 1}"
+            ext = ""
+            if "." in asset.filename:
+                ext = "." + asset.filename.split(".")[-1]
+            asset.filename = f"{base}{ext}"
+            asset.file_path = f"C:/seed/zh_cn/{base.replace(' ', '_')}"
+            asset.tags = "中文,测试,运营"
+
+        task_titles = [
+            "周报任务 / 北美增长总览", "创意回放 / 北美开场变体", "互动执行 / 英国评论回复", "库存风控复核 / 德区转化",
+            "画像刷新 / 新加坡实验分群", "素材同步 / 马来模板库", "服务健康检查 / 每日基线", "风险回放 / 英国恢复通道",
+            "商品扫描 / 美国收纳类目", "报表汇总 / 德语区转化", "创意批处理 / 东南亚主题对比", "流程交接 / 马来分发包",
+            "风险审计 / 美国封禁恢复", "通知同步 / 每日活动摘要",
+        ]
+        for idx, task in enumerate(session.query(Task).order_by(Task.id).all()):
+            task.title = task_titles[idx] if idx < len(task_titles) else f"运营任务{idx + 1}"
+            if task.result_summary:
+                task.result_summary = f"中文测试结果摘要 {idx + 1}"
+
+        snapshot_titles = [
+            "流量看板快照 / 日渠道结构", "竞品监控快照 / 账号排名", "蓝海机会快照 / 选题覆盖",
+            "互动分析快照 / 情绪摘要", "报表中心快照 / 分发状态", "实验室快照 / 胜出版本",
+        ]
+        for idx, snapshot in enumerate(session.query(AnalysisSnapshot).order_by(AnalysisSnapshot.id).all()):
+            snapshot.title = snapshot_titles[idx] if idx < len(snapshot_titles) else f"分析快照{idx + 1}"
+            snapshot.summary = f"中文本地化快照说明 {idx + 1}"
+
+        report_titles = ["运营周报 / 北美", "异常摘要 / 德区", "互动摘要 / 英国", "机会报告 / 东南亚"]
+        for idx, report in enumerate(session.query(ReportRun).order_by(ReportRun.id).all()):
+            report.title = report_titles[idx] if idx < len(report_titles) else f"报告{idx + 1}"
+            report.result_json = json.dumps({"summary": f"中文报告结果 {idx + 1}"}, ensure_ascii=False)
+
+        workflow_names = ["创意工厂流程", "风控恢复流程", "报表组装流程"]
+        workflow_desc = ["拉取素材、生成变体、审核并发布。", "针对封禁账号执行修复回放。", "聚合指标后生成运营摘要。"]
+        for idx, workflow in enumerate(session.query(WorkflowDefinition).order_by(WorkflowDefinition.id).all()):
+            workflow.name = workflow_names[idx] if idx < len(workflow_names) else f"流程定义{idx + 1}"
+            workflow.description = workflow_desc[idx] if idx < len(workflow_desc) else f"流程说明{idx + 1}"
+
+        for idx, run in enumerate(session.query(WorkflowRun).order_by(WorkflowRun.id).all()):
+            run.input_json = json.dumps({"input": f"中文流程输入{idx + 1}"}, ensure_ascii=False)
+            run.result_json = json.dumps({"result": f"中文流程结果{idx + 1}"}, ensure_ascii=False)
+
+        project_names = ["视觉实验室 / 开场留存", "转化实验室 / 德区漏斗", "创意工坊 / 角度仲裁"]
+        project_goals = ["比较不同开场结构对留存的影响。", "定位德区漏斗中的关键流失环节。", "沉淀多条创意方向并交接胜出方案。"]
+        for idx, project in enumerate(session.query(ExperimentProject).order_by(ExperimentProject.id).all()):
+            project.name = project_names[idx] if idx < len(project_names) else f"实验项目{idx + 1}"
+            project.goal = project_goals[idx] if idx < len(project_goals) else f"实验目标{idx + 1}"
+
+        view_names = ["留存总览", "胜出版本宫格", "漏斗流失图", "区域转化表", "角度积分榜", "交接队列"]
+        for idx, view in enumerate(session.query(ExperimentView).order_by(ExperimentView.id).all()):
+            view.name = view_names[idx] if idx < len(view_names) else f"实验视图{idx + 1}"
+
+        activity_titles = [
+            "中文测试数据已重建", "北美周报已完成", "英国互动任务进行中", "德区库存风控失败",
+            "异常摘要等待人工处理", "创意工厂产出进行中", "风险恢复流程失败", "视觉实验选出优胜开场",
+            "创意工坊等待仲裁", "服务健康检查通过", "活动摘要已同步通知中心", "美国恢复链路仍受阻",
+        ]
+        for idx, activity in enumerate(session.query(ActivityLog).order_by(ActivityLog.id).all()):
+            activity.title = activity_titles[idx] if idx < len(activity_titles) else f"活动日志{idx + 1}"
+            activity.payload_json = json.dumps({"summary": f"中文活动日志摘要 {idx + 1}"}, ensure_ascii=False)
+
         session.commit()
         session.expire_all()
 

@@ -77,19 +77,27 @@ def test_bridge_exposes_task_backed_action_creation_slot() -> None:
 def test_frontend_routes_async_buttons_to_real_task_creation() -> None:
     text = BINDINGS_JS.read_text(encoding='utf-8')
     expected = [
-        "'批量检测环境': () => _createNamedTaskAction('batch_environment_check'",
-        "'测试连接': () => _createNamedTaskAction('account_connection_test'",
-        "'管理 Cookies': () => _createNamedTaskAction('account_cookie_maintenance'",
         "'打开环境': () => _createNamedTaskAction('device_open_environment'",
     ]
     for marker in expected:
         assert marker in text, marker
 
     placeholders = [
-        "'批量检测环境': () => showToast('批量环境检测已加入队列', 'info')",
-        "'测试连接': () => showToast('连接检测任务已创建', 'info')",
-        "'管理 Cookies': () => showToast('Cookie 管理能力正在接入', 'info')",
         "'打开环境': () => showToast('设备环境启动命令已下发', 'success')",
     ]
     for marker in placeholders:
         assert marker not in text, marker
+
+
+def test_account_page_exposes_direct_connection_detection_hooks() -> None:
+    bridge_text = BRIDGE_PY.read_text(encoding='utf-8')
+    assert 'def testAccountConnection(' in bridge_text
+    assert 'self._accounts.test_account_connection(' in bridge_text
+
+    data_text = DATA_JS.read_text(encoding='utf-8')
+    assert 'testConnection: function (id)' in data_text
+    assert "callBackend('testAccountConnection'" in data_text
+
+    bindings_text = BINDINGS_JS.read_text(encoding='utf-8')
+    assert "'测试连接': () => _createNamedTaskAction('account_connection_test'" not in bindings_text
+    assert "'管理 Cookies': () => _createNamedTaskAction('account_cookie_maintenance'" not in bindings_text

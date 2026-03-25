@@ -169,6 +169,203 @@ print(json.dumps({
     assert result["activity_count"] == 1
 
 
+def test_can_store_account_cookie_content_and_timestamp() -> None:
+    result = _run_isolated_script(
+        """
+import json
+from datetime import datetime
+from desktop_app.database.repository import Repository
+from desktop_app.services.account_service import AccountService
+
+repo = Repository()
+service = AccountService(repo)
+account = service.create_account(
+    'cookie_owner',
+    cookie_status='valid',
+    cookie_content='[{"name":"sessionid","value":"cookie-owner"}]',
+)
+updated = service.update_account(
+    account.id,
+    cookie_updated_at=datetime(2026, 3, 25, 10, 0, 0),
+)
+print(json.dumps({
+    'status': updated.cookie_status,
+    'cookie_len': len(updated.cookie_content or ''),
+    'cookie_updated_at': str(updated.cookie_updated_at),
+}, ensure_ascii=False))
+"""
+    )
+    assert result['status'] == 'valid'
+    assert int(result['cookie_len']) > 10
+    assert '2026-03-25 10:00:00' in result['cookie_updated_at']
+
+
+def test_account_login_validation_updates_runtime_fields() -> None:
+    result = _run_isolated_script(
+        """
+import json
+from desktop_app.database.repository import Repository
+from desktop_app.services.account_service import AccountService
+
+repo = Repository()
+service = AccountService(repo)
+account = service.create_account(
+    'login_owner',
+    platform='tiktok',
+    cookie_status='unknown',
+    cookie_content='[{"name":"sessionid","value":"cookie-owner"}]',
+)
+service._run_login_validation = lambda account, cookie_entries, *, proxy_url, timeout: {
+    'status': 'valid',
+    'label': '已登录',
+    'message': '已通过接口确认登录态',
+    'target': 'https://www.tiktok.com/passport/web/account/info/',
+    'http_status': 200,
+}
+checked = service.validate_account_login(account.id)
+updated = service.get_account(account.id)
+print(json.dumps({
+    'result_status': checked['status'],
+    'cookie_status': updated.cookie_status,
+    'login_check_status': updated.last_login_check_status,
+    'login_check_message': updated.last_login_check_message,
+    'last_login_at': str(updated.last_login_at),
+}, ensure_ascii=False))
+"""
+    )
+    assert result['result_status'] == 'valid'
+    assert result['cookie_status'] == 'valid'
+    assert result['login_check_status'] == 'valid'
+    assert '已通过接口确认登录态' in result['login_check_message']
+    assert 'None' not in result['last_login_at']
+
+
+def test_account_login_validation_marks_proxy_mismatch_when_direct_passes() -> None:
+    result = _run_isolated_script(
+        """
+import json
+from desktop_app.database.repository import Repository
+from desktop_app.services.account_service import AccountService
+
+repo = Repository()
+service = AccountService(repo)
+account = service.create_account(
+    'proxy_conflict_owner',
+    platform='tiktok',
+    cookie_status='unknown',
+    cookie_content='[{"name":"sessionid","value":"cookie-owner"}]',
+)
+device = service.create_device('DEV-PROXY-01', 'Proxy Device', proxy_ip='http://127.0.0.1:8899')
+service.bind_device(account.id, device.id)
+
+def fake_attempt(account, validator, cookies, *, proxy_url, timeout):
+    if proxy_url:
+        return {
+            'status': 'unknown',
+            'label': '无法确认',
+            'message': 'TikTok 已响应，但代理路径返回 400/application/json',
+            'target': 'https://www.tiktok.com/passport/web/account/info/',
+            'http_status': 400,
+        }
+    return {
+        'status': 'valid',
+        'label': '已登录',
+        'message': '已通过页面态确认登录，可识别账号 shucengefsc',
+        'target': 'https://www.tiktok.com/',
+        'http_status': 200,
+    }
+
+service._execute_login_validation_attempt = fake_attempt
+checked = service.validate_account_login(account.id)
+updated = service.get_account(account.id)
+print(json.dumps({
+    'result_status': checked['status'],
+    'cookie_status': updated.cookie_status,
+    'login_check_status': updated.last_login_check_status,
+    'login_check_message': updated.last_login_check_message,
+}, ensure_ascii=False))
+"""
+    )
+    assert result['result_status'] == 'proxy_mismatch'
+    assert result['cookie_status'] == 'valid'
+    assert result['login_check_status'] == 'proxy_mismatch'
+    assert '绑定代理校验失败' in result['login_check_message']
+
+
+def test_delete_account_clears_task_and_asset_references() -> None:
+    result = _run_isolated_script(
+        """
+import json
+from desktop_app.database.models import Asset, Task
+from desktop_app.database.repository import Repository
+from desktop_app.services.account_service import AccountService
+
+repo = Repository()
+service = AccountService(repo)
+account = service.create_account('delete_owner', platform='tiktok')
+task = repo.add(Task(title='账号收尾任务', account_id=account.id))
+asset = repo.add(Asset(filename='封面图.png', file_path='C:/tmp/cover.png', account_id=account.id))
+deleted = service.delete_account(account.id)
+task_after = repo.get_by_id(Task, task.id)
+asset_after = repo.get_by_id(Asset, asset.id)
+account_after = service.get_account(account.id)
+print(json.dumps({
+    'deleted': deleted,
+    'task_account_id': task_after.account_id if task_after else 'missing',
+    'asset_account_id': asset_after.account_id if asset_after else 'missing',
+    'account_exists': account_after is not None,
+}, ensure_ascii=False))
+"""
+    )
+    assert result['deleted'] is True
+    assert result['task_account_id'] is None
+    assert result['asset_account_id'] is None
+    assert result['account_exists'] is False
+
+
+def test_device_runtime_status_auto_updates_with_proxy_fields() -> None:
+    result = _run_isolated_script(
+        """
+import json
+from desktop_app.database.repository import Repository
+from desktop_app.services.account_service import AccountService
+
+repo = Repository()
+service = AccountService(repo)
+device = service.create_device('DEV-AUTO-01', '自动状态设备', proxy_ip='23.88.14.10')
+initial_status = device.status
+initial_proxy_status = device.proxy_status
+after_clear = service.update_device(device.id, proxy_ip='')
+clear_status = after_clear.status
+clear_proxy_status = after_clear.proxy_status
+after_warning = service.update_device(device.id, proxy_ip='23.88.14.11', fingerprint_status='drifted')
+warning_status = after_warning.status
+warning_proxy_status = after_warning.proxy_status
+after_error = service.update_device(device.id, proxy_ip='23.88.14.12', fingerprint_status='missing')
+error_status = after_error.status
+error_proxy_status = after_error.proxy_status
+print(json.dumps({
+    'initial_status': initial_status,
+    'initial_proxy_status': initial_proxy_status,
+    'clear_status': clear_status,
+    'clear_proxy_status': clear_proxy_status,
+    'warning_status': warning_status,
+    'warning_proxy_status': warning_proxy_status,
+    'error_status': error_status,
+    'error_proxy_status': error_proxy_status,
+}, ensure_ascii=False))
+"""
+    )
+    assert result['initial_status'] == 'healthy'
+    assert result['initial_proxy_status'] == 'online'
+    assert result['clear_status'] == 'idle'
+    assert result['clear_proxy_status'] == 'offline'
+    assert result['warning_status'] == 'warning'
+    assert result['warning_proxy_status'] == 'online'
+    assert result['error_status'] == 'error'
+    assert result['error_proxy_status'] == 'online'
+
+
 def test_database_import_can_skip_auto_init_for_alembic_env() -> None:
     with tempfile.TemporaryDirectory() as temp_dir:
         env = os.environ.copy()

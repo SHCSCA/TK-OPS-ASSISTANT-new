@@ -912,34 +912,6 @@ function _bindRouteButtonPresets() {
                     showToast('导出失败: ' + ((err && err.message) || '未知错误'), 'error');
                 });
             },
-            '批量检测环境': () => _createNamedTaskAction('batch_environment_check', {
-                title: '批量环境检测',
-                summary: '来源页面：账号管理 / 批量检测环境',
-                metadata: { route: 'account', selected_ids: _selectedAccountIds() },
-            }, '批量环境检测任务已创建'),
-            '立即开启隔离': () => typeof renderRoute === 'function' ? renderRoute('device-management') : null,
-            '稍后提醒我': () => showToast('已记录提醒', 'info'),
-            '测试连接': () => _createNamedTaskAction('account_connection_test', {
-                title: '账号连接检测',
-                summary: '来源页面：账号管理 / 测试连接',
-                metadata: { route: 'account', selected_ids: _selectedAccountIds() },
-            }, '连接检测任务已创建'),
-            '批量归组': () => _openBatchGroupAssignmentModal(),
-            '登录环境': () => _createNamedTaskAction('account_login_environment', {
-                title: '登录环境',
-                summary: '来源页面：账号管理 / 登录环境',
-                metadata: { route: 'account' },
-            }, '登录环境任务已创建'),
-            '管理 Cookies': () => _createNamedTaskAction('account_cookie_maintenance', {
-                title: 'Cookie 管理',
-                summary: '来源页面：账号管理 / 管理 Cookies',
-                metadata: { route: 'account', selected_ids: _selectedAccountIds() },
-            }, 'Cookie 管理任务已创建'),
-            '安排续签': () => showToast('已创建续签提醒', 'info'),
-            '处理异常': () => showToast('异常处理流程已启动', 'warning'),
-            '查看日志': () => showToast('日志查看能力正在接入', 'info'),
-            '重新登录': () => showToast('重新登录流程已启动', 'info'),
-            '进入详情': () => showToast('详情入口已聚合到右侧面板', 'info'),
         },
         'ai-provider': {
             'Reset to Default': () => _resetSelectedProviderDefaults(),
@@ -1022,8 +994,17 @@ function _bindRouteButtonPresets() {
             '批量打标签': () => _openAssetTagBatchModal(),
         },
         dashboard: {
-            '查看历史': () => typeof renderRoute === 'function' ? renderRoute('task-queue') : null,
-            'View History': () => typeof renderRoute === 'function' ? renderRoute('task-queue') : null,
+            '查看历史': () => {
+                uiState['task-queue'] = uiState['task-queue'] || { statusFilter: 'all' };
+                uiState['task-queue'].statusFilter = 'all';
+                return typeof renderRoute === 'function' ? renderRoute('task-queue') : null;
+            },
+            'View History': () => {
+                uiState['task-queue'] = uiState['task-queue'] || { statusFilter: 'all' };
+                uiState['task-queue'].statusFilter = 'all';
+                return typeof renderRoute === 'function' ? renderRoute('task-queue') : null;
+            },
+            '查看全部': () => typeof renderRoute === 'function' ? renderRoute('report-center') : null,
             '新建任务': () => typeof openTaskForm === 'function' ? openTaskForm() : null,
             'Launch New Task': () => typeof openTaskForm === 'function' ? openTaskForm() : null,
             '今日': () => typeof window.__loadDashboardOverview === 'function' ? window.__loadDashboardOverview('today') : null,

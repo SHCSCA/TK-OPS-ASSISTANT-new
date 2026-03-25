@@ -37,6 +37,7 @@ function applyAccountState(keyword) {
     }
 
     collection.classList.toggle('list-mode', state.view === 'list');
+    collection.classList.toggle('is-batch-mode', Boolean(state.batchMode));
     if (state.sortMode === 'anomaly') {
         [...collection.children]
             .sort((left, right) => Number(left.dataset.order || 999) - Number(right.dataset.order || 999))
@@ -61,7 +62,11 @@ function applyAccountState(keyword) {
     if (!selectedVisible) {
         const firstVisible = cards.find((card) => !card.classList.contains('is-filtered-out'));
         if (firstVisible) {
-            updateDetail(firstVisible.dataset.detailTarget, firstVisible);
+            if (typeof window.__selectAccountCard === 'function' && firstVisible.dataset.id) {
+                window.__selectAccountCard(firstVisible.dataset.id);
+            } else {
+                updateDetail(firstVisible.dataset.detailTarget, firstVisible);
+            }
         }
     }
     highlightMatches(cards, keyword);
@@ -249,7 +254,11 @@ function renderSearchPanel() {
             if (detailTarget) {
                 const source = document.querySelector(`[data-detail-target="${detailTarget}"]`);
                 if (source) {
-                    updateDetail(detailTarget, source);
+                    if (routeKey === 'account' && typeof source.click === 'function') {
+                        source.click();
+                    } else {
+                        updateDetail(detailTarget, source);
+                    }
                 }
             }
         });
@@ -285,7 +294,11 @@ function handleSearchNavigation(event) {
             if (active.detailTarget) {
                 const source = document.querySelector(`[data-detail-target="${active.detailTarget}"]`);
                 if (source) {
-                    updateDetail(active.detailTarget, source);
+                    if (active.routeKey === 'account' && typeof source.click === 'function') {
+                        source.click();
+                    } else {
+                        updateDetail(active.detailTarget, source);
+                    }
                 }
             }
         }

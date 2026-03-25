@@ -308,10 +308,70 @@
 
         <template id="route-account-main" data-page-audit="account">
             <div class="breadcrumbs"><span>account</span><span>/</span><span>账号管理</span></div>
-            <div class="page-header"><div><div class="eyebrow">账号主列表</div><h1>账号管理</h1><p>把账号状态筛选、批量管理、环境操作和右侧详情面板聚合到同一页，减少在多弹窗之间来回切换。</p></div><div class="header-actions"><button class="secondary-button" type="button">导出账号清单</button><button class="primary-button" type="button">批量检测环境</button></div></div>
-            <section class="section-stack"><div class="notice-banner"><div class="account-cell" style="align-items: flex-start;"><div><strong>多账号隔离未全量启用</strong><div>目前仍有 6 个账号直接走默认浏览器环境。建议先补齐隔离配置，再继续批量登录和导入。</div></div></div><div class="toolbar__group"><button class="primary-button" type="button">立即开启隔离</button><button class="ghost-button" type="button">稍后提醒我</button></div></div><div class="local-tabs" data-filter-group="accounts-status"><button class="local-tab is-active" data-filter-value="all" type="button">全部账号 (24)</button><button class="local-tab" data-filter-value="online" type="button">在线 (12)</button><button class="local-tab" data-filter-value="offline" type="button">离线 (8)</button><button class="local-tab" data-filter-value="exception" type="button">异常 (4)</button></div><div class="toolbar" style="justify-content: space-between;"><div class="filter-row"><div class="segmented" data-segmented data-view-toggle="accounts"><button class="is-active" data-view="card" type="button">卡片视图</button><button data-view="list" type="button">列表视图</button></div><button class="pill-button secondary-button" data-filter-shortcut="exception" type="button">按状态筛选</button><button class="pill-button secondary-button" data-sort-target="accounts" type="button">按最近异常排序</button></div><div class="table-actions"><button class="secondary-button" type="button">测试连接</button><button class="secondary-button" type="button">批量归组</button></div></div><div class="account-grid" data-collection="accounts"><article class="account-card is-selected detail-trigger" data-detail-target="account-1" data-status="online" data-order="4" data-search="TK_User_US_01 美国区 直播转化 在线 Cookie 有效"><div class="account-card__head"><div><strong>TK_User_US_01</strong><div class="subtle">美国区 · 主营直播转化</div></div><span class="status-chip success">在线</span></div><div class="account-card__meta"><div class="list-row"><span class="subtle">账号 ID</span><strong class="mono">992834012</strong></div><div class="list-row"><span class="subtle">代理 IP</span><strong class="mono">192.168.1.1 (美国)</strong></div><div class="list-row"><span class="subtle">上次登录</span><strong>10 分钟前</strong></div><div class="list-row"><span class="subtle">Cookie</span><span class="tag success">有效</span></div></div><div class="detail-actions"><button class="secondary-button" type="button">登录环境</button><button class="ghost-button" type="button">查看详情</button></div></article><article class="account-card detail-trigger" data-detail-target="account-2" data-status="offline" data-order="3" data-search="TK_Creator_UK_02 英国区 短视频投流 离线 Cookie 即将过期"><div class="account-card__head"><div><strong>TK_Creator_UK_02</strong><div class="subtle">英国区 · 短视频投流</div></div><span class="status-chip info">离线</span></div><div class="account-card__meta"><div class="list-row"><span class="subtle">账号 ID</span><strong class="mono">992834127</strong></div><div class="list-row"><span class="subtle">代理 IP</span><strong class="mono">154.22.81.44 (英国)</strong></div><div class="list-row"><span class="subtle">上次登录</span><strong>2 小时前</strong></div><div class="list-row"><span class="subtle">Cookie</span><span class="tag warning">48 小时内过期</span></div></div><div class="detail-actions"><button class="secondary-button" type="button">测试连接</button><button class="ghost-button" type="button">安排续签</button></div></article><article class="account-card account-card--warning detail-trigger" data-detail-target="account-3" data-status="exception" data-order="1" data-search="Shop_Manager_03 德国区 店铺管理 警告 代理 IP 被拉黑"><div class="account-card__head"><div><strong>Shop_Manager_03</strong><div class="subtle">德国区 · 店铺管理</div></div><span class="status-chip warning">警告</span></div><div class="account-card__meta"><div class="list-row"><span class="subtle">账号 ID</span><strong class="mono">992834305</strong></div><div class="list-row"><span class="subtle">代理 IP</span><strong style="color: var(--status-warning);">IP 被拉黑</strong></div><div class="list-row"><span class="subtle">上次登录</span><strong>1 天前</strong></div><div class="list-row"><span class="subtle">风险标签</span><span class="tag warning">需要修复</span></div></div><div class="detail-actions"><button class="danger-button" type="button">处理异常</button><button class="ghost-button" type="button">查看日志</button></div></article><article class="account-card detail-trigger" data-detail-target="account-4" data-status="exception" data-order="2" data-search="VIP_Service_04 日本区 私域客服 异常 Cookie 已失效"><div class="account-card__head"><div><strong>VIP_Service_04</strong><div class="subtle">日本区 · 私域客服</div></div><span class="status-chip error">异常</span></div><div class="account-card__meta"><div class="list-row"><span class="subtle">账号 ID</span><strong class="mono">992834482</strong></div><div class="list-row"><span class="subtle">环境状态</span><strong>浏览器隔离未启动</strong></div><div class="list-row"><span class="subtle">上次登录</span><strong>3 天前</strong></div><div class="list-row"><span class="subtle">Cookie</span><span class="tag error">已失效</span></div></div><div class="detail-actions"><button class="danger-button" type="button">重新登录</button><button class="ghost-button" type="button">进入详情</button></div></article></div></section>
+            <div class="page-header">
+                <div>
+                    <div class="eyebrow">账号主列表</div>
+                    <h1>账号管理</h1>
+                    <p>把账号筛选、标签、环境操作和右侧详情收拢到同一页，避免再依赖空转弹框和占位任务。</p>
+                </div>
+                <div class="header-actions">
+                    <button class="secondary-button" type="button">导出账号清单</button>
+                    <button class="primary-button" type="button">批量检测环境</button>
+                </div>
+            </div>
+            <section class="section-stack">
+                <div class="notice-banner js-account-isolation-banner">
+                    <div class="account-cell" style="align-items: flex-start;">
+                        <div>
+                            <strong>多账号隔离未全量启用</strong>
+                            <div class="js-account-isolation-copy">仍有账号在默认环境内运行，建议先补齐隔离配置，再继续批量登录和导入。</div>
+                        </div>
+                    </div>
+                    <div class="toolbar__group">
+                        <button class="primary-button js-account-open-isolation" type="button">立即开启隔离</button>
+                        <button class="ghost-button js-account-dismiss-reminder" type="button">稍后提醒我</button>
+                    </div>
+                </div>
+                <div class="local-tabs" data-filter-group="accounts-status">
+                    <button class="local-tab is-active js-account-status-tab" data-filter-value="all" type="button">全部账号 (0)</button>
+                    <button class="local-tab js-account-status-tab" data-filter-value="online" type="button">在线 (0)</button>
+                    <button class="local-tab js-account-status-tab" data-filter-value="offline" type="button">离线 (0)</button>
+                    <button class="local-tab js-account-status-tab" data-filter-value="exception" type="button">异常 (0)</button>
+                </div>
+                <div class="toolbar" style="justify-content: space-between;">
+                    <div class="filter-row">
+                        <div class="segmented" data-segmented data-view-toggle="accounts">
+                            <button class="is-active js-account-view" data-view="card" type="button">卡片视图</button>
+                            <button class="js-account-view" data-view="list" type="button">列表视图</button>
+                        </div>
+                        <button class="pill-button secondary-button js-account-filter-exception" type="button">只看异常</button>
+                        <button class="pill-button secondary-button js-account-sort" type="button">按最近异常排序</button>
+                    </div>
+                    <div class="table-actions">
+                        <button class="secondary-button js-account-tag-batch" type="button">批量打标签</button>
+                        <button class="ghost-button js-account-batch-cancel shell-hidden" type="button">取消多选</button>
+                    </div>
+                </div>
+                <div class="account-grid" data-collection="accounts"></div>
+            </section>
         </template>
-        <template id="route-account-detail-default"><div class="detail-root"><section class="panel"><div class="panel__header"><div><strong>账号详情</strong><div class="subtle">选中账号后，右侧固定承载环境、Cookie、异常和快捷动作</div></div><span class="status-chip success">在线</span></div><div class="detail-stack"><div><strong>TK_User_US_01</strong><div class="subtle mono">ID: 992834012</div><div class="subtle">主营直播转化，最近 7 天表现稳定</div></div><div class="data-points"><div class="data-point"><span class="subtle">Cookie</span><strong>有效</strong></div><div class="data-point"><span class="subtle">隔离环境</span><strong>已启用</strong></div><div class="data-point"><span class="subtle">最近同步</span><strong>12:42</strong></div><div class="data-point"><span class="subtle">异常次数</span><strong>0</strong></div></div><div class="detail-actions"><button class="primary-button" type="button">登录环境</button><button class="secondary-button" type="button">管理 Cookies</button></div></div></section><section class="panel"><div class="panel__header"><div><strong>值班建议</strong><div class="subtle">先处理高风险账号，再做批量导入和环境检测</div></div></div><div class="audit-list"><div class="audit-item"><div><strong>4 个异常账号待处理</strong><div class="subtle">其中 2 个代理异常，1 个 Cookie 失效，1 个隔离未启动。</div></div><span class="pill warning">待处理</span></div><div class="audit-item"><div><strong>3 个 Cookie 即将过期</strong><div class="subtle">建议先续签，再进行定时发布。</div></div><span class="pill info">48h</span></div></div></section></div></template>
+        <template id="route-account-detail-default">
+            <div class="detail-root">
+                <section class="panel">
+                    <div class="panel__header">
+                        <div>
+                            <strong>账号详情</strong>
+                            <div class="subtle">选中左侧账号后，这里会固定展示环境、Cookie、连接检测和处置建议。</div>
+                        </div>
+                        <span class="status-chip info">待选择</span>
+                    </div>
+                    <div class="detail-list">
+                        <div class="detail-item"><span class="subtle">当前状态</span><strong>尚未选择账号</strong></div>
+                        <div class="detail-item"><span class="subtle">建议</span><strong>先从异常账号开始排查</strong></div>
+                    </div>
+                </section>
+            </div>
+        </template>
         <template id="detail-account-1"><div class="detail-root"><section class="panel"><div class="panel__header"><div><strong>TK_User_US_01</strong><div class="subtle mono">ID 992834012</div></div><span class="status-chip success">在线</span></div><div class="detail-list"><div class="detail-item"><span class="subtle">Cookie</span><strong>有效</strong></div><div class="detail-item"><span class="subtle">代理国家</span><strong>美国</strong></div><div class="detail-item"><span class="subtle">建议</span><strong>可继续参与直播任务</strong></div></div></section></div></template>
         <template id="detail-account-2"><div class="detail-root"><section class="panel"><div class="panel__header"><div><strong>TK_Creator_UK_02</strong><div class="subtle mono">ID 992834127</div></div><span class="status-chip info">离线</span></div><div class="detail-list"><div class="detail-item"><span class="subtle">Cookie 过期</span><strong>48 小时内</strong></div><div class="detail-item"><span class="subtle">建议</span><strong>先续签后再启动投流</strong></div></div></section></div></template>
         <template id="detail-account-3"><div class="detail-root"><section class="panel"><div class="panel__header"><div><strong>Shop_Manager_03</strong><div class="subtle mono">ID 992834305</div></div><span class="status-chip warning">需修复</span></div><div class="detail-list"><div class="detail-item"><span class="subtle">问题</span><strong>代理 IP 被拉黑</strong></div><div class="detail-item"><span class="subtle">影响</span><strong>店铺同步与投流中断</strong></div><div class="detail-item"><span class="subtle">建议</span><strong>切换隔离环境并重新拨号</strong></div></div></section></div></template>

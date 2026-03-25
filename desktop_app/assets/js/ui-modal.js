@@ -7,11 +7,166 @@
 
     var _overlay = null;   // 当前活跃的 overlay 元素
     var _onSubmit = null;  // 表单提交回调
+    var _selectPortal = null;
+    var _selectPortalCleanup = null;
+    var _selectPortalTrigger = null;
 
     function _removeOverlayNode(overlay) {
         if (overlay && overlay.parentNode) {
             overlay.parentNode.removeChild(overlay);
         }
+    }
+
+    function _normalizeSelectOptions(options) {
+        return (options || []).map(function (option) {
+            if (typeof option === 'object') {
+                return {
+                    value: String(option.value == null ? '' : option.value),
+                    label: String(option.label == null ? option.value : option.label),
+                };
+            }
+            return {
+                value: String(option == null ? '' : option),
+                label: String(option == null ? '' : option),
+            };
+        });
+    }
+
+    function _closeSelectPortal() {
+        if (typeof _selectPortalCleanup === 'function') {
+            _selectPortalCleanup();
+        }
+        _selectPortal = null;
+        _selectPortalCleanup = null;
+        _selectPortalTrigger = null;
+    }
+
+    function _resolveSelectLabel(options, value, placeholder) {
+        var current = (options || []).filter(function (option) {
+            return String(option.value) === String(value == null ? '' : value);
+        })[0];
+        if (current) return current.label;
+        return placeholder || '请选择';
+    }
+
+    function _positionSelectPortal(trigger, portal) {
+        if (!trigger || !portal) return;
+        var rect = trigger.getBoundingClientRect();
+        var portalHeight = portal.offsetHeight || 0;
+        var top = rect.bottom + 6;
+        if ((top + portalHeight) > (window.innerHeight - 16)) {
+            top = Math.max(16, rect.top - portalHeight - 6);
+        }
+        portal.style.left = Math.max(12, rect.left) + 'px';
+        portal.style.top = top + 'px';
+        portal.style.width = Math.max(rect.width, 220) + 'px';
+    }
+
+    function _openSelectPortal(trigger, hiddenInput, options, placeholder) {
+        if (!trigger || !hiddenInput) return;
+        if (_selectPortalTrigger === trigger) {
+            _closeSelectPortal();
+            return;
+        }
+        _closeSelectPortal();
+
+        var portal = document.createElement('div');
+        portal.className = 'modal-select-portal';
+        portal.setAttribute('role', 'listbox');
+
+        options.forEach(function (option) {
+            var button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'modal-select-option';
+            if (String(option.value) === String(hiddenInput.value || '')) {
+                button.classList.add('is-selected');
+            }
+            button.textContent = option.label;
+            button.setAttribute('data-value', option.value);
+            button.setAttribute('role', 'option');
+            button.setAttribute('aria-selected', String(String(option.value) === String(hiddenInput.value || '')));
+            button.addEventListener('mousedown', function (event) {
+                event.preventDefault();
+            });
+            button.addEventListener('click', function (event) {
+                event.preventDefault();
+                event.stopPropagation();
+                hiddenInput.value = option.value;
+                trigger.querySelector('.modal-select-trigger__text').textContent = _resolveSelectLabel(options, option.value, placeholder);
+                trigger.classList.toggle('is-empty', !option.value);
+                hiddenInput.dispatchEvent(new Event('change', { bubbles: true }));
+                _closeSelectPortal();
+            });
+            portal.appendChild(button);
+        });
+
+        document.body.appendChild(portal);
+        _positionSelectPortal(trigger, portal);
+        trigger.setAttribute('aria-expanded', 'true');
+
+        function handleOutside(event) {
+            if (!portal.contains(event.target) && !trigger.contains(event.target)) {
+                _closeSelectPortal();
+            }
+        }
+
+        function handleRelayout() {
+            _positionSelectPortal(trigger, portal);
+        }
+
+        document.addEventListener('mousedown', handleOutside, true);
+        window.addEventListener('resize', handleRelayout);
+        window.addEventListener('scroll', handleRelayout, true);
+
+        _selectPortal = portal;
+        _selectPortalTrigger = trigger;
+        _selectPortalCleanup = function () {
+            document.removeEventListener('mousedown', handleOutside, true);
+            window.removeEventListener('resize', handleRelayout);
+            window.removeEventListener('scroll', handleRelayout, true);
+            trigger.setAttribute('aria-expanded', 'false');
+            if (portal.parentNode) portal.parentNode.removeChild(portal);
+        };
+    }
+
+    function _createSelectField(field) {
+        var wrapper = document.createElement('div');
+        wrapper.className = 'modal-select';
+
+        var hiddenInput = document.createElement('input');
+        hiddenInput.type = 'hidden';
+        hiddenInput.name = field.key;
+        hiddenInput.value = field.value == null ? '' : String(field.value);
+        wrapper.appendChild(hiddenInput);
+
+        var trigger = document.createElement('button');
+        trigger.type = 'button';
+        trigger.className = 'form-input form-select-trigger';
+        trigger.setAttribute('aria-haspopup', 'listbox');
+        trigger.setAttribute('aria-expanded', 'false');
+        if (field.disabled) trigger.disabled = true;
+
+        var text = document.createElement('span');
+        text.className = 'modal-select-trigger__text';
+        var options = _normalizeSelectOptions(field.options);
+        text.textContent = _resolveSelectLabel(options, hiddenInput.value, field.placeholder || '请选择');
+        trigger.appendChild(text);
+
+        var caret = document.createElement('span');
+        caret.className = 'modal-select-trigger__caret';
+        caret.innerHTML = '&#9662;';
+        trigger.appendChild(caret);
+
+        trigger.classList.toggle('is-empty', !hiddenInput.value);
+        trigger.addEventListener('click', function (event) {
+            event.preventDefault();
+            event.stopPropagation();
+            if (field.disabled) return;
+            _openSelectPortal(trigger, hiddenInput, options, field.placeholder || '请选择');
+        });
+
+        wrapper.appendChild(trigger);
+        return { wrapper: wrapper, input: hiddenInput, trigger: trigger };
     }
 
     /* ══════════════════════════════════════════════
@@ -44,7 +199,7 @@
         closeBtn.className = 'icon-button modal-close-btn';
         closeBtn.type = 'button';
         closeBtn.innerHTML = '<span class="shell-icon">✕</span>';
-        closeBtn.addEventListener('click', closeModal);
+        closeBtn.addEventListener('click', function () { closeModal(); });
         header.appendChild(closeBtn);
         panel.appendChild(header);
 
@@ -72,25 +227,16 @@
 
             var input;
             if (f.type === 'select') {
-                input = document.createElement('select');
-                input.className = 'form-input form-select';
-                (f.options || []).forEach(function (o) {
-                    var opt = document.createElement('option');
-                    if (typeof o === 'object') {
-                        opt.value = o.value;
-                        opt.textContent = o.label;
-                    } else {
-                        opt.value = o;
-                        opt.textContent = o;
-                    }
-                    if (String(opt.value) === String(f.value)) opt.selected = true;
-                    input.appendChild(opt);
-                });
+                var selectField = _createSelectField(f);
+                input = selectField.input;
+                group.appendChild(selectField.wrapper);
             } else if (f.type === 'textarea') {
                 input = document.createElement('textarea');
                 input.className = 'form-input form-textarea';
-                input.rows = 3;
+                input.rows = f.rows || 3;
                 input.value = f.value || '';
+                if (f.spellcheck === false) input.spellcheck = false;
+                if (f.mono) input.classList.add('mono');
             } else if (f.type === 'number') {
                 input = document.createElement('input');
                 input.className = 'form-input';
@@ -105,11 +251,13 @@
                 input.type = f.type || 'text';
                 input.value = f.value || '';
             }
-            input.name = f.key;
-            if (f.placeholder) input.placeholder = f.placeholder;
-            if (f.required) input.required = true;
-            if (f.disabled) input.disabled = true;
-            group.appendChild(input);
+            if (f.type !== 'select') {
+                input.name = f.key;
+                if (f.placeholder) input.placeholder = f.placeholder;
+                if (f.required) input.required = true;
+                if (f.disabled) input.disabled = true;
+                group.appendChild(input);
+            }
 
             if (f.hint) {
                 var hint = document.createElement('div');
@@ -130,7 +278,7 @@
         cancelBtn.className = 'secondary-button';
         cancelBtn.type = 'button';
         cancelBtn.textContent = opts.cancelText || '取消';
-        cancelBtn.addEventListener('click', closeModal);
+        cancelBtn.addEventListener('click', function () { closeModal(); });
         footer.appendChild(cancelBtn);
 
         var submitBtn = document.createElement('button');
@@ -145,9 +293,21 @@
         _overlay = overlay;
         _onSubmit = opts.onSubmit || null;
 
+        if (typeof opts.onOpen === 'function') {
+            opts.onOpen({
+                overlay: overlay,
+                panel: panel,
+                form: form,
+                footer: footer,
+                submitButton: submitBtn,
+                cancelButton: cancelBtn,
+                close: function () { closeModal(overlay); },
+            });
+        }
+
         // Auto-focus first input
         requestAnimationFrame(function () {
-            var first = form.querySelector('input, select, textarea');
+            var first = form.querySelector('input:not([type="hidden"]), .form-select-trigger, textarea');
             if (first) first.focus();
         });
 
@@ -214,19 +374,18 @@
        closeModal()
        ══════════════════════════════════════════════ */
     function closeModal() {
-        var overlay = arguments[0] || _overlay;
-        if (!overlay || overlay.__closing) {
+        var candidate = arguments[0];
+        var overlay = candidate && candidate.classList && candidate.classList.contains('modal-overlay') ? candidate : _overlay;
+        if (!overlay || overlay.__closing || !overlay.classList) {
             return;
         }
+        _closeSelectPortal();
         overlay.__closing = true;
         if (_overlay === overlay) {
             _overlay = null;
             _onSubmit = null;
         }
-        overlay.classList.add('modal-overlay--closing');
-        setTimeout(function () {
-            _removeOverlayNode(overlay);
-        }, 150);
+        _removeOverlayNode(overlay);
     }
 
     /* ══════════════════════════════════════════════

@@ -10,54 +10,79 @@
        ══════════════════════════════════════════════ */
     function openAccountForm(existing) {
         var isEdit = !!(existing && existing.id);
-        // 拉分组列表做下拉选项
-        api.groups.list().then(function (groups) {
-            groups = groups || [];
-            var groupOpts = [{ value: '', label: '-- 不分组 --' }];
-            groups.forEach(function (g) {
-                groupOpts.push({ value: String(g.id), label: g.name });
+        api.devices.list().then(function (devices) {
+            devices = devices || [];
+            var deviceOptions = [{ value: '', label: '-- 不绑定设备 --' }];
+            devices.forEach(function (device) {
+                var label = (device.name || device.device_code || '未命名设备')
+                    + ' / ' + (device.region || '-')
+                    + ' / ' + (device.proxy_ip || '未配置代理');
+                deviceOptions.push({ value: String(device.id), label: label });
             });
 
             openModal({
                 title: isEdit ? '编辑账号' : '新建账号',
-                width: 500,
+                width: 520,
                 submitText: isEdit ? '保存修改' : '创建账号',
                 fields: [
                     { key: 'username', label: '用户名', required: true, placeholder: '例如 TK_User_US_01',
-                      value: existing ? existing.username : '', disabled: isEdit },
+                        value: existing ? existing.username : '', disabled: isEdit },
                     { key: 'platform', label: '平台', type: 'select', value: existing ? existing.platform : 'tiktok',
-                      options: ['tiktok', 'tiktok_shop', 'instagram', 'youtube'] },
+                        options: ['tiktok', 'tiktok_shop', 'instagram', 'youtube'] },
                     { key: 'region', label: '地区', type: 'select', value: existing ? existing.region : 'US',
-                      options: ['US', 'UK', 'DE', 'JP', 'MY', 'ID', 'TH', 'VN', 'PH', 'BR', 'MX'] },
+                        options: ['US', 'UK', 'DE', 'JP', 'MY', 'SG', 'ID', 'TH', 'VN', 'PH', 'BR', 'MX'] },
                     { key: 'status', label: '状态', type: 'select', value: existing ? existing.status : 'active',
-                      options: [
-                          { value: 'active', label: '活跃' },
-                          { value: 'suspended', label: '封禁' },
-                          { value: 'warming', label: '养号中' },
-                          { value: 'idle', label: '闲置' },
-                      ] },
-                    { key: 'group_id', label: '所属分组', type: 'select', value: existing ? String(existing.group_id || '') : '',
-                      options: groupOpts },
+                        options: [
+                            { value: 'active', label: '在线' },
+                            { value: 'warming', label: '预热中' },
+                            { value: 'idle', label: '离线' },
+                            { value: 'suspended', label: '异常' },
+                        ] },
+                    { key: 'device_id', label: '绑定设备', type: 'select',
+                        value: existing ? String(existing.device_id || '') : '',
+                        options: deviceOptions,
+                        hint: '账号代理来自绑定设备。若要修改代理地址，可先选择设备，再从账号详情点“配置代理”。' },
+                    { key: 'tags', label: '标签', placeholder: '例如 北美, 直播, 重点', value: existing ? (existing.tags || '') : '',
+                        hint: '使用逗号分隔，可直接录入自定义标签。' },
+                    { key: 'cookie_status', label: 'Cookie 状态', type: 'select', value: existing ? (existing.cookie_status || existing.cookieStatus || 'unknown') : 'unknown',
+                        options: [
+                            { value: 'valid', label: '有效' },
+                            { value: 'expiring', label: '即将过期' },
+                            { value: 'invalid', label: '已失效' },
+                            { value: 'missing', label: '缺失' },
+                            { value: 'unknown', label: '待确认' },
+                        ] },
+                    { key: 'cookie_content', label: 'Cookie 内容', type: 'textarea', rows: 6, mono: true, spellcheck: false,
+                        value: existing ? (existing.cookie_content || existing.cookieContentRaw || '') : '',
+                        placeholder: '可粘贴 Cookie 字符串、JSON 数组，或 Netscape cookies 文本。',
+                        hint: '这里保存真实 Cookie 内容；若录入有效 Cookie，建议同时更新状态。' },
+                    { key: 'isolation_enabled', label: '隔离环境', type: 'select', value: existing && ((existing.isolation_enabled === true || String(existing.isolation_enabled).toLowerCase() === 'true') || existing.isolationEnabled === true) ? 'true' : 'false',
+                        options: [
+                            { value: 'true', label: '已启用' },
+                            { value: 'false', label: '未启用' },
+                        ] },
                     { key: 'followers', label: '粉丝数', type: 'number', value: existing ? existing.followers : 0, min: 0 },
                     { key: 'notes', label: '备注', type: 'textarea', placeholder: '可选描述',
-                      value: existing ? existing.notes : '' },
+                        value: existing ? existing.notes : '' },
                 ],
                 onSubmit: function (data) {
-                    // 清理空字符串 group_id
-                    if (data.group_id === '') { data.group_id = null; }
-                    else { data.group_id = parseInt(data.group_id, 10); }
                     data.followers = parseInt(data.followers, 10) || 0;
+                    data.device_id = data.device_id === '' ? null : (parseInt(data.device_id, 10) || null);
+                    data.isolation_enabled = data.isolation_enabled === 'true';
+                    data.tags = (data.tags || '').trim() || null;
+                    data.cookie_content = (data.cookie_content || '').trim() || null;
+                    data.cookie_updated_at = data.cookie_content ? new Date().toISOString() : null;
+                    data.notes = (data.notes || '').trim() || null;
 
                     if (isEdit) {
-                        delete data.username; // username 不可改
+                        delete data.username;
                         return api.accounts.update(existing.id, data).then(function () {
                             showToast('账号已更新', 'success');
                         });
-                    } else {
-                        return api.accounts.create(data).then(function () {
-                            showToast('账号已创建', 'success');
-                        });
                     }
+                    return api.accounts.create(data).then(function () {
+                        showToast('账号已创建', 'success');
+                    });
                 },
             });
         });
@@ -113,10 +138,16 @@
                     if (isEdit) {
                         return api.tasks.update(existing.id, data).then(function () {
                             showToast('任务已更新', 'success');
+                            if (typeof loadRouteData === 'function' && typeof currentRoute !== 'undefined') {
+                                loadRouteData(currentRoute);
+                            }
                         });
                     } else {
                         return api.tasks.create(data).then(function () {
                             showToast('任务已创建', 'success');
+                            if (typeof loadRouteData === 'function' && typeof currentRoute !== 'undefined') {
+                                loadRouteData(currentRoute);
+                            }
                         });
                     }
                 },

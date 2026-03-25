@@ -114,6 +114,8 @@
             create: function (data)  { return callBackend('createAccount', JSON.stringify(data)); },
             update: function (id, d) { return callBackend('updateAccount', id, JSON.stringify(d)); },
             remove: function (id)    { return callBackend('deleteAccount', id); },
+            testConnection: function (id) { return callBackend('testAccountConnection', id); },
+            validateLogin: function (id) { return callBackend('validateAccountLogin', id); },
         },
         // -- Groups --
         groups: {
@@ -234,6 +236,7 @@
         utils: {
             copyToClipboard: function(text) { return callBackend('copyToClipboard', text); },
             pickFiles: function () { return callBackend('pickLocalFiles'); },
+            importTextFile: function () { return callBackend('importTextFile'); },
             exportTextFile: function (text) { return callBackend('exportTextFile', text || ''); },
         },
         diagnostics: {

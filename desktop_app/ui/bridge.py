@@ -85,6 +85,69 @@ def _safe(func):
     return wrapper
 
 
+def _parse_bool(value: Any) -> bool | None:
+    if value is None or value == "":
+        return None
+    if isinstance(value, bool):
+        return value
+    return str(value).strip().lower() in {"1", "true", "yes", "on", "enabled", "已启用"}
+
+
+def _parse_datetime(value: Any) -> datetime | None:
+    if value is None or value == "":
+        return None
+    if isinstance(value, datetime):
+        return value
+
+    normalized = str(value).strip()
+    if not normalized:
+        return None
+    if normalized.endswith("Z"):
+        normalized = normalized[:-1] + "+00:00"
+
+    try:
+        return datetime.fromisoformat(normalized)
+    except ValueError:
+        for fmt in ("%Y-%m-%d %H:%M", "%Y-%m-%d %H:%M:%S"):
+            try:
+                return datetime.strptime(normalized, fmt)
+            except ValueError:
+                continue
+    raise ValueError("时间格式不正确")
+
+
+def _normalize_account_payload(data: dict[str, Any]) -> dict[str, Any]:
+    fields = dict(data or {})
+
+    for key in ("platform", "region", "status", "cookie_status"):
+        if key in fields and fields[key] is not None:
+            fields[key] = str(fields[key]).strip()
+
+    for key in ("notes", "tags", "last_connection_message", "last_login_check_message"):
+        if key in fields:
+            text = str(fields[key]).strip() if fields[key] is not None else ""
+            fields[key] = text or None
+
+    if "cookie_content" in fields:
+        text = str(fields["cookie_content"]).strip() if fields["cookie_content"] is not None else ""
+        fields["cookie_content"] = text or None
+
+    for key in ("followers", "group_id", "device_id"):
+        if key in fields:
+            value = fields[key]
+            fields[key] = None if value in (None, "") else int(value)
+
+    if "isolation_enabled" in fields:
+        parsed = _parse_bool(fields["isolation_enabled"])
+        fields["isolation_enabled"] = bool(parsed) if parsed is not None else False
+
+    for key in ("last_login_at", "last_connection_checked_at", "cookie_updated_at", "last_login_check_at"):
+        if key in fields:
+            fields[key] = _parse_datetime(fields[key])
+
+    return fields
+
+
 # ── Bridge ───────────────────────────────────────────
 
 class Bridge(QObject):
@@ -133,7 +196,7 @@ class Bridge(QObject):
     @Slot(str, result=str)
     @_safe
     def createAccount(self, payload: str) -> str:
-        data = json.loads(payload)
+        data = _normalize_account_payload(json.loads(payload))
         username = data.pop("username", "")
         if not username:
             return _err("用户名不能为空")
@@ -144,12 +207,26 @@ class Bridge(QObject):
     @Slot(int, str, result=str)
     @_safe
     def updateAccount(self, pk: int, payload: str) -> str:
-        fields = json.loads(payload)
+        fields = _normalize_account_payload(json.loads(payload))
         account = self._accounts.update_account(pk, **fields)
         if account is None:
             return _err("账号不存在")
         self._emit_change("account", "updated", pk)
         return _ok(_to_dict(account))
+
+    @Slot(int, result=str)
+    @_safe
+    def testAccountConnection(self, pk: int) -> str:
+        result = self._accounts.test_account_connection(pk)
+        self._emit_change("account", "tested", pk)
+        return _ok(result)
+
+    @Slot(int, result=str)
+    @_safe
+    def validateAccountLogin(self, pk: int) -> str:
+        result = self._accounts.validate_account_login(pk)
+        self._emit_change("account", "validated", pk)
+        return _ok(result)
 
     @Slot(int, result=str)
     @_safe
@@ -1056,6 +1133,35 @@ class Bridge(QObject):
             "All Files (*.*)",
         )
         return _ok(files or [])
+
+    @Slot(result=str)
+    @_safe
+    def importTextFile(self) -> str:
+        file_path, _ = QFileDialog.getOpenFileName(
+            None,
+            "导入文本文件",
+            str(Path.home()),
+            "Text Files (*.txt *.json *.cookie *.cookies);;All Files (*.*)",
+        )
+        if not file_path:
+            return _ok({"selected": False, "path": "", "name": "", "content": ""})
+
+        path = Path(file_path)
+        content = None
+        for encoding in ("utf-8", "utf-8-sig", "gb18030", "latin-1"):
+            try:
+                content = path.read_text(encoding=encoding)
+                break
+            except UnicodeDecodeError:
+                continue
+        if content is None:
+            raise ValueError("文件编码无法识别，请先转成 UTF-8 后再导入")
+        return _ok({
+            "selected": True,
+            "path": str(path),
+            "name": path.name,
+            "content": content,
+        })
 
     @Slot(str, result=str)
     @_safe

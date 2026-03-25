@@ -30,6 +30,8 @@ LOADER_MARKERS = {
         ".js-edit-account",
         ".js-delete-account",
         ".js-view-account",
+        ".js-account-configure-proxy",
+        ".js-account-rebind-validate",
         ".js-batch-account",
         "_renderAccountDetail(",
     ],
@@ -150,7 +152,6 @@ def test_remaining_crud_buttons_no_longer_route_to_placeholder_flows() -> None:
     text = BINDINGS_JS.read_text(encoding="utf-8")
 
     required_handlers = [
-        "'批量归组': () => _openBatchGroupAssignmentModal()",
         "'批量开始': () => _batchStartSelectedTasks()",
         "'恢复默认': () => _resetSelectedProviderDefaults()",
         "'保存变更': () => _openSelectedProviderEditModal()",
@@ -163,7 +164,6 @@ def test_remaining_crud_buttons_no_longer_route_to_placeholder_flows() -> None:
         assert marker in text, marker
 
     placeholder_flows = [
-        "'批量归组': () => typeof renderRoute === 'function' ? renderRoute('group-management') : null",
         "'批量开始': () => showToast('批量启动任务已加入队列', 'info')",
         "'调整绑定': () => showToast('绑定调整面板正在接入', 'info')",
         "'修改绑定': () => showToast('绑定修改面板正在接入', 'info')",
@@ -184,10 +184,51 @@ def test_runtime_renderers_preserve_filter_metadata_for_account_and_task_pages()
     text = PAGE_LOADERS_JS.read_text(encoding="utf-8")
     required_markers = [
         "<article class=\"account-card",
-        "data-status=\"' + _esc((a.status || '').toLowerCase()) + '\"",
-        "data-search=\"' + _esc((a.username || '') + ' ' + (a.platform || '') + ' ' + (a.region || '') + ' ' + (a.status || '') + ' ' + (a.notes || '')) + '\"",
+        "data-detail-target=\"' + _esc(a.detailTarget) + '\"",
+        "data-status=\"' + _esc(_accountFilterStatus(a.status)) + '\"",
+        "data-search=\"' + _esc(_buildAccountSearchText(a.raw, a.device, a.tags",
         "data-order=\"' + _esc(_accountSortOrder(a.status)) + '\"",
         "<tr class=\"route-row\" data-id=\"' + (t.id || '') + '\" data-status=\"' + _esc((t.status || '').toLowerCase()) + '\"",
     ]
     for marker in required_markers:
         assert marker in text, marker
+
+
+def test_account_cookie_runtime_exposes_import_and_login_validation_actions() -> None:
+    page_text = PAGE_LOADERS_JS.read_text(encoding="utf-8")
+    data_text = DATA_JS.read_text(encoding="utf-8")
+    form_text = UI_CRUD_FORMS_JS.read_text(encoding="utf-8")
+
+    required_page_markers = [
+        "js-validate-account-login",
+        "js-account-configure-proxy",
+        "js-account-rebind-validate",
+        "查看详情与更多操作",
+        "配置代理 / ",
+        "重绑并校验 / ",
+        "_saveAccountProxyBinding(",
+        "_unbindAccountProxyBinding(",
+        "解除绑定代理",
+        "_buildProxyMismatchGuidance(",
+        "_predictDeviceRuntimeState(",
+        "导入 Cookie 文件",
+        "保存并校验登录态",
+        "_runAccountLoginValidation(",
+        "_importCookieFileIntoModal(",
+    ]
+    for marker in required_page_markers:
+        assert marker in page_text, marker
+
+    required_data_markers = [
+        "validateLogin: function (id) { return callBackend('validateAccountLogin', id); }",
+        "importTextFile: function () { return callBackend('importTextFile'); }",
+    ]
+    for marker in required_data_markers:
+        assert marker in data_text, marker
+
+    required_form_markers = [
+        "key: 'device_id'",
+        "账号代理来自绑定设备",
+    ]
+    for marker in required_form_markers:
+        assert marker in form_text, marker

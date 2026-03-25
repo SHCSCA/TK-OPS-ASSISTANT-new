@@ -40,6 +40,8 @@
             // Accounts
             listAccounts: noop, getAccount: noopObj,
             createAccount: noopObj, updateAccount: noopObj, deleteAccount: noopObj,
+            testAccountConnection: () => ok({ ok: false, message: '浏览器预览模式不支持连接测试', latency_ms: null, target: '' }),
+            validateAccountLogin: () => ok({ status: 'unknown', label: '预览模式', message: '浏览器预览模式不支持真实登录态校验' }),
             // Groups / Devices
             listGroups: noop, createGroup: noopObj, updateGroup: noopObj, deleteGroup: noopObj,
             listDevices: noop, createDevice: noopObj, updateDevice: noopObj, deleteDevice: noopObj,
@@ -134,6 +136,7 @@
             // Utils
             copyToClipboard: () => ok({ copied: true }),
             pickLocalFiles: () => ok([]),
+            importTextFile: () => ok({ selected: false, path: '', name: '', content: '' }),
             exportTextFile: () => ok({ saved: false, path: '' }),
             getRecentLogs: () => ok({ path: 'C:/TK-OPS-ASSISTANT/logs/app.log', lines: ['[2026-03-19 10:30:00] INFO     desktop_app.app  Application started'], lineCount: 1, errorCount: 0, warningCount: 0, size: 128 }),
             runNetworkDiagnostics: () => ok({ score: 100, checks: [], errorCount: 0, warningCount: 0, generatedAt: '', reportText: '' }),

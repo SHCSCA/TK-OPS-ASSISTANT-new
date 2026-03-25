@@ -2,7 +2,7 @@
 
 TK-OPS 是一个面向 TikTok Shop 运营团队的 Windows 桌面应用。当前版本已经不再停留在纯前端原型阶段，而是以 Python 后端、SQLite 数据库、QWebChannel bridge、桌面 Web Shell 前端的组合方式运行。
 
-当前发布版本：`1.2.0`
+当前发布版本：`1.2.1`
 
 ## 这个版本更新了什么
 
@@ -31,6 +31,11 @@ TK-OPS 是一个面向 TikTok Shop 运营团队的 Windows 桌面应用。当前
    - 新增 `pageAudits` 审计条目
 
 所有 4 个页面的 loader 函数均已改造，在加载时通过 `Promise.all` 并行拉取供应商数据并调用对应的 `runtimeSummaryHandlers`。
+
+### 1.2.1 更新说明
+
+- 修复：账号管理卡片操作过多导致按钮文字溢出的问题，卡片区仅保留高频动作并将低频操作移至详情区；按钮支持多行换行以适配窄卡片显示。
+
 
 ### 1.1.0 更新说明
 

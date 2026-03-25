@@ -339,6 +339,159 @@
     font-weight: 700;
 }
 
+.dashboard-stat-link {
+    cursor: pointer;
+}
+
+.dashboard-stat-link:hover {
+    border-color: color-mix(in srgb, var(--brand-primary) 28%, var(--border-default));
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--brand-primary) 14%, transparent);
+}
+
+.dashboard-axis-note {
+    margin-bottom: 10px;
+    color: var(--text-secondary);
+    font-size: 12px;
+}
+
+.dashboard-trend-chart {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.dashboard-trend-chart.is-compact {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px 16px;
+    max-height: 420px;
+    overflow: auto;
+    padding-right: 6px;
+}
+
+.dashboard-trend-group {
+    display: grid;
+    grid-template-columns: 64px minmax(0, 1fr);
+    gap: 12px;
+    align-items: start;
+}
+
+.dashboard-trend-chart.is-compact .dashboard-trend-group {
+    grid-template-columns: 52px minmax(0, 1fr);
+    gap: 10px;
+}
+
+.dashboard-trend-group__label {
+    padding-top: 6px;
+    color: var(--text-secondary);
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.dashboard-trend-group__metrics {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.dashboard-trend-metric {
+    display: grid;
+    grid-template-columns: 36px minmax(0, 1fr) 34px;
+    gap: 8px;
+    align-items: center;
+}
+
+.dashboard-trend-metric__name {
+    color: var(--text-secondary);
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.dashboard-trend-track {
+    display: block;
+    height: 10px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--surface-sunken) 90%, transparent);
+    overflow: hidden;
+}
+
+.dashboard-trend-fill {
+    display: block;
+    height: 100%;
+    min-width: 0;
+    border-radius: inherit;
+}
+
+.dashboard-trend-metric__value {
+    text-align: right;
+    color: var(--text-primary);
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.dashboard-trend-fill.is-created {
+    background: linear-gradient(90deg, color-mix(in srgb, var(--brand-primary) 86%, #ffffff 0%), var(--brand-primary));
+}
+
+.dashboard-trend-fill.is-completed {
+    background: linear-gradient(90deg, #f00078, #d10069);
+}
+
+.dashboard-trend-fill.is-failed {
+    background: linear-gradient(90deg, #0078f0, #0667c7);
+}
+
+.dashboard-systems-grid {
+    display: grid;
+    gap: 10px;
+}
+
+.dashboard-system-card {
+    width: 100%;
+    padding: 12px 14px;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    background: color-mix(in srgb, var(--surface-primary) 72%, transparent);
+    text-align: left;
+    transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+}
+
+.dashboard-system-card:hover {
+    border-color: color-mix(in srgb, var(--brand-primary) 24%, var(--border-default));
+    background: color-mix(in srgb, var(--brand-primary) 4%, var(--surface-secondary));
+}
+
+.dashboard-system-card__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 6px;
+}
+
+.dashboard-system-card__head strong {
+    font-size: 14px;
+    line-height: 1.3;
+}
+
+.dashboard-system-card__summary {
+    color: var(--text-secondary);
+    font-size: 13px;
+    line-height: 1.45;
+}
+
+.dashboard-system-card.is-selected {
+    outline: 0;
+    border-color: color-mix(in srgb, var(--brand-primary) 42%, var(--border-default));
+    background: linear-gradient(180deg, color-mix(in srgb, var(--brand-primary) 8%, var(--surface-secondary)), color-mix(in srgb, var(--surface-primary) 84%, transparent));
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--brand-primary) 12%, transparent), 0 10px 20px rgba(15, 23, 42, 0.05);
+    transform: translateY(-1px);
+}
+
+.dashboard-system-card.is-selected .pill {
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--brand-primary) 14%, transparent);
+}
+
 .table-wrapper {
     width: 100%;
     overflow: auto;
@@ -367,6 +520,7 @@ th {
 
 .primary-button,
 .secondary-button,
+.danger-button,
 .ghost-button,
 .icon-button {
     display: inline-flex;
@@ -391,6 +545,12 @@ th {
     background: color-mix(in srgb, var(--surface-primary) 78%, transparent);
     border-color: var(--border-default);
     color: var(--text-primary);
+}
+
+.danger-button {
+    background: color-mix(in srgb, var(--status-error) 14%, var(--surface-primary));
+    border-color: color-mix(in srgb, var(--status-error) 42%, var(--border-default));
+    color: var(--status-error);
 }
 
 .ghost-button,
@@ -807,6 +967,10 @@ tbody .route-row.is-selected {
 .content-grid {
     gap: 20px;
     align-items: stretch;
+}
+
+.content-grid.shell-content-grid {
+    align-items: start;
 }
 
 .stat-grid {
