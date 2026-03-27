@@ -610,11 +610,15 @@ print(json.dumps({
     'extension_exists': extension_dir.exists(),
     'manifest_name': manifest['name'],
     'has_cookie_permission': 'cookies' in manifest['permissions'],
+    'has_alarm_permission': 'alarms' in manifest['permissions'],
+    'has_tabs_permission': 'tabs' in manifest['permissions'],
     'has_target_permission': 'https://www.tiktok.com/*' in manifest['host_permissions'],
     'has_report_permission': any(item.startswith('http://127.0.0.1/') for item in manifest['host_permissions']),
     'background_mentions_cookie': 'sessionid' in background,
     'background_mentions_report_url': 'reportUrl' in background,
     'background_mentions_validation_endpoint': 'passport/web/account/info/' in background,
+    'background_mentions_alarm_retry': 'chrome.alarms.onAlarm.addListener' in background,
+    'background_mentions_tab_retry': 'chrome.tabs.onUpdated.addListener' in background,
     'command_has_load_extension': any(str(part).startswith('--load-extension=') for part in captured['command']),
     'command_has_disable_except': any(str(part).startswith('--disable-extensions-except=') for part in captured['command']),
     'account_isolation_enabled': bool(updated.isolation_enabled),
@@ -634,11 +638,15 @@ print(json.dumps({
     assert result['extension_exists'] is True
     assert 'TKOPS Account Session' in result['manifest_name']
     assert result['has_cookie_permission'] is True
+    assert result['has_alarm_permission'] is True
+    assert result['has_tabs_permission'] is True
     assert result['has_target_permission'] is True
     assert result['has_report_permission'] is True
     assert result['background_mentions_cookie'] is True
     assert result['background_mentions_report_url'] is True
     assert result['background_mentions_validation_endpoint'] is True
+    assert result['background_mentions_alarm_retry'] is True
+    assert result['background_mentions_tab_retry'] is True
     assert result['command_has_load_extension'] is True
     assert result['command_has_disable_except'] is True
     assert result['account_isolation_enabled'] is True

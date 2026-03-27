@@ -2149,7 +2149,7 @@ class AccountService:
             "manifest_version": 3,
             "name": f"{_ACCOUNT_SESSION_EXTENSION_NAME} / {account.username or account.id}",
             "version": "1.0.0",
-            "permissions": ["cookies", "storage"],
+            "permissions": ["cookies", "storage", "alarms", "tabs"],
             "host_permissions": permissions,
             "background": {"service_worker": "background.js"},
             "minimum_chrome_version": "120",
@@ -2164,6 +2164,9 @@ class AccountService:
         }
         background = """
 const payload = __PAYLOAD__;
+const RETRY_ALARM = 'tkops-cookie-retry';
+const RETRY_DELAY_MINUTES = 1;
+let applyInFlight = null;
 
 async function reportState(partial) {
     if (!payload.reportUrl) return;
@@ -2207,6 +2210,62 @@ function payloadIndicatesInvalidLogin(payload) {
     return ['login', 'not login', 'not logged', 'expired', 'invalid', 'unauthorized', 'challenge_required', 'checkpoint_required', '请登录', '登录', '失效'].some((marker) => text.includes(marker));
 }
 
+function targetHostCandidates() {
+    const hosts = new Set();
+    try {
+        const url = new URL(String(payload.targetUrl || ''));
+        if (url.hostname) hosts.add(url.hostname);
+        const withoutWww = url.hostname.replace(/^www\./, '');
+        if (withoutWww) hosts.add(withoutWww);
+    } catch (_error) {
+        // ignore malformed target url
+    }
+    for (const cookie of payload.cookies || []) {
+        const domain = String((cookie && cookie.domain) || '').trim().replace(/^\./, '');
+        if (domain) hosts.add(domain);
+    }
+    return Array.from(hosts);
+}
+
+function matchesTargetUrl(url) {
+    if (!url) return false;
+    try {
+        const parsed = new URL(url);
+        const host = parsed.hostname;
+        return targetHostCandidates().some((candidate) => host === candidate || host.endsWith('.' + candidate));
+    } catch (_error) {
+        return false;
+    }
+}
+
+async function setRetryAlarm(reason) {
+    await chrome.alarms.clear(RETRY_ALARM);
+    await chrome.alarms.create(RETRY_ALARM, { delayInMinutes: RETRY_DELAY_MINUTES });
+    await reportState({
+        status: 'retry_scheduled',
+        loginStatus: 'pending',
+        message: '登录扩展将在稍后自动重试注入',
+        retryReason: reason || '',
+    });
+}
+
+async function clearRetryAlarm() {
+    await chrome.alarms.clear(RETRY_ALARM);
+}
+
+async function nextAttemptMeta(trigger) {
+    const stored = await chrome.storage.local.get(['tkopsSessionMeta']);
+    const current = stored && stored.tkopsSessionMeta ? stored.tkopsSessionMeta : {};
+    const attemptCount = Number(current.attemptCount || 0) + 1;
+    const meta = {
+        attemptCount,
+        lastTrigger: String(trigger || 'unknown'),
+        lastAttemptAt: new Date().toISOString(),
+    };
+    await chrome.storage.local.set({ tkopsSessionMeta: meta });
+    return meta;
+}
+
 async function validateLoginState() {
     const validation = payload.validation || {};
     const requests = Array.isArray(validation.requests) ? validation.requests : [];
@@ -2240,44 +2299,64 @@ async function validateLoginState() {
     return { loginStatus: 'unknown', message: '浏览器侧无法确认登录态：' + reasons.join('；') };
 }
 
-async function applySessionCookies() {
-    await reportState({ status: 'applying', loginStatus: 'pending', message: '正在注入账号 Cookie' });
-  const applied = [];
-  const failed = [];
-  for (const cookie of payload.cookies || []) {
-    const details = {
-      url: cookie.url,
-      name: cookie.name,
-      value: cookie.value,
-      path: cookie.path || '/',
-      secure: !!cookie.secure,
-      httpOnly: !!cookie.httpOnly,
-    };
-    if (cookie.domain) details.domain = cookie.domain;
-    if (cookie.sameSite) details.sameSite = cookie.sameSite;
-    if (cookie.expirationDate) details.expirationDate = cookie.expirationDate;
-    try {
-      const result = await chrome.cookies.set(details);
-      applied.push((result && result.name) || cookie.name);
-    } catch (error) {
-      failed.push({ name: cookie.name, message: String(error && error.message ? error.message : error) });
+async function runApplySessionCookies(trigger) {
+    const meta = await nextAttemptMeta(trigger);
+    await reportState({
+        status: 'applying',
+        loginStatus: 'pending',
+        message: '正在注入账号 Cookie',
+        trigger: meta.lastTrigger,
+        attemptCount: meta.attemptCount,
+    });
+
+    const applied = [];
+    const failed = [];
+    for (const cookie of payload.cookies || []) {
+        const details = {
+            url: cookie.url,
+            name: cookie.name,
+            value: cookie.value,
+            path: cookie.path || '/',
+            secure: !!cookie.secure,
+            httpOnly: !!cookie.httpOnly,
+        };
+        if (cookie.domain) details.domain = cookie.domain;
+        if (cookie.sameSite) details.sameSite = cookie.sameSite;
+        if (cookie.expirationDate) details.expirationDate = cookie.expirationDate;
+        try {
+            const result = await chrome.cookies.set(details);
+            applied.push((result && result.name) || cookie.name);
+        } catch (error) {
+            failed.push({ name: cookie.name, message: String(error && error.message ? error.message : error) });
+        }
     }
-  }
+
     const validation = await validateLoginState();
-  await chrome.storage.local.set({
-    tkopsSession: {
-      accountId: payload.accountId,
-      username: payload.username,
-      targetUrl: payload.targetUrl,
-      appliedCount: applied.length,
-      failed,
+    const shouldRetry = validation.loginStatus !== 'valid' || failed.length > 0;
+    if (shouldRetry) {
+        await setRetryAlarm(validation.message || '登录态尚未恢复');
+    } else {
+        await clearRetryAlarm();
+    }
+
+    await chrome.storage.local.set({
+        tkopsSession: {
+            accountId: payload.accountId,
+            username: payload.username,
+            targetUrl: payload.targetUrl,
+            appliedCount: applied.length,
+            failed,
             loginStatus: validation.loginStatus,
             validationMessage: validation.message,
             validationTarget: validation.target || '',
             validationHttpStatus: validation.httpStatus || null,
-      updatedAt: new Date().toISOString(),
-    },
-  });
+            trigger: meta.lastTrigger,
+            attemptCount: meta.attemptCount,
+            retryScheduled: shouldRetry,
+            updatedAt: new Date().toISOString(),
+        },
+      });
+
     await reportState({
         status: validation.loginStatus === 'valid' ? 'ready' : (failed.length ? 'partial' : 'ready'),
         loginStatus: validation.loginStatus,
@@ -2286,13 +2365,33 @@ async function applySessionCookies() {
         message: validation.message,
         target: validation.target || '',
         httpStatus: validation.httpStatus || null,
+        trigger: meta.lastTrigger,
+        attemptCount: meta.attemptCount,
+        retryScheduled: shouldRetry,
     });
 }
 
-chrome.runtime.onInstalled.addListener(() => { void applySessionCookies(); });
-chrome.runtime.onStartup.addListener(() => { void applySessionCookies(); });
+function applySessionCookies(trigger) {
+    if (applyInFlight) return applyInFlight;
+    applyInFlight = runApplySessionCookies(trigger).finally(() => {
+        applyInFlight = null;
+    });
+    return applyInFlight;
+}
+
+chrome.runtime.onInstalled.addListener(() => { void applySessionCookies('installed'); });
+chrome.runtime.onStartup.addListener(() => { void applySessionCookies('startup'); });
+chrome.alarms.onAlarm.addListener((alarm) => {
+    if (alarm && alarm.name === RETRY_ALARM) void applySessionCookies('alarm');
+});
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+    const candidateUrl = String((changeInfo && changeInfo.url) || (tab && tab.url) || '');
+    if (!candidateUrl || !matchesTargetUrl(candidateUrl)) return;
+    if (changeInfo && changeInfo.status && changeInfo.status !== 'complete') return;
+    void applySessionCookies('tab_updated');
+});
 void reportState({ status: 'booting', loginStatus: 'pending', message: '登录扩展已加载，准备注入账号 Cookie' });
-void applySessionCookies();
+void applySessionCookies('boot');
 """.replace("__PAYLOAD__", json.dumps(payload, ensure_ascii=False))
 
         (extension_dir / "manifest.json").write_text(
