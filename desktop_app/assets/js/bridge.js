@@ -42,9 +42,14 @@
             createAccount: noopObj, updateAccount: noopObj, deleteAccount: noopObj,
             testAccountConnection: () => ok({ ok: false, message: '浏览器预览模式不支持连接测试', latency_ms: null, target: '' }),
             validateAccountLogin: () => ok({ status: 'unknown', label: '预览模式', message: '浏览器预览模式不支持真实登录态校验' }),
+            openAccountEnvironment: () => ok({ account_id: 0, account_username: 'preview', device_id: 0, browser_path: '', profile_dir: '', extension_dir: '', extension_name: 'TKOPS Account Session', extension_ready: true, extension_install_required: false, extension_install_hint: '无需手动安装，系统会在启动隔离浏览器时自动生成并加载登录扩展。', proxy_server: '127.0.0.1:0', browser_proxy: '127.0.0.1:0', upstream_proxy: 'http://127.0.0.1:0', validation: { ok: true, message: '', detail: '' }, pid: 0, url: '', cookie_count: 0, preview: true }),
             // Groups / Devices
             listGroups: noop, createGroup: noopObj, updateGroup: noopObj, deleteGroup: noopObj,
             listDevices: noop, createDevice: noopObj, updateDevice: noopObj, deleteDevice: noopObj,
+            inspectDevice: () => ok({ device_id: 0, status: 'idle', proxy_status: 'offline', message: '浏览器预览模式不支持真实设备巡检' }),
+            repairDeviceEnvironment: () => ok({ device_id: 0, status: 'idle', proxy_status: 'offline', actions: ['浏览器预览模式不支持真实环境修复'] }),
+            openDeviceEnvironment: () => ok({ device_id: 0, browser_path: '', profile_dir: '', proxy_server: '127.0.0.1:0', browser_proxy: '127.0.0.1:0', upstream_proxy: 'http://127.0.0.1:0', validation: { ok: true, message: '', detail: '' }, pid: 0, url: '', preview: true }),
+            getDeviceLogs: noop,
             // Tasks
             listTasks: noop, createTask: noopObj, updateTask: noopObj,
             startTask: noopObj, completeTask: noopObj, failTask: noopObj, deleteTask: noopObj,

@@ -74,6 +74,8 @@ class ActivityService:
     @staticmethod
     def _tone_from_category(category: str | None) -> str:
         value = str(category or "").lower()
+        if "failed" in value or "error" in value:
+            return "error"
         if value in {"error", "warning", "risk"}:
             return "warning"
         if value in {"task", "report", "workflow", "experiment", "seed"}:

@@ -74,19 +74,26 @@ def test_bridge_exposes_task_backed_action_creation_slot() -> None:
     assert "callBackend('createTaskAction'" in data_text
 
 
-def test_frontend_routes_async_buttons_to_real_task_creation() -> None:
+def test_device_page_routes_environment_actions_to_runtime_hooks() -> None:
     text = BINDINGS_JS.read_text(encoding='utf-8')
     expected = [
-        "'打开环境': () => _createNamedTaskAction('device_open_environment'",
+        "window.__openDeviceEnvironment",
+        "window.__repairDevices",
+        "window.__exportDeviceLog",
     ]
     for marker in expected:
         assert marker in text, marker
 
-    placeholders = [
-        "'打开环境': () => showToast('设备环境启动命令已下发', 'success')",
+    stale_markers = [
+        "_createNamedTaskAction('device_open_environment'",
+        "showToast('设备环境启动命令已下发', 'success')",
     ]
-    for marker in placeholders:
+    for marker in stale_markers:
         assert marker not in text, marker
+
+    data_text = DATA_JS.read_text(encoding='utf-8')
+    assert 'openEnvironment: function (id)' in data_text
+    assert 'logs: function (id)' in data_text
 
 
 def test_account_page_exposes_direct_connection_detection_hooks() -> None:

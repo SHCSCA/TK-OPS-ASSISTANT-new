@@ -549,24 +549,62 @@ function _openDeviceBindingModal(btn) {
         return;
     }
     api.accounts.list().then((accounts) => {
-        const accountOptions = [{ value: '', label: '解除绑定' }].concat((accounts || []).map((account) => ({
+        const list = accounts || [];
+        const boundAccounts = list.filter((account) => String(account.device_id || '') === String(deviceId));
+        const accountOptions = [{ value: '', label: '暂不新增绑定' }].concat(list.filter((account) => String(account.device_id || '') !== String(deviceId)).map((account) => ({
             value: String(account.id),
-            label: (account.username || ('账号 #' + account.id)) + ' / ' + (account.region || '-'),
+            label: (account.username || ('账号 #' + account.id)) + ' / ' + (account.region || '-') + (account.device_id ? ' / 已绑定其他设备' : ' / 未绑定'),
         })));
         openModal({
             title: '调整设备绑定',
-            submitText: '保存绑定',
+            submitText: '新增绑定',
             fields: [
-                { key: 'account_id', label: '账号', type: 'select', options: accountOptions, required: true },
+                { key: 'account_id', label: '新增绑定账号', type: 'select', options: accountOptions, required: false, hint: '下方可以直接解除当前绑定；这里用于把其他账号绑定到当前设备。' },
             ],
+            onOpen: function (ctx) {
+                const block = document.createElement('div');
+                block.className = 'detail-stack';
+                block.style.marginBottom = '12px';
+
+                const heading = document.createElement('div');
+                heading.className = 'form-hint';
+                heading.textContent = '当前已绑定 ' + boundAccounts.length + ' 个账号';
+                block.appendChild(heading);
+
+                const listHost = document.createElement('div');
+                listHost.className = 'audit-list';
+                if (!boundAccounts.length) {
+                    listHost.innerHTML = '<div class="subtle">当前设备暂无绑定账号</div>';
+                } else {
+                    boundAccounts.forEach((account) => {
+                        const row = document.createElement('div');
+                        row.className = 'audit-item';
+                        row.innerHTML = '<div><strong>' + (account.username || ('账号 #' + account.id)) + '</strong><div class="subtle">地区 ' + (account.region || '-') + ' / 隔离 ' + ((account.isolation_enabled === true || String(account.isolation_enabled).toLowerCase() === 'true') ? '已启用' : '未启用') + '</div></div>';
+                        const unbindBtn = document.createElement('button');
+                        unbindBtn.type = 'button';
+                        unbindBtn.className = 'ghost-button';
+                        unbindBtn.textContent = '解除绑定';
+                        unbindBtn.addEventListener('click', function () {
+                            api.accounts.update(account.id, { device_id: null }).then(() => {
+                                showToast('已解除账号绑定', 'success');
+                                ctx.close();
+                                if (typeof loadRouteData === 'function') loadRouteData('device-management');
+                            }).catch((err) => {
+                                showToast('解除绑定失败: ' + ((err && err.message) || '未知错误'), 'error');
+                            });
+                        });
+                        row.appendChild(unbindBtn);
+                        listHost.appendChild(row);
+                    });
+                }
+                block.appendChild(listHost);
+                ctx.form.parentNode.insertBefore(block, ctx.form);
+            },
             onSubmit: function (data) {
                 const accountId = parseInt(data.account_id || '0', 10);
                 if (!accountId) {
-                    return _createNamedTaskAction('device_unbind_account', {
-                        title: '调整设备绑定',
-                        summary: '来源页面：设备环境管理 / 调整绑定',
-                        metadata: { device_id: deviceId, mode: 'unbind' },
-                    }, '解除绑定任务已加入队列');
+                    showToast('未新增绑定，当前关系保持不变', 'info');
+                    return Promise.resolve(null);
                 }
                 return api.accounts.update(accountId, { device_id: deviceId }).then(() => {
                     showToast('设备绑定已更新', 'success');
@@ -964,28 +1002,24 @@ function _bindRouteButtonPresets() {
         },
         'device-management': {
             '导出设备报告': () => {
-                api.devices.list().then((devices) => {
-                    const lines = (devices || []).map((item) => [item.device_code || '', item.name || '', item.region || '', item.status || ''].join(' | '));
-                    return _exportThroughBackend('设备环境报告', lines, '设备报告已导出');
-                }).catch((err) => showToast('导出失败: ' + ((err && err.message) || '未知错误'), 'error'));
+                if (typeof window.__exportDeviceReport === 'function') {
+                    return window.__exportDeviceReport();
+                }
+                showToast('设备报告功能正在加载，请稍后重试', 'warning');
             },
-            '批量巡检': () => _runDiagnostics('设备巡检'),
-            '批量修复': () => _createQuickTask('设备批量修复', 'maintenance', '来源页面：设备环境管理', '批量修复任务已创建'),
-            '修复环境': () => _createQuickTask('环境修复', 'maintenance', '来源页面：设备环境管理', '环境修复任务已创建'),
+            '批量巡检': () => typeof window.__inspectDevices === 'function' ? window.__inspectDevices() : showToast('设备巡检功能正在加载', 'warning'),
+            '批量修复': () => typeof window.__repairDevices === 'function' ? window.__repairDevices() : showToast('设备修复功能正在加载', 'warning'),
+            '修复环境': (btn) => typeof window.__repairDevices === 'function' ? window.__repairDevices(_selectedDeviceId(btn) ? [_selectedDeviceId(btn)] : null) : showToast('设备修复功能正在加载', 'warning'),
             '环境日志': () => {
-                api.logs.recent().then((logs) => {
-                    const lines = (logs && logs.lines) || [];
-                    return _exportThroughBackend('设备环境日志', lines, '环境日志已导出');
-                }).catch((err) => showToast('导出失败: ' + ((err && err.message) || '未知错误'), 'error'));
+                if (typeof window.__exportDeviceLog === 'function') {
+                    return window.__exportDeviceLog(_selectedDeviceId());
+                }
+                showToast('环境日志功能正在加载', 'warning');
             },
             '调整绑定': (btn) => _openDeviceBindingModal(btn),
             '修改绑定': (btn) => _openDeviceBindingModal(btn),
-            '打开环境': () => _createNamedTaskAction('device_open_environment', {
-                title: '打开设备环境',
-                summary: '来源页面：设备环境管理 / 打开环境',
-                metadata: { route: 'device-management', device_id: _selectedDeviceId() },
-            }, '设备环境启动任务已创建'),
-            '查看详情': () => showToast('详情已同步到右侧面板', 'info'),
+            '打开环境': (btn) => typeof window.__openDeviceEnvironment === 'function' ? window.__openDeviceEnvironment(_selectedDeviceId(btn)) : showToast('打开环境功能正在加载', 'warning'),
+            '查看详情': (btn) => typeof window.__focusDeviceDetail === 'function' ? window.__focusDeviceDetail(_selectedDeviceId(btn)) : showToast('详情正在加载', 'warning'),
         },
         'asset-center': {
             '上传素材': () => _pickFilesAndImportAssets(currentRoute),

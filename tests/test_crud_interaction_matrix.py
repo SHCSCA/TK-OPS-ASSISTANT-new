@@ -15,7 +15,6 @@ DATA_JS = ROOT / "desktop_app" / "assets" / "js" / "data.js"
 
 CRUD_ROUTE_EXPECTATIONS = {
     "account": ["create", "edit", "delete", "filter", "detail", "batch", "task"],
-    "group-management": ["create", "edit", "delete", "filter", "detail"],
     "device-management": ["create", "edit", "delete", "filter", "detail", "batch"],
     "ai-provider": ["create", "edit", "activate", "delete", "detail"],
     "task-queue": ["create", "edit", "start", "complete", "delete", "filter", "detail", "batch"],
@@ -35,19 +34,14 @@ LOADER_MARKERS = {
         ".js-batch-account",
         "_renderAccountDetail(",
     ],
-    "group-management": [
-        "loaders['group-management']",
-        "openGroupForm(",
-        ".js-edit-group",
-        ".js-delete-group",
-        "_renderGroupDetail(",
-    ],
     "device-management": [
         "loaders['device-management']",
         "openDeviceForm(",
         ".js-edit-device",
         ".js-delete-device",
         "_renderDeviceDetail(",
+        "_renderDeviceFilterTabs(",
+        "_bindDeviceDetailActions(",
     ],
     "ai-provider": [
         "loaders['ai-provider']",
@@ -79,7 +73,6 @@ LOADER_MARKERS = {
 
 FILTER_ROUTE_EXPECTATIONS = {
     "account": ["account: { statusFilter:", "applyAccountState("],
-    "group-management": ["uiState['group-management']", "applyGroupManagementState("],
     "device-management": ["uiState['device-management']", "applyDeviceManagementState("],
     "task-queue": ["uiState['task-queue']", "applyTaskState("],
     "asset-center": ["uiState['asset-center']", "applyAssetCenterState("],
@@ -88,7 +81,6 @@ FILTER_ROUTE_EXPECTATIONS = {
 
 FORM_MARKERS = {
     "account": "function openAccountForm(existing)",
-    "group-management": "function openGroupForm(existing)",
     "device-management": "function openDeviceForm(existing)",
     "ai-provider": "function openProviderForm(existing)",
     "task-queue": "function openTaskForm(existing)",
@@ -232,3 +224,15 @@ def test_account_cookie_runtime_exposes_import_and_login_validation_actions() ->
     ]
     for marker in required_form_markers:
         assert marker in form_text, marker
+
+
+def test_account_toolbar_uses_real_environment_flow_and_log_toggle() -> None:
+    page_text = PAGE_LOADERS_JS.read_text(encoding="utf-8")
+    shell_text = (ROOT / "desktop_app" / "assets" / "app_shell.html").read_text(encoding="utf-8")
+
+    assert "js-account-filter-exception" not in shell_text
+    assert "js-account-sort" not in shell_text
+    assert "api.accounts.openEnvironment(account.id)" in page_text
+    assert "已为账号 " in page_text
+    assert "已注入 " in page_text
+    assert "js-device-toggle-logs" in page_text

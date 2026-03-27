@@ -118,3 +118,10 @@ def test_bridge_stub_covers_new_persistence_pages():
     ]
     missing = [method for method in expected if method not in text]
     assert not missing, f"bridge.js stub missing new persistence methods: {missing}"
+
+
+def test_bridge_stub_exposes_device_environment_proxy_metadata():
+    text = BRIDGE_JS.read_text(encoding="utf-8")
+    assert "openDeviceEnvironment:" in text
+    assert "browser_proxy" in text
+    assert "validation" in text

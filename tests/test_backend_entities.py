@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import json
 import os
@@ -386,3 +386,319 @@ def test_database_import_can_skip_auto_init_for_alembic_env() -> None:
             text=True,
         )
     assert output.strip().splitlines()[-1] == "False"
+
+def test_device_inspection_updates_runtime_fields_from_proxy_probe() -> None:
+    result = _run_isolated_script(
+        """
+import json
+import socket
+from desktop_app.database.repository import Repository
+from desktop_app.services.account_service import AccountService
+
+repo = Repository()
+service = AccountService(repo)
+device = service.create_device('DEV-INSP-01', 'Inspection Device', proxy_ip='http://127.0.0.1:8899')
+
+class DummyConnection:
+    def close(self):
+        pass
+
+original_create_connection = socket.create_connection
+socket.create_connection = lambda *args, **kwargs: DummyConnection()
+try:
+    inspected = service.inspect_device(device.id)
+finally:
+    socket.create_connection = original_create_connection
+
+updated = service.get_device(device.id)
+print(json.dumps({
+    'ok': inspected['ok'],
+    'status': inspected['status'],
+    'proxy_status': inspected['proxy_status'],
+    'target': inspected['target'],
+    'stored_status': updated.status,
+    'stored_proxy_status': updated.proxy_status,
+}, ensure_ascii=False))
+"""
+    )
+    assert result['ok'] is True
+    assert result['status'] == 'idle'
+    assert result['proxy_status'] == 'online'
+    assert result['target'] == '127.0.0.1:8899'
+    assert result['stored_status'] == 'idle'
+    assert result['stored_proxy_status'] == 'online'
+
+
+def test_open_device_environment_prepares_profile_and_launch_command() -> None:
+    result = _run_isolated_script(
+        """
+import json
+import subprocess
+from pathlib import Path
+from desktop_app.database.repository import Repository
+from desktop_app.services.account_service import AccountService
+
+repo = Repository()
+service = AccountService(repo)
+device = service.create_device('DEV-OPEN-01', 'Browser Device', proxy_ip='https://user:pass@123.1.2.2:9000')
+
+service._resolve_browser_executable = lambda: r'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe'
+captured = {}
+
+class DummyProcess:
+    pid = 43210
+
+class DummyRelay:
+    local_endpoint = '127.0.0.1:47211'
+    def close(self):
+        pass
+
+service._start_device_proxy_relay = lambda device_id, endpoint: DummyRelay()
+service._validate_proxy_endpoint = lambda endpoint: {
+    'ok': True,
+    'message': '代理连通性验证通过',
+    'status_code': 200,
+    'egress_ip': '91.204.17.22',
+    'detail': '出口 IP 91.204.17.22',
+}
+
+def fake_popen(command, creationflags=0, close_fds=False):
+    captured['command'] = command
+    captured['creationflags'] = creationflags
+    captured['close_fds'] = close_fds
+    return DummyProcess()
+
+original_popen = subprocess.Popen
+subprocess.Popen = fake_popen
+try:
+    opened = service.open_device_environment(device.id)
+finally:
+    subprocess.Popen = original_popen
+
+profile_dir = Path(opened['profile_dir'])
+manifest = profile_dir / 'tkops-profile.json'
+launcher = profile_dir / 'tkops-proxy-launcher.html'
+print(json.dumps({
+    'pid': opened['pid'],
+    'browser_path': opened['browser_path'],
+    'proxy_server': opened['proxy_server'],
+    'configured_proxy': opened['configured_proxy'],
+    'configured_proxy_display': opened['configured_proxy_display'],
+    'browser_proxy': opened['browser_proxy'],
+    'validation_ok': opened['validation']['ok'],
+    'proxy_probe_url': opened['proxy_probe_url'],
+    'profile_exists': profile_dir.exists(),
+    'manifest_exists': manifest.exists(),
+    'launcher_exists': launcher.exists(),
+    'launcher_mentions_probe_url': opened['proxy_probe_url'] in launcher.read_text(encoding='utf-8'),
+    'launcher_url': opened['launcher_url'],
+    'command_has_proxy': any('--proxy-server=127.0.0.1:47211' == part for part in captured['command']),
+    'command_has_profile': any(str(part).startswith('--user-data-dir=') for part in captured['command']),
+    'command_uses_launcher': any('tkops-proxy-launcher.html' in str(part) for part in captured['command']),
+}, ensure_ascii=False))
+"""
+    )
+    assert result['pid'] == 43210
+    assert result['browser_path'].lower().endswith('msedge.exe')
+    assert result['proxy_server'] == '127.0.0.1:47211'
+    assert result['configured_proxy'] == 'https://user:pass@123.1.2.2:9000'
+    assert result['configured_proxy_display'] == 'https://user:***@123.1.2.2:9000'
+    assert result['browser_proxy'] == '127.0.0.1:47211'
+    assert result['validation_ok'] is True
+    assert result['proxy_probe_url'].startswith('http://127.0.0.1:')
+    assert result['profile_exists'] is True
+    assert result['manifest_exists'] is True
+    assert result['launcher_exists'] is True
+    assert result['launcher_mentions_probe_url'] is True
+    assert 'tkops-proxy-launcher.html' in result['launcher_url']
+    assert result['command_has_proxy'] is True
+    assert result['command_has_profile'] is True
+    assert result['command_uses_launcher'] is True
+
+
+def test_open_device_environment_requires_proxy_port() -> None:
+    result = _run_isolated_script(
+        """
+import json
+from desktop_app.database.repository import Repository
+from desktop_app.services.account_service import AccountService
+
+repo = Repository()
+service = AccountService(repo)
+device = service.create_device('DEV-BAD-PROXY', 'Broken Proxy Device', proxy_ip='user:pass@91.204.17.22')
+service._resolve_browser_executable = lambda: r'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe'
+
+try:
+    service.open_device_environment(device.id)
+except Exception as exc:
+    print(json.dumps({
+        'error': str(exc),
+    }, ensure_ascii=False))
+"""
+    )
+    assert 'host:port' in result['error']
+
+
+def test_open_account_environment_prepares_cookie_extension_and_marks_account_runtime() -> None:
+    result = _run_isolated_script(
+        """
+import json
+import subprocess
+from pathlib import Path
+from desktop_app.database.repository import Repository
+from desktop_app.services.account_service import AccountService
+
+repo = Repository()
+service = AccountService(repo)
+device = service.create_device('DEV-ACCOUNT-01', 'Account Device', proxy_ip='https://user:pass@123.1.2.2:9000')
+account = service.create_account(
+    'account_owner',
+    platform='tiktok',
+    device_id=device.id,
+    isolation_enabled=False,
+    cookie_content='[{"name":"sessionid","value":"cookie-owner","domain":".tiktok.com","path":"/","secure":true,"httpOnly":true}]',
+)
+
+service._resolve_browser_executable = lambda: r'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe'
+captured = {}
+
+class DummyProcess:
+    pid = 54321
+
+class DummyRelay:
+    local_endpoint = '127.0.0.1:48888'
+    def close(self):
+        pass
+
+service._start_device_proxy_relay = lambda device_id, endpoint: DummyRelay()
+service._validate_proxy_endpoint = lambda endpoint: {
+    'ok': True,
+    'message': '代理连通性验证通过',
+    'status_code': 200,
+    'egress_ip': '91.204.17.22',
+    'detail': '出口 IP 91.204.17.22',
+}
+
+def fake_popen(command, creationflags=0, close_fds=False):
+    captured['command'] = command
+    return DummyProcess()
+
+original_popen = subprocess.Popen
+subprocess.Popen = fake_popen
+try:
+    opened = service.open_account_environment(account.id)
+finally:
+    subprocess.Popen = original_popen
+
+updated = service.get_account(account.id)
+profile_dir = Path(opened['profile_dir'])
+extension_dir = Path(opened['extension_dir'])
+background = (extension_dir / 'background.js').read_text(encoding='utf-8')
+manifest = json.loads((extension_dir / 'manifest.json').read_text(encoding='utf-8'))
+print(json.dumps({
+    'pid': opened['pid'],
+    'launch_mode': opened['launch_mode'],
+    'cookie_count': opened['cookie_count'],
+    'account_id': opened['account_id'],
+    'account_username': opened['account_username'],
+    'extension_name': opened['extension_name'],
+    'extension_ready': opened['extension_ready'],
+    'extension_install_required': opened['extension_install_required'],
+    'extension_install_hint': opened['extension_install_hint'],
+    'extension_exists': extension_dir.exists(),
+    'manifest_name': manifest['name'],
+    'has_cookie_permission': 'cookies' in manifest['permissions'],
+    'has_target_permission': 'https://www.tiktok.com/*' in manifest['host_permissions'],
+    'background_mentions_cookie': 'sessionid' in background,
+    'background_mentions_report_url': 'reportUrl' in background,
+    'background_mentions_validation_endpoint': 'passport/web/account/info/' in background,
+    'command_has_load_extension': any(str(part).startswith('--load-extension=') for part in captured['command']),
+    'command_has_disable_except': any(str(part).startswith('--disable-extensions-except=') for part in captured['command']),
+    'account_isolation_enabled': bool(updated.isolation_enabled),
+    'account_last_login_at': str(updated.last_login_at),
+    'profile_exists': profile_dir.exists(),
+}, ensure_ascii=False))
+"""
+    )
+    assert result['pid'] == 54321
+    assert result['launch_mode'] == 'loopback_relay_account_session'
+    assert result['cookie_count'] == 1
+    assert result['account_username'] == 'account_owner'
+    assert result['extension_name'] == 'TKOPS Account Session'
+    assert result['extension_ready'] is True
+    assert result['extension_install_required'] is False
+    assert '无需手动安装' in result['extension_install_hint']
+    assert result['extension_exists'] is True
+    assert 'TKOPS Account Session' in result['manifest_name']
+    assert result['has_cookie_permission'] is True
+    assert result['has_target_permission'] is True
+    assert result['background_mentions_cookie'] is True
+    assert result['background_mentions_report_url'] is True
+    assert result['background_mentions_validation_endpoint'] is True
+    assert result['command_has_load_extension'] is True
+    assert result['command_has_disable_except'] is True
+    assert result['account_isolation_enabled'] is True
+    assert result['account_last_login_at'] not in {'', 'None'}
+    assert result['profile_exists'] is True
+
+
+def test_open_account_environment_failure_is_logged_with_error_code() -> None:
+    result = _run_isolated_script(
+        """
+import json
+from desktop_app.database.repository import Repository
+from desktop_app.services.activity_service import ActivityService
+from desktop_app.ui.bridge import Bridge
+
+bridge = Bridge()
+account = bridge._accounts.create_account('broken_cookie_owner', platform='tiktok', cookie_content='[]')
+response = json.loads(bridge.openAccountEnvironment(account.id))
+logs = bridge._activity.list_activity_logs(category='account_environment_failed')
+latest = logs[0] if logs else None
+payload = ActivityService._load_payload(latest.payload_json if latest else None)
+print(json.dumps({
+    'ok': response.get('ok'),
+    'error': response.get('error', ''),
+    'logged': latest is not None,
+    'category': latest.category if latest else '',
+    'title': latest.title if latest else '',
+    'error_code': payload.get('error_code', ''),
+    'message': payload.get('message', ''),
+}, ensure_ascii=False))
+"""
+    )
+    assert result['ok'] is False
+    assert '当前账号未绑定设备' in result['error']
+    assert result['logged'] is True
+    assert result['category'] == 'account_environment_failed'
+    assert result['error_code'] == 'device_unbound'
+    assert '当前账号未绑定设备' in result['message']
+
+
+def test_parse_proxy_endpoint_supports_authenticated_proxy_formats() -> None:
+    result = _run_isolated_script(
+        """
+import json
+from desktop_app.database.repository import Repository
+from desktop_app.services.account_service import AccountService
+
+repo = Repository()
+service = AccountService(repo)
+http_endpoint = service._parse_proxy_endpoint('user:pass@127.0.0.1:8899')
+https_endpoint = service._parse_proxy_endpoint('https://user:pa%23ss@127.0.0.1:9443')
+print(json.dumps({
+    'http_display': http_endpoint.display,
+    'http_upstream': http_endpoint.upstream_url,
+    'http_host_port': http_endpoint.host_port,
+    'https_display': https_endpoint.display,
+    'https_upstream': https_endpoint.upstream_url,
+    'https_host_port': https_endpoint.host_port,
+}, ensure_ascii=False))
+"""
+    )
+    assert result['http_display'] == 'http://user:***@127.0.0.1:8899'
+    assert result['http_upstream'] == 'http://user:pass@127.0.0.1:8899'
+    assert result['http_host_port'] == '127.0.0.1:8899'
+    assert result['https_display'] == 'https://user:***@127.0.0.1:9443'
+    assert result['https_upstream'] == 'https://user:pa%23ss@127.0.0.1:9443'
+    assert result['https_host_port'] == '127.0.0.1:9443'

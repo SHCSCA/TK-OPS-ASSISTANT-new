@@ -1,4 +1,4 @@
-"""QWebChannel bridge – exposes Python services to the JS frontend.
+﻿"""QWebChannel bridge – exposes Python services to the JS frontend.
 
 Design decisions:
 - Every slot returns a JSON envelope: ``{ok, data, error}``.
@@ -30,7 +30,7 @@ from desktop_app.database.models import (
 )
 from desktop_app.database.repository import Repository
 from desktop_app.logging_config import LOG_FILE
-from desktop_app.services.account_service import AccountService
+from desktop_app.services.account_service import AccountEnvironmentError, AccountService
 from desktop_app.services.activity_service import ActivityService
 from desktop_app.services.ai_service import AIService
 from desktop_app.services.analytics_service import AnalyticsService
@@ -230,6 +230,70 @@ class Bridge(QObject):
 
     @Slot(int, result=str)
     @_safe
+    def openAccountEnvironment(self, pk: int) -> str:
+        account = self._accounts.get_account(pk)
+        account_name = account.username if account is not None else str(pk)
+        try:
+            result = self._accounts.open_account_environment(pk)
+        except Exception as exc:
+            error_code = exc.code if isinstance(exc, AccountEnvironmentError) else "account_environment_failed"
+            self._activity.create_activity_log(
+                "account_environment_failed",
+                f"打开账号环境失败 / {account_name}",
+                payload_json=json.dumps(
+                    {
+                        "message": str(exc),
+                        "error_code": error_code,
+                        "account_id": pk,
+                        "account_username": account_name,
+                    },
+                    ensure_ascii=False,
+                    default=str,
+                ),
+                related_entity_type="account",
+                related_entity_id=pk,
+            )
+            self._emit_change("activity_log", "created", pk)
+            raise
+
+        self._activity.create_activity_log(
+            "account_environment",
+            f"打开账号环境 / {result.get('account_username') or pk}",
+            payload_json=json.dumps(
+                {
+                    "message": (
+                        f"已启动账号隔离环境，PID {result.get('pid')}，设备 {result.get('device_code')}"
+                        + (f"，Cookie {result.get('cookie_count')} 条" if result.get("cookie_count") else "")
+                    ),
+                    "account_id": result.get("account_id"),
+                    "account_username": result.get("account_username"),
+                    "device_id": result.get("device_id"),
+                    "device_code": result.get("device_code"),
+                    "browser_path": result.get("browser_path"),
+                    "profile_dir": result.get("profile_dir"),
+                    "extension_dir": result.get("extension_dir"),
+                    "extension_name": result.get("extension_name"),
+                    "extension_ready": result.get("extension_ready"),
+                    "extension_install_required": result.get("extension_install_required"),
+                    "extension_install_hint": result.get("extension_install_hint"),
+                    "launch_mode": result.get("launch_mode"),
+                    "proxy_server": result.get("proxy_server"),
+                    "browser_proxy": result.get("browser_proxy"),
+                    "validation": result.get("validation"),
+                    "url": result.get("url"),
+                },
+                ensure_ascii=False,
+                default=str,
+            ),
+            related_entity_type="account",
+            related_entity_id=pk,
+        )
+        self._emit_change("account", "environment-opened", pk)
+        self._emit_change("activity_log", "created", pk)
+        return _ok(result)
+
+    @Slot(int, result=str)
+    @_safe
     def deleteAccount(self, pk: int) -> str:
         ok = self._accounts.delete_account(pk)
         if not ok:
@@ -311,6 +375,118 @@ class Bridge(QObject):
             return _err("设备不存在")
         self._emit_change("device", "deleted", pk)
         return _ok({"deleted": pk})
+
+    @Slot(int, result=str)
+    @_safe
+    def inspectDevice(self, pk: int) -> str:
+        result = self._accounts.inspect_device(pk)
+        self._activity.create_activity_log(
+            "device_inspection",
+            f"设备巡检 / {result['name']}",
+            payload_json=json.dumps(
+                {
+                    "message": result.get("message") or "设备巡检已完成",
+                    "status": result.get("status"),
+                    "proxy_status": result.get("proxy_status"),
+                    "latency_ms": result.get("latency_ms"),
+                    "checked_at": result.get("checked_at"),
+                },
+                ensure_ascii=False,
+                default=str,
+            ),
+            related_entity_type="device",
+            related_entity_id=pk,
+        )
+        self._emit_change("device", "inspected", pk)
+        self._emit_change("activity_log", "created", pk)
+        return _ok(result)
+
+    @Slot(int, result=str)
+    @_safe
+    def repairDeviceEnvironment(self, pk: int) -> str:
+        result = self._accounts.repair_device_environment(pk)
+        self._activity.create_activity_log(
+            "device_repair",
+            f"环境修复 / {result['device_code']}",
+            payload_json=json.dumps(
+                {
+                    "message": "；".join(result.get("actions") or []) or "环境修复已完成",
+                    "actions": result.get("actions") or [],
+                    "status": result.get("status"),
+                    "proxy_status": result.get("proxy_status"),
+                    "profile_dir": result.get("profile_dir"),
+                },
+                ensure_ascii=False,
+                default=str,
+            ),
+            related_entity_type="device",
+            related_entity_id=pk,
+        )
+        self._emit_change("device", "repaired", pk)
+        self._emit_change("activity_log", "created", pk)
+        return _ok(result)
+
+    @Slot(int, result=str)
+    @_safe
+    def openDeviceEnvironment(self, pk: int) -> str:
+        result = self._accounts.open_device_environment(pk)
+        self._activity.create_activity_log(
+            "device_environment",
+            f"打开环境 / {result['device_code']}",
+            payload_json=json.dumps(
+                {
+                    "message": (
+                        f"已启动外部浏览器隔离实例，PID {result.get('pid')}"
+                        + (
+                            f"，浏览器代理 {result.get('browser_proxy')}"
+                            if result.get("browser_proxy")
+                            else ""
+                        )
+                    ),
+                    "browser_path": result.get("browser_path"),
+                    "profile_dir": result.get("profile_dir"),
+                    "proxy_server": result.get("proxy_server"),
+                    "browser_proxy": result.get("browser_proxy"),
+                    "upstream_proxy": result.get("upstream_proxy"),
+                    "proxy_auth_present": result.get("proxy_auth_present"),
+                    "launch_mode": result.get("launch_mode"),
+                    "validation": result.get("validation"),
+                    "url": result.get("url"),
+                },
+                ensure_ascii=False,
+                default=str,
+            ),
+            related_entity_type="device",
+            related_entity_id=pk,
+        )
+        self._emit_change("activity_log", "created", pk)
+        return _ok(result)
+
+    @Slot(int, result=str)
+    @_safe
+    def getDeviceLogs(self, pk: int) -> str:
+        logs = []
+        for item in self._activity.list_activity_logs():
+            if str(item.related_entity_type or "") != "device":
+                continue
+            if int(item.related_entity_id or 0) != int(pk):
+                continue
+            payload = ActivityService._load_payload(item.payload_json)
+            logs.append(
+                {
+                    "id": item.id,
+                    "category": item.category,
+                    "title": item.title,
+                    "message": str(payload.get("message") or payload.get("summary") or "").strip(),
+                    "payload": payload,
+                    "created_at": item.created_at.isoformat(timespec="seconds")
+                    if item.created_at
+                    else "",
+                }
+            )
+            if len(logs) >= 20:
+                break
+        return _ok(logs)
 
     # ── Task slots ──
 

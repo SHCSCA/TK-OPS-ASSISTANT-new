@@ -368,6 +368,19 @@
     gap: 8px;
 }
 
+.batch-check-wrap {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    flex: 0 0 18px;
+}
+
+.batch-check-wrap input {
+    margin: 0;
+}
+
 .device-env-card__meta {
     display: flex;
     flex-direction: column;
@@ -416,6 +429,32 @@
     flex-direction: column;
     gap: 8px;
     margin-top: 6px;
+}
+
+.device-env-grid.list-mode {
+    grid-template-columns: 1fr;
+}
+
+.device-env-grid.list-mode .device-env-card {
+    display: grid;
+    grid-template-columns: minmax(220px, 280px) minmax(0, 1fr) auto;
+    align-items: start;
+}
+
+.device-env-grid.list-mode .device-env-card__meta {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px 18px;
+}
+
+.device-env-grid.list-mode .detail-actions {
+    justify-content: flex-end;
+    align-self: center;
+}
+
+.route-row .tag {
+    margin-right: 6px;
+    margin-bottom: 6px;
 }
 
 /* ═══════════════════════════════════════════════

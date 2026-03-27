@@ -1,15 +1,29 @@
-"""Account & Group management service."""
+﻿"""Account & Group management service."""
 from __future__ import annotations
 
+import base64
+import contextlib
 import datetime as _dt
 import json
+import os
 import re
+import select
+import shutil
 import socket
+import socketserver
+import ssl
+import subprocess
+import threading
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from dataclasses import dataclass
+from pathlib import Path
+from urllib.parse import quote, unquote, urlsplit
 
-from typing import Any, Sequence
+from typing import Any, Callable, Sequence
 
 import httpx
 
+from desktop_app.database import DATA_DIR
 from desktop_app.database.models import Account, Asset, Device, Group, Task
 from desktop_app.database.repository import Repository
 
@@ -29,10 +43,451 @@ _PLATFORM_AUTH_COOKIES = {
     "instagram": {"sessionid", "ds_user_id", "csrftoken"},
 }
 
+_PLATFORM_HOME_URLS = {
+    "tiktok": "https://www.tiktok.com/",
+    "tiktok_shop": "https://seller.tiktokglobalshop.com/",
+    "instagram": "https://www.instagram.com/",
+}
+
+_PLATFORM_DEFAULT_COOKIE_DOMAINS = {
+    "tiktok": ".tiktok.com",
+    "tiktok_shop": ".tiktokglobalshop.com",
+    "instagram": ".instagram.com",
+}
+
+_ACCOUNT_SESSION_EXTENSION_NAME = "TKOPS Account Session"
+
+
+@dataclass(slots=True)
+class _ProxyEndpoint:
+    raw: str
+    scheme: str
+    username: str | None
+    password: str | None
+    host: str
+    port: int
+
+    @property
+    def host_port(self) -> str:
+        return f"{self.host}:{self.port}"
+
+    @property
+    def display(self) -> str:
+        if self.username:
+            return f"{self.scheme}://{self.username}:***@{self.host}:{self.port}"
+        return f"{self.scheme}://{self.host}:{self.port}"
+
+    @property
+    def upstream_url(self) -> str:
+        if self.username is None:
+            return f"{self.scheme}://{self.host}:{self.port}"
+        username = quote(self.username, safe="")
+        password = quote(self.password or "", safe="")
+        return f"{self.scheme}://{username}:{password}@{self.host}:{self.port}"
+
+    @property
+    def auth_present(self) -> bool:
+        return self.username is not None
+
+
+class AccountEnvironmentError(ValueError):
+    def __init__(self, message: str, *, code: str) -> None:
+        super().__init__(message)
+        self.code = code
+
+
+class _ProxyRelayServer(socketserver.ThreadingTCPServer):
+    allow_reuse_address = True
+    daemon_threads = True
+
+    def __init__(
+        self,
+        server_address: tuple[str, int],
+        request_handler_class,
+        relay: "_ProxyRelay",
+    ) -> None:
+        super().__init__(server_address, request_handler_class)
+        self.relay = relay
+
+
+class _ProxyRelayHandler(socketserver.StreamRequestHandler):
+    def handle(self) -> None:
+        self.server.relay.handle_client(self.connection)  # type: ignore[attr-defined]
+
+
+class _ProxyRelay:
+    def __init__(self, endpoint: _ProxyEndpoint, timeout: float = 8.0) -> None:
+        self._endpoint = endpoint
+        self._timeout = timeout
+        self._server = _ProxyRelayServer(("127.0.0.1", 0), _ProxyRelayHandler, self)
+        self._thread = threading.Thread(
+            target=self._server.serve_forever,
+            name="tkops-proxy-relay",
+            daemon=True,
+        )
+        self._thread.start()
+
+    @property
+    def local_endpoint(self) -> str:
+        host, port = self._server.server_address
+        return f"{host}:{port}"
+
+    def close(self) -> None:
+        with contextlib.suppress(Exception):
+            self._server.shutdown()
+        with contextlib.suppress(Exception):
+            self._server.server_close()
+        if self._thread.is_alive():
+            self._thread.join(timeout=1.0)
+
+    def handle_client(self, client_socket: socket.socket) -> None:
+        try:
+            request_line, headers, body = self._read_request(client_socket)
+            if not request_line:
+                return
+            method, _target, _version = request_line.split(" ", 2)
+            upstream = self._open_upstream()
+            try:
+                if method.upper() == "CONNECT":
+                    self._handle_connect(client_socket, upstream, request_line, headers)
+                else:
+                    upstream.sendall(self._build_forwarded_request(request_line, headers, body))
+                    self._relay_response(client_socket, upstream)
+            finally:
+                with contextlib.suppress(Exception):
+                    upstream.close()
+        except Exception:
+            with contextlib.suppress(Exception):
+                client_socket.sendall(
+                    b"HTTP/1.1 502 Bad Gateway\r\n"
+                    b"Content-Length: 0\r\n"
+                    b"Connection: close\r\n\r\n"
+                )
+
+    def _open_upstream(self) -> socket.socket:
+        upstream = socket.create_connection((self._endpoint.host, self._endpoint.port), timeout=self._timeout)
+        upstream.settimeout(self._timeout)
+        if self._endpoint.scheme == "https":
+            context = ssl.create_default_context()
+            upstream = context.wrap_socket(upstream, server_hostname=self._endpoint.host)
+            upstream.settimeout(self._timeout)
+        return upstream
+
+    def _read_request(self, client_socket: socket.socket) -> tuple[str, list[str], bytes]:
+        data = b""
+        while b"\r\n\r\n" not in data:
+            chunk = client_socket.recv(4096)
+            if not chunk:
+                break
+            data += chunk
+            if len(data) > 131072:
+                raise ValueError("request too large")
+        if b"\r\n\r\n" not in data:
+            return "", [], b""
+
+        head, body = data.split(b"\r\n\r\n", 1)
+        lines = head.split(b"\r\n")
+        request_line = lines[0].decode("iso-8859-1")
+        headers = [line.decode("iso-8859-1") for line in lines[1:] if line]
+
+        content_length = 0
+        for header in headers:
+            name, _, value = header.partition(":")
+            if name.lower().strip() == "content-length":
+                with contextlib.suppress(ValueError):
+                    content_length = int(value.strip())
+
+        while len(body) < content_length:
+            chunk = client_socket.recv(4096)
+            if not chunk:
+                break
+            body += chunk
+
+        return request_line, headers, body[:content_length]
+
+    def _inject_proxy_auth(self, header_lines: list[str]) -> list[str]:
+        auth = self._proxy_authorization_header()
+        filtered = [line for line in header_lines if not line.lower().startswith("proxy-authorization:")]
+        if auth:
+            filtered.insert(0, f"Proxy-Authorization: {auth}")
+        return filtered
+
+    def _proxy_authorization_header(self) -> str | None:
+        if not self._endpoint.auth_present:
+            return None
+        token = base64.b64encode(
+            f"{self._endpoint.username}:{self._endpoint.password or ''}".encode("utf-8")
+        ).decode("ascii")
+        return f"Basic {token}"
+
+    def _build_forwarded_request(self, request_line: str, headers: list[str], body: bytes) -> bytes:
+        filtered_headers: list[str] = []
+        saw_connection = False
+        for header in self._inject_proxy_auth(headers):
+            name, _, _value = header.partition(":")
+            lower = name.lower().strip()
+            if lower == "proxy-connection":
+                continue
+            if lower == "connection":
+                saw_connection = True
+                filtered_headers.append("Connection: close")
+                continue
+            filtered_headers.append(header)
+        if not saw_connection:
+            filtered_headers.append("Connection: close")
+        payload = request_line + "\r\n" + "\r\n".join(filtered_headers) + "\r\n\r\n"
+        return payload.encode("iso-8859-1") + body
+
+    def _handle_connect(
+        self,
+        client_socket: socket.socket,
+        upstream: socket.socket,
+        request_line: str,
+        headers: list[str],
+    ) -> None:
+        upstream.sendall(self._build_forwarded_request(request_line, headers, b""))
+        response_head = self._read_response_head(upstream)
+        client_socket.sendall(response_head)
+        status_line = response_head.split(b"\r\n", 1)[0].decode("iso-8859-1", errors="ignore")
+        if " 200 " not in status_line:
+            return
+        self._relay_bidirectional(client_socket, upstream)
+
+    def _read_response_head(self, upstream: socket.socket) -> bytes:
+        data = b""
+        while b"\r\n\r\n" not in data:
+            chunk = upstream.recv(4096)
+            if not chunk:
+                break
+            data += chunk
+            if len(data) > 131072:
+                raise ValueError("response too large")
+        if b"\r\n\r\n" not in data:
+            return data
+        return data.split(b"\r\n\r\n", 1)[0] + b"\r\n\r\n"
+
+    def _relay_response(self, client_socket: socket.socket, upstream: socket.socket) -> None:
+        while True:
+            data = upstream.recv(8192)
+            if not data:
+                break
+            client_socket.sendall(data)
+
+    def _relay_bidirectional(self, client_socket: socket.socket, upstream: socket.socket) -> None:
+        sockets = [client_socket, upstream]
+        while sockets:
+            readable, _, exceptional = select.select(sockets, [], sockets, self._timeout)
+            if exceptional:
+                break
+            if not readable:
+                continue
+            for sock in readable:
+                try:
+                    data = sock.recv(8192)
+                except OSError:
+                    data = b""
+                if not data:
+                    return
+                other = upstream if sock is client_socket else client_socket
+                other.sendall(data)
+
+
+class _LauncherProbeHttpServer(ThreadingHTTPServer):
+    daemon_threads = True
+    allow_reuse_address = True
+
+    def __init__(
+        self,
+        server_address: tuple[str, int],
+        request_handler_class,
+        probe_callback: Callable[[], dict[str, Any]],
+    ) -> None:
+        super().__init__(server_address, request_handler_class)
+        self.probe_callback = probe_callback
+
+
+class _LauncherProbeHandler(BaseHTTPRequestHandler):
+    server: _LauncherProbeHttpServer
+
+    def do_OPTIONS(self) -> None:  # noqa: N802
+        self.send_response(204)
+        self._send_cors_headers()
+        self.end_headers()
+
+    def do_GET(self) -> None:  # noqa: N802
+        if self.path.split("?", 1)[0] != "/status":
+            self.send_error(404)
+            return
+        try:
+            payload_obj = self.server.probe_callback()
+        except Exception as exc:
+            payload_obj = {
+                "ok": False,
+                "message": f"代理检测服务异常：{exc}",
+                "status_code": None,
+                "egress_ip": "",
+                "detail": str(exc),
+                "target_ok": False,
+                "target_status_code": None,
+                "checked_at": _dt.datetime.now().isoformat(timespec="seconds"),
+            }
+        payload = json.dumps(payload_obj, ensure_ascii=False).encode("utf-8")
+        self.send_response(200)
+        self._send_cors_headers()
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(payload)))
+        self.end_headers()
+        self.wfile.write(payload)
+
+    def log_message(self, format: str, *args) -> None:  # noqa: A003
+        return
+
+    def _send_cors_headers(self) -> None:
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "GET, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.send_header("Cache-Control", "no-store")
+
+
+class _LauncherProbe:
+    def __init__(self, probe_callback: Callable[[], dict[str, Any]]) -> None:
+        self._server = _LauncherProbeHttpServer(("127.0.0.1", 0), _LauncherProbeHandler, probe_callback)
+        self._thread = threading.Thread(
+            target=self._server.serve_forever,
+            name="tkops-launcher-probe",
+            daemon=True,
+        )
+        self._thread.start()
+
+    @property
+    def status_url(self) -> str:
+        host, port = self._server.server_address[:2]
+        return f"http://{host}:{port}/status"
+
+    def close(self) -> None:
+        with contextlib.suppress(Exception):
+            self._server.shutdown()
+        with contextlib.suppress(Exception):
+            self._server.server_close()
+
+
+class _AccountSessionStatusHttpServer(ThreadingHTTPServer):
+    daemon_threads = True
+    allow_reuse_address = True
+
+    def __init__(
+        self,
+        server_address: tuple[str, int],
+        request_handler_class,
+        tracker: "_AccountSessionTracker",
+    ) -> None:
+        super().__init__(server_address, request_handler_class)
+        self.tracker = tracker
+
+
+class _AccountSessionStatusHandler(BaseHTTPRequestHandler):
+    server: _AccountSessionStatusHttpServer
+
+    def do_OPTIONS(self) -> None:  # noqa: N802
+        self.send_response(204)
+        self._send_cors_headers()
+        self.end_headers()
+
+    def do_GET(self) -> None:  # noqa: N802
+        if self.path.split("?", 1)[0] != "/status":
+            self.send_error(404)
+            return
+        payload = json.dumps(self.server.tracker.snapshot(), ensure_ascii=False).encode("utf-8")
+        self.send_response(200)
+        self._send_cors_headers()
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(payload)))
+        self.end_headers()
+        self.wfile.write(payload)
+
+    def do_POST(self) -> None:  # noqa: N802
+        if self.path.split("?", 1)[0] != "/report":
+            self.send_error(404)
+            return
+        length = int(self.headers.get("Content-Length") or 0)
+        raw = self.rfile.read(length) if length > 0 else b"{}"
+        try:
+            payload = json.loads(raw.decode("utf-8"))
+        except Exception:
+            payload = {}
+        self.server.tracker.update(payload if isinstance(payload, dict) else {})
+        response = b'{"ok":true}'
+        self.send_response(200)
+        self._send_cors_headers()
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(response)))
+        self.end_headers()
+        self.wfile.write(response)
+
+    def log_message(self, format: str, *args) -> None:  # noqa: A003
+        return
+
+    def _send_cors_headers(self) -> None:
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.send_header("Cache-Control", "no-store")
+
+
+class _AccountSessionTracker:
+    def __init__(self, account_id: int) -> None:
+        self._lock = threading.Lock()
+        self._state: dict[str, Any] = {
+            "accountId": int(account_id),
+            "status": "pending",
+            "loginStatus": "pending",
+            "appliedCount": 0,
+            "failed": [],
+            "message": "正在等待系统自动加载的登录扩展注入账号 Cookie，无需手动安装插件",
+            "updatedAt": _dt.datetime.now().isoformat(timespec="seconds"),
+        }
+        self._server = _AccountSessionStatusHttpServer(("127.0.0.1", 0), _AccountSessionStatusHandler, self)
+        self._thread = threading.Thread(
+            target=self._server.serve_forever,
+            name=f"tkops-account-session-{account_id}",
+            daemon=True,
+        )
+        self._thread.start()
+
+    @property
+    def status_url(self) -> str:
+        host, port = self._server.server_address
+        return f"http://{host}:{port}/status"
+
+    @property
+    def report_url(self) -> str:
+        host, port = self._server.server_address
+        return f"http://{host}:{port}/report"
+
+    def snapshot(self) -> dict[str, Any]:
+        with self._lock:
+            return dict(self._state)
+
+    def update(self, payload: dict[str, Any]) -> None:
+        with self._lock:
+            self._state.update(payload)
+            self._state["updatedAt"] = _dt.datetime.now().isoformat(timespec="seconds")
+
+    def close(self) -> None:
+        with contextlib.suppress(Exception):
+            self._server.shutdown()
+        with contextlib.suppress(Exception):
+            self._server.server_close()
+        if self._thread.is_alive():
+            self._thread.join(timeout=1.0)
+
 
 class AccountService:
     def __init__(self, repo: Repository | None = None) -> None:
         self._repo = repo or Repository()
+        self._device_proxy_relays: dict[int, _ProxyRelay] = {}
+        self._launcher_probes: dict[int, _LauncherProbe] = {}
+        self._account_session_trackers: dict[int, _AccountSessionTracker] = {}
 
     def create_account(self, username: str, **kwargs: Any) -> Account:
         return self._repo.add(Account(username=username, **kwargs))
@@ -194,6 +649,162 @@ class AccountService:
                 port = int(maybe_port)
 
         return (host or None), port
+
+    def _parse_proxy_endpoint(self, raw_proxy: str) -> _ProxyEndpoint:
+        raw = str(raw_proxy or "").strip()
+        if not raw:
+            raise ValueError("代理地址不能为空")
+        if "://" not in raw:
+            raw = "http://" + raw
+
+        parsed = urlsplit(raw)
+        scheme = str(parsed.scheme or "").lower()
+        if scheme not in {"http", "https"}:
+            raise ValueError("仅支持 http:// 或 https:// 开头的代理地址")
+
+        host = str(parsed.hostname or "").strip()
+        port = parsed.port
+        if not host or port is None:
+            raise ValueError("代理地址必须包含 host:port")
+
+        username = unquote(parsed.username) if parsed.username is not None else None
+        password = unquote(parsed.password) if parsed.password is not None else None
+        if username == "":
+            username = None
+
+        return _ProxyEndpoint(
+            raw=raw,
+            scheme=scheme,
+            username=username,
+            password=password,
+            host=host,
+            port=int(port),
+        )
+
+    def _validate_proxy_endpoint(
+        self,
+        endpoint: _ProxyEndpoint,
+        *,
+        timeout: float = 8.0,
+    ) -> dict[str, Any]:
+        try:
+            with httpx.Client(
+                timeout=timeout,
+                follow_redirects=True,
+                headers=dict(_BROWSER_HEADERS),
+                proxy=endpoint.upstream_url,
+            ) as client:
+                response = client.get("https://api.ipify.org?format=json")
+                payload = (
+                    response.json()
+                    if response.headers.get("content-type", "").startswith("application/json")
+                    else {}
+                )
+                ip = payload.get("ip") if isinstance(payload, dict) else ""
+                if response.status_code == 200 and ip:
+                    return {
+                        "ok": True,
+                        "message": "代理连通性验证通过",
+                        "status_code": response.status_code,
+                        "egress_ip": str(ip),
+                        "detail": f"出口 IP {ip}",
+                    }
+                return {
+                    "ok": False,
+                    "message": f"代理验证失败：HTTP {response.status_code}",
+                    "status_code": response.status_code,
+                    "egress_ip": "",
+                    "detail": f"HTTP {response.status_code}",
+                }
+        except (httpx.TimeoutException, httpx.ProxyError, httpx.NetworkError, httpx.HTTPError, ValueError) as exc:
+            detail = str(exc) or type(exc).__name__
+            return {
+                "ok": False,
+                "message": f"代理验证失败：{detail}",
+                "status_code": None,
+                "egress_ip": "",
+                "detail": detail,
+            }
+
+    def _release_device_proxy_relay(self, device_id: int) -> None:
+        relay = self._device_proxy_relays.pop(int(device_id), None)
+        if relay is not None:
+            relay.close()
+
+    def _release_launcher_probe(self, device_id: int) -> None:
+        probe = self._launcher_probes.pop(int(device_id), None)
+        if probe is not None:
+            probe.close()
+
+    def _start_device_proxy_relay(self, device_id: int, endpoint: _ProxyEndpoint) -> _ProxyRelay:
+        self._release_device_proxy_relay(device_id)
+        relay = _ProxyRelay(endpoint)
+        self._device_proxy_relays[int(device_id)] = relay
+        return relay
+
+    def _start_launcher_probe(self, device_id: int, *, proxy_url: str, target_url: str) -> _LauncherProbe:
+        self._release_launcher_probe(device_id)
+        probe = _LauncherProbe(
+            lambda: self._probe_browser_proxy(proxy_url=proxy_url, target_url=target_url)
+        )
+        self._launcher_probes[int(device_id)] = probe
+        return probe
+
+    def _probe_browser_proxy(
+        self,
+        *,
+        proxy_url: str,
+        target_url: str,
+        timeout: float = 8.0,
+    ) -> dict[str, Any]:
+        checked_at = _dt.datetime.now().isoformat(timespec="seconds")
+        try:
+            with httpx.Client(
+                timeout=timeout,
+                follow_redirects=True,
+                headers=dict(_BROWSER_HEADERS),
+                proxy=proxy_url,
+            ) as client:
+                ip_response = client.get("https://api.ipify.org?format=json")
+                payload = (
+                    ip_response.json()
+                    if ip_response.headers.get("content-type", "").startswith("application/json")
+                    else {}
+                )
+                ip = payload.get("ip") if isinstance(payload, dict) else ""
+                if ip_response.status_code != 200 or not ip:
+                    return {
+                        "ok": False,
+                        "message": f"出口 IP 探测失败：HTTP {ip_response.status_code}",
+                        "status_code": ip_response.status_code,
+                        "egress_ip": "",
+                        "detail": f"HTTP {ip_response.status_code}",
+                        "target_ok": False,
+                        "target_status_code": None,
+                        "checked_at": checked_at,
+                    }
+                return {
+                    "ok": True,
+                    "message": "代理连通性验证通过",
+                    "status_code": ip_response.status_code,
+                    "egress_ip": str(ip),
+                    "detail": f"出口 IP {ip}",
+                    "target_ok": None,
+                    "target_status_code": None,
+                    "checked_at": checked_at,
+                }
+        except (httpx.TimeoutException, httpx.ProxyError, httpx.NetworkError, httpx.HTTPError, ValueError) as exc:
+            detail = str(exc) or type(exc).__name__
+            return {
+                "ok": False,
+                "message": f"代理验证失败：{detail}",
+                "status_code": None,
+                "egress_ip": "",
+                "detail": detail,
+                "target_ok": False,
+                "target_status_code": None,
+                "checked_at": checked_at,
+            }
 
     def _run_login_validation(
         self,
@@ -701,8 +1312,261 @@ class AccountService:
         device = self._repo.get_by_id(Device, pk)
         if device is None:
             return False
+        self._release_device_proxy_relay(pk)
+        self._release_launcher_probe(pk)
         self._repo.delete(device)
         return True
+
+    def inspect_device(self, pk: int, *, timeout: float = 2.0) -> dict[str, Any]:
+        device = self._repo.get_by_id(Device, pk)
+        if device is None:
+            raise ValueError("设备不存在")
+
+        bound_accounts = list(device.accounts or [])
+        target_host, target_port = self._resolve_account_target(device)
+        checked_at = _dt.datetime.now()
+        ok = False
+        latency_ms: int | None = None
+        message = ""
+
+        if target_host:
+            started = _dt.datetime.now()
+            try:
+                connection = socket.create_connection((target_host, target_port), timeout=timeout)
+                connection.close()
+                latency_ms = max(1, int((_dt.datetime.now() - started).total_seconds() * 1000))
+                ok = True
+                message = "代理连通成功"
+            except OSError as exc:
+                detail = exc.strerror or str(exc) or "网络不可达"
+                message = f"代理连通失败：{detail}"
+        else:
+            message = "当前设备未配置可检测的代理地址"
+
+        proxy_status = self._derive_inspected_proxy_status(target_host, ok)
+        status = self._derive_inspected_device_status(device, bound_accounts, proxy_status)
+        updated = self.update_device(pk, proxy_status=proxy_status, status=status)
+        if updated is None:
+            raise ValueError("设备不存在")
+
+        return {
+            "device_id": updated.id,
+            "device_code": updated.device_code,
+            "name": updated.name,
+            "ok": ok,
+            "target": f"{target_host}:{target_port}" if target_host else "",
+            "latency_ms": latency_ms,
+            "checked_at": checked_at,
+            "message": message,
+            "scope": "proxy_tcp_reachability",
+            "scope_label": "检测设备代理可达性，并结合指纹与账号绑定状态回写设备状态",
+            "status": updated.status,
+            "proxy_status": updated.proxy_status,
+            "fingerprint_status": updated.fingerprint_status,
+            "bound_accounts": len(bound_accounts),
+        }
+
+    def repair_device_environment(self, pk: int) -> dict[str, Any]:
+        inspection = self.inspect_device(pk)
+        device = self._repo.get_by_id(Device, pk)
+        if device is None:
+            raise ValueError("设备不存在")
+
+        profile_dir = self._ensure_device_profile(device)
+        actions = ["已同步设备状态", "已准备浏览器独立 Profile"]
+
+        if inspection["proxy_status"] != "online":
+            actions.append("代理链路仍异常，需要人工修复代理或网络")
+        if str(device.fingerprint_status or "").lower() == "missing":
+            actions.append("指纹缺失，仍需人工补齐")
+        elif str(device.fingerprint_status or "").lower() == "drifted":
+            actions.append("指纹漂移，建议人工重建")
+
+        return {
+            "device_id": device.id,
+            "device_code": device.device_code,
+            "status": device.status,
+            "proxy_status": device.proxy_status,
+            "profile_dir": str(profile_dir),
+            "actions": actions,
+            "inspection": inspection,
+        }
+
+    def open_account_environment(self, pk: int) -> dict[str, Any]:
+        account = self._repo.get_by_id(Account, pk)
+        if account is None:
+            raise AccountEnvironmentError("账号不存在", code="account_not_found")
+        if not account.device_id:
+            raise AccountEnvironmentError("当前账号未绑定设备，无法启动隔离环境", code="device_unbound")
+
+        device = self._repo.get_by_id(Device, account.device_id)
+        if device is None:
+            raise AccountEnvironmentError("当前账号绑定的设备不存在", code="device_missing")
+
+        raw_cookie = str(account.cookie_content or "").strip()
+        if not raw_cookie:
+            raise AccountEnvironmentError("当前账号没有可用 Cookie，无法启动登录态环境", code="cookie_missing")
+
+        cookie_entries = self._parse_cookie_entries(raw_cookie)
+        if not cookie_entries:
+            raise AccountEnvironmentError("当前账号 Cookie 格式无效，无法启动登录态环境", code="cookie_invalid")
+
+        platform = str(account.platform or "tiktok").strip().lower() or "tiktok"
+        required = _PLATFORM_AUTH_COOKIES.get(platform, set())
+        names = {str(item.get("name") or "").strip().lower() for item in cookie_entries}
+        if required and not (required & names):
+            raise AccountEnvironmentError("当前账号缺少平台登录 Cookie，无法恢复登录态", code="cookie_auth_missing")
+
+        opened = self._open_browser_environment(
+            device,
+            account=account,
+            cookie_entries=cookie_entries,
+            platform=platform,
+        )
+        self._repo.update(
+            account,
+            isolation_enabled=True,
+            last_login_at=_dt.datetime.now(),
+        )
+        return opened
+
+    def open_device_environment(self, pk: int) -> dict[str, Any]:
+        device = self._repo.get_by_id(Device, pk)
+        if device is None:
+            raise ValueError("设备不存在")
+
+        return self._open_browser_environment(device)
+
+    def _open_browser_environment(
+        self,
+        device: Device,
+        *,
+        account: Account | None = None,
+        cookie_entries: list[dict[str, Any]] | None = None,
+        platform: str | None = None,
+    ) -> dict[str, Any]:
+
+        configured_proxy = str(device.proxy_ip or "").strip()
+        if not configured_proxy:
+            if account is not None:
+                raise AccountEnvironmentError("当前账号绑定设备未配置代理地址，无法启动隔离环境", code="device_proxy_missing")
+            raise ValueError("当前设备未配置代理地址，无法启动隔离环境")
+
+        executable = self._resolve_browser_executable()
+        if not executable:
+            if account is not None:
+                raise AccountEnvironmentError("未检测到可用浏览器，请安装 Edge 或 Chrome", code="browser_missing")
+            raise ValueError("未检测到可用浏览器，请安装 Edge 或 Chrome")
+
+        endpoint = self._parse_proxy_endpoint(configured_proxy)
+        profile_dir = self._ensure_device_profile(device)
+        relay = self._start_device_proxy_relay(device.id, endpoint)
+        target_url = self._resolve_platform_home_url(platform or (account.platform if account else None))
+        launcher_probe = self._start_launcher_probe(
+            device.id,
+            proxy_url=f"http://{relay.local_endpoint}",
+            target_url=target_url,
+        )
+        validation = self._validate_proxy_endpoint(endpoint)
+        extension_dir: Path | None = None
+        cookie_records: list[dict[str, Any]] = []
+        session_tracker: _AccountSessionTracker | None = None
+        if account is not None:
+            session_tracker = self._start_account_session_tracker(account.id)
+            cookie_records = self._prepare_browser_cookie_records(
+                cookie_entries or [],
+                platform=platform or str(account.platform or "tiktok"),
+            )
+            try:
+                extension_dir = self._write_account_cookie_extension(
+                    profile_dir,
+                    account,
+                    cookie_records,
+                    target_url=target_url,
+                    report_url=session_tracker.report_url,
+                    validation=self._build_extension_validation_payload(account, platform=platform),
+                )
+            except Exception as exc:
+                raise AccountEnvironmentError(
+                    f"登录态注入扩展准备失败: {exc}",
+                    code="extension_prepare_failed",
+                ) from exc
+        launcher_path = self._write_device_proxy_launcher(
+            device,
+            profile_dir,
+            configured_proxy=endpoint.display,
+            browser_proxy=relay.local_endpoint,
+            upstream_proxy=endpoint.display,
+            upstream_transport=endpoint.upstream_url,
+            validation=validation,
+            target_url=target_url,
+            account=account,
+            cookie_count=len(cookie_records),
+            proxy_probe_url=launcher_probe.status_url,
+            session_status_url=session_tracker.status_url if session_tracker is not None else "",
+        )
+        launcher_url = launcher_path.as_uri()
+
+        command = [
+            executable,
+            f"--user-data-dir={profile_dir}",
+            "--new-window",
+            "--no-first-run",
+            "--no-default-browser-check",
+            f"--proxy-server={relay.local_endpoint}",
+        ]
+        if extension_dir is not None:
+            command.extend([
+                f"--disable-extensions-except={extension_dir}",
+                f"--load-extension={extension_dir}",
+            ])
+        command.append(launcher_url)
+
+        creationflags = 0
+        if os.name == "nt":
+            creationflags = subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
+
+        try:
+            process = subprocess.Popen(command, creationflags=creationflags, close_fds=False)
+        except Exception:
+            self._release_device_proxy_relay(device.id)
+            self._release_launcher_probe(device.id)
+            if account is not None:
+                raise AccountEnvironmentError("浏览器启动失败，请检查浏览器路径与扩展加载权限", code="browser_launch_failed")
+            raise
+
+        return {
+            "device_id": device.id,
+            "device_code": device.device_code,
+            "name": device.name,
+            "browser_path": executable,
+            "profile_dir": str(profile_dir),
+            "launcher_path": str(launcher_path),
+            "launcher_url": launcher_url,
+            "configured_proxy": configured_proxy,
+            "configured_proxy_display": endpoint.display,
+            "upstream_proxy": endpoint.display,
+            "upstream_transport": endpoint.upstream_url,
+            "browser_proxy": relay.local_endpoint,
+            "proxy_server": relay.local_endpoint,
+            "proxy_auth_present": endpoint.auth_present,
+            "validation": validation,
+            "launch_mode": "loopback_relay_account_session" if account is not None else "loopback_relay",
+            "pid": process.pid,
+            "url": target_url,
+            "auto_open_delay_ms": 3000,
+            "monitor_interval_ms": 10000,
+            "account_id": account.id if account is not None else None,
+            "account_username": account.username if account is not None else None,
+            "cookie_count": len(cookie_records),
+            "proxy_probe_url": launcher_probe.status_url,
+            "extension_name": _ACCOUNT_SESSION_EXTENSION_NAME if account is not None else "",
+            "extension_ready": bool(extension_dir) and extension_dir.exists() if account is not None else False,
+            "extension_install_required": False if account is not None else False,
+            "extension_install_hint": "无需手动安装，系统会在启动隔离浏览器时自动生成并加载登录扩展。" if account is not None else "",
+            "extension_dir": str(extension_dir) if extension_dir is not None else "",
+            "session_status_url": session_tracker.status_url if session_tracker is not None else "",
+        }
 
     def _normalize_device_runtime_fields(
         self,
@@ -738,3 +1602,748 @@ class AccountService:
         if fingerprint_key == "drifted":
             return "warning"
         return "healthy"
+
+    def _derive_inspected_proxy_status(self, target_host: str | None, ok: bool) -> str:
+        if not target_host:
+            return "offline"
+        return "online" if ok else "lost"
+
+    def _derive_inspected_device_status(
+        self,
+        device: Device,
+        bound_accounts: Sequence[Account],
+        proxy_status: str,
+    ) -> str:
+        fingerprint_key = str(device.fingerprint_status or "normal").strip().lower()
+        if proxy_status == "offline":
+            return "error" if bound_accounts else "idle"
+        if proxy_status == "lost":
+            return "error" if bound_accounts else "warning"
+        if fingerprint_key == "missing":
+            return "error"
+        if fingerprint_key == "drifted":
+            return "warning"
+        if not bound_accounts:
+            return "idle"
+        has_account_risk = any(
+            str(account.last_connection_status or "").lower() == "unreachable"
+            or str(account.last_login_check_status or "").lower() in {"invalid", "proxy_mismatch"}
+            for account in bound_accounts
+        )
+        if has_account_risk:
+            return "warning"
+        return "healthy"
+
+    def _ensure_device_profile(self, device: Device) -> Path:
+        profile_root = DATA_DIR / "browser_profiles"
+        profile_root.mkdir(parents=True, exist_ok=True)
+        profile_dir = profile_root / self._sanitize_device_key(device.device_code or f"device-{device.id}")
+        profile_dir.mkdir(parents=True, exist_ok=True)
+        manifest = {
+            "device_id": device.id,
+            "device_code": device.device_code,
+            "name": device.name,
+            "proxy_ip": device.proxy_ip,
+            "region": device.region,
+            "fingerprint_status": device.fingerprint_status,
+            "updated_at": _dt.datetime.now().isoformat(timespec="seconds"),
+        }
+        (profile_dir / "tkops-profile.json").write_text(
+            json.dumps(manifest, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+        return profile_dir
+
+    def _write_device_proxy_launcher(
+        self,
+        device: Device,
+        profile_dir: Path,
+        *,
+        configured_proxy: str,
+        browser_proxy: str,
+        upstream_proxy: str,
+        upstream_transport: str,
+        validation: dict[str, Any],
+        target_url: str,
+        account: Account | None = None,
+        cookie_count: int = 0,
+        proxy_probe_url: str = "",
+        session_status_url: str = "",
+    ) -> Path:
+        launcher_path = profile_dir / "tkops-proxy-launcher.html"
+        launcher_data = {
+            "deviceName": device.name,
+            "deviceCode": device.device_code,
+            "region": device.region or "",
+            "configuredProxy": configured_proxy,
+            "browserProxy": browser_proxy,
+            "upstreamProxy": upstream_proxy,
+            "upstreamTransport": upstream_transport,
+            "validation": validation,
+            "targetUrl": target_url,
+            "checkTarget": self._resolve_platform_probe_url(account.platform if account is not None else None),
+            "startedAt": _dt.datetime.now().isoformat(timespec="seconds"),
+            "profileDir": str(profile_dir),
+            "proxyProbeUrl": proxy_probe_url,
+            "autoOpenDelayMs": 3000,
+            "monitorIntervalMs": 10000,
+            "accountUsername": account.username if account is not None else "",
+            "cookieCount": int(cookie_count or 0),
+            "extensionName": _ACCOUNT_SESSION_EXTENSION_NAME if account is not None else "",
+            "extensionInstallHint": "无需手动安装，系统会在启动隔离浏览器时自动加载登录扩展。" if account is not None else "",
+            "sessionStatusUrl": session_status_url,
+        }
+        launcher_json = json.dumps(launcher_data, ensure_ascii=False)
+        page = f"""<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>TKOPS 代理自检 / {device.device_code}</title>
+  <style>
+    body {{
+      margin: 0;
+      padding: 24px;
+      font-family: "Microsoft YaHei", sans-serif;
+      background: linear-gradient(180deg, #f6f9ff 0%, #eef3f9 100%);
+      color: #16324f;
+    }}
+    .shell {{ max-width: 1080px; margin: 0 auto; }}
+    .card {{
+      background: #fff;
+      border: 1px solid #d7e2f0;
+      border-radius: 18px;
+      box-shadow: 0 12px 40px rgba(22, 50, 79, 0.08);
+      padding: 20px;
+      margin-bottom: 18px;
+    }}
+    .grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 18px; }}
+    .kv {{ display: grid; grid-template-columns: 128px 1fr; gap: 10px 12px; margin-bottom: 10px; }}
+    .key {{ color: #5f748c; }}
+    .value {{ font-weight: 700; word-break: break-all; }}
+    .mono {{ font-family: Consolas, monospace; }}
+    .pill {{
+      display: inline-block;
+      padding: 8px 14px;
+      border-radius: 999px;
+      font-weight: 700;
+      background: #fff8ea;
+      color: #b66a00;
+      border: 1px solid rgba(182, 106, 0, 0.28);
+    }}
+    .pill.ok {{ background: rgba(31, 143, 88, 0.08); color: #1f8f58; border-color: rgba(31, 143, 88, 0.28); }}
+    .pill.error {{ background: rgba(200, 59, 59, 0.08); color: #c83b3b; border-color: rgba(200, 59, 59, 0.28); }}
+    .banner {{
+      display: none;
+      margin-top: 14px;
+      padding: 14px 16px;
+      border-radius: 14px;
+      font-weight: 700;
+    }}
+    .banner.show {{ display: block; }}
+    .banner.ok {{ color: #1f8f58; background: rgba(31, 143, 88, 0.10); }}
+    .banner.warn {{ color: #b66a00; background: rgba(182, 106, 0, 0.10); }}
+    .banner.error {{ color: #c83b3b; background: rgba(200, 59, 59, 0.10); }}
+    .actions {{ display: flex; gap: 12px; flex-wrap: wrap; margin-top: 16px; }}
+    button {{
+      border: 0;
+      border-radius: 12px;
+      padding: 12px 18px;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      background: #1f6feb;
+      color: #fff;
+    }}
+    button.secondary {{ background: #edf4ff; color: #1f6feb; border: 1px solid rgba(31, 111, 235, 0.2); }}
+    button:disabled {{ cursor: not-allowed; opacity: 0.55; }}
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <section class="card">
+      <h1 style="margin:0 0 8px;">代理自检页</h1>
+      <p style="margin:0;color:#5f748c;line-height:1.7;">当前浏览器实例只使用本机 loopback relay。自检通过后再打开 TikTok；如果代理失效，本页会关闭由它打开的 TikTok 标签并提示原因。</p>
+      <div style="margin-top:18px;display:flex;gap:12px;flex-wrap:wrap;">
+        <div id="statusPill" class="pill">正在检测代理</div>
+        <div class="pill mono">{browser_proxy}</div>
+      </div>
+      <div id="statusBanner" class="banner"></div>
+    </section>
+
+    <div class="grid">
+      <section class="card">
+        <h2 style="margin:0 0 14px;">实例信息</h2>
+        <div class="kv"><div class="key">设备名称</div><div class="value">{device.name}</div></div>
+        <div class="kv"><div class="key">设备编码</div><div class="value mono">{device.device_code}</div></div>
+        <div class="kv"><div class="key">设备地区</div><div class="value">{device.region or "-"}</div></div>
+                <div class="kv"><div class="key">账号登录态</div><div class="value">{account.username if account is not None else "未注入账号 Cookie"}</div></div>
+                <div class="kv"><div class="key">Cookie 注入</div><div class="value">{cookie_count if account is not None else 0} 条</div></div>
+            <div class="kv"><div class="key">登录扩展</div><div class="value">{_ACCOUNT_SESSION_EXTENSION_NAME if account is not None else "未启用"}</div></div>
+            <div class="kv"><div class="key">手动安装</div><div class="value">{("不需要，系统随浏览器自动加载" if account is not None else "不适用")}</div></div>
+        <div class="kv"><div class="key">独立 Profile</div><div class="value mono">{profile_dir}</div></div>
+        <div class="kv"><div class="key">启动时间</div><div class="value">{launcher_data["startedAt"]}</div></div>
+      </section>
+
+      <section class="card">
+        <h2 style="margin:0 0 14px;">代理信息</h2>
+        <div class="kv"><div class="key">设备配置代理</div><div class="value mono">{configured_proxy}</div></div>
+        <div class="kv"><div class="key">浏览器启动代理</div><div class="value mono">{browser_proxy}</div></div>
+        <div class="kv"><div class="key">上游代理</div><div class="value mono">{upstream_proxy}</div></div>
+        <div class="kv"><div class="key">当前出口 IP</div><div id="egressIp" class="value mono">检测中</div></div>
+        <div class="kv"><div class="key">最近检测</div><div id="checkedAt" class="value">尚未完成</div></div>
+        <div class="kv"><div class="key">TikTok 探测</div><div id="targetCheck" class="value">待检测</div></div>
+                <div class="kv"><div class="key">登录态校验</div><div id="sessionCheck" class="value">{('等待扩展注入' if account is not None else '未启用')}</div></div>
+      </section>
+    </div>
+
+    <section class="card">
+      <h2 style="margin:0 0 14px;">操作</h2>
+      <div class="actions">
+        <button id="openTarget" type="button" disabled>请先完成检测</button>
+        <button id="recheck" type="button" class="secondary">立即重新检测</button>
+      </div>
+                        <div id="autoOpenHint" style="margin-top:12px;color:#5f748c;line-height:1.7;">检测通过后，按钮会在 3 秒倒计时结束后开放，用来避免“刚通过又立刻掉线”的误操作。{('当前实例已随浏览器自动加载登录扩展，无需手动安装；打开 TikTok 后会尝试直接恢复登录态。' if account is not None else '')}</div>
+    </section>
+  </div>
+
+  <script>
+    const launcher = {launcher_json};
+    const statusPill = document.getElementById('statusPill');
+    const statusBanner = document.getElementById('statusBanner');
+    const openTargetBtn = document.getElementById('openTarget');
+    const recheckBtn = document.getElementById('recheck');
+    const egressIpEl = document.getElementById('egressIp');
+    const checkedAtEl = document.getElementById('checkedAt');
+    const targetCheckEl = document.getElementById('targetCheck');
+    const sessionCheckEl = document.getElementById('sessionCheck');
+    const autoOpenHint = document.getElementById('autoOpenHint');
+    let targetWindow = null;
+    let proxyHealthy = false;
+    let sessionHealthy = !launcher.accountUsername;
+    let sessionPolled = !launcher.accountUsername;
+    let countdownTimer = null;
+    let currentCountdown = 0;
+
+    function setStatus(kind, title, detail) {{
+      statusPill.className = 'pill ' + (kind || '');
+      statusPill.textContent = title;
+      statusBanner.className = 'banner show ' + kind;
+      statusBanner.textContent = detail || '';
+      document.title = '[' + title + '] ' + launcher.deviceCode + ' / ' + launcher.browserProxy;
+    }}
+
+    function stopCountdown() {{
+      if (countdownTimer) {{
+        window.clearInterval(countdownTimer);
+        countdownTimer = null;
+      }}
+      currentCountdown = 0;
+    }}
+
+    function setOpenButton(enabled, label) {{
+      openTargetBtn.disabled = !enabled;
+      openTargetBtn.textContent = label || (enabled ? '立即打开 TikTok' : '请先完成检测');
+    }}
+
+        function refreshOpenGate() {{
+            stopCountdown();
+            if (!proxyHealthy) {{
+                setOpenButton(false, '请先完成代理检测');
+                return;
+            }}
+            if (launcher.accountUsername) {{
+                if (!sessionPolled) {{
+                    setOpenButton(false, '等待登录态注入');
+                    autoOpenHint.textContent = '代理已通过，正在等待浏览器扩展回报 Cookie 注入与登录校验结果。';
+                    return;
+                }}
+                if (!sessionHealthy) {{
+                    setOpenButton(false, '登录态未通过校验');
+                    return;
+                }}
+                autoOpenHint.textContent = '代理检测与登录态校验均已通过，倒计时结束后才会开放打开按钮。';
+            }}
+            startCountdown();
+        }}
+
+    function startCountdown() {{
+      stopCountdown();
+      currentCountdown = Math.max(0, Math.floor(Number(launcher.autoOpenDelayMs || 3000) / 1000));
+      if (!currentCountdown) {{
+        setOpenButton(true, '立即打开 TikTok');
+        autoOpenHint.textContent = '自检已通过，当前按钮可直接打开 TikTok。';
+        return;
+      }}
+      setOpenButton(false, currentCountdown + ' 秒后可打开 TikTok');
+      autoOpenHint.textContent = '自检通过，倒计时结束后才会开放打开按钮。';
+      countdownTimer = window.setInterval(function () {{
+        currentCountdown -= 1;
+        if (currentCountdown <= 0) {{
+          stopCountdown();
+          setOpenButton(true, '立即打开 TikTok');
+          autoOpenHint.textContent = '自检已通过，当前按钮可直接打开 TikTok。';
+          return;
+        }}
+        setOpenButton(false, currentCountdown + ' 秒后可打开 TikTok');
+      }}, 1000);
+    }}
+
+    function renderPrecheck() {{
+      const validation = launcher.validation || {{}};
+      if (validation.ok) {{
+        setStatus('ok', '代理预检通过', validation.detail || '上游代理已连通');
+        egressIpEl.textContent = validation.egress_ip || '未知';
+        targetCheckEl.textContent = '预检通过';
+        proxyHealthy = true;
+                refreshOpenGate();
+      }} else {{
+        setStatus('error', '代理预检失败', validation.message || '上游代理不可用');
+        egressIpEl.textContent = '不可达';
+        targetCheckEl.textContent = '预检失败';
+        proxyHealthy = false;
+        setOpenButton(false);
+        autoOpenHint.textContent = validation.detail ? ('失败原因：' + validation.detail) : '检测失败时不会开放 TikTok。';
+      }}
+    }}
+
+    async function detectProxy() {{
+      recheckBtn.disabled = true;
+      stopCountdown();
+      setOpenButton(false);
+      setStatus('warn', '正在检测代理', '正在验证上游代理连通性、认证信息和 TikTok 可达性');
+      try {{
+                if (!launcher.proxyProbeUrl) throw new Error('当前实例未提供代理探针地址');
+                const probeResp = await fetch(launcher.proxyProbeUrl + '?_=' + Date.now(), {{ cache: 'no-store' }});
+                if (!probeResp.ok) throw new Error('代理探针不可用：HTTP ' + probeResp.status);
+                const probe = await probeResp.json();
+                const egressIp = probe && probe.egress_ip ? probe.egress_ip : '';
+                checkedAtEl.textContent = probe && probe.checked_at ? new Date(probe.checked_at).toLocaleString() : new Date().toLocaleString();
+                if (!probe || !probe.ok) throw new Error((probe && (probe.message || probe.detail)) || '代理探测失败');
+        if (!egressIp) throw new Error('出口 IP 探测结果为空');
+        egressIpEl.textContent = egressIp;
+
+                if (!launcher.checkTarget) throw new Error('当前实例未提供 TikTok 探测地址');
+                await fetch(launcher.checkTarget + '?_=' + Date.now(), {{ cache: 'no-store', mode: 'no-cors' }});
+                targetCheckEl.textContent = 'TikTok 探测通过';
+        proxyHealthy = true;
+                setStatus('ok', '代理可用', (probe && probe.detail) || '当前浏览器实例通过本机 relay 访问上游代理，认证信息未暴露到命令行。');
+                refreshOpenGate();
+      }} catch (error) {{
+            proxyHealthy = false;
+            if (!String(egressIpEl.textContent || '').trim() || egressIpEl.textContent === '检测中') egressIpEl.textContent = '不可达';
+        targetCheckEl.textContent = 'TikTok 探测失败';
+            setStatus('error', 'TikTok 探测失败', String(error && error.message ? error.message : error));
+            autoOpenHint.textContent = '代理出口已建立，但当前浏览器还不能稳定打开 TikTok。请点击“立即重新检测”；若仍失败，再检查当前节点是否限制 TikTok。';
+        if (targetWindow && !targetWindow.closed) {{
+          try {{
+            targetWindow.close();
+          }} catch (_ignored) {{}}
+          targetWindow = null;
+          alert('代理已失效，当前打开的 TikTok 标签已关闭。请修复代理后重新检测。');
+        }}
+      }} finally {{
+        recheckBtn.disabled = false;
+      }}
+    }}
+
+        async function pollSessionStatus() {{
+            if (!launcher.sessionStatusUrl) return;
+            try {{
+                const response = await fetch(launcher.sessionStatusUrl + '?_=' + Date.now(), {{ cache: 'no-store' }});
+                if (!response.ok) throw new Error('HTTP ' + response.status);
+                const payload = await response.json();
+                sessionPolled = true;
+                const loginStatus = String(payload.loginStatus || payload.status || 'pending');
+                const failed = Array.isArray(payload.failed) ? payload.failed : [];
+                if (sessionCheckEl) {{
+                    if (loginStatus === 'valid') sessionCheckEl.textContent = '已通过真实登录校验';
+                    else if (loginStatus === 'invalid') sessionCheckEl.textContent = 'Cookie 已注入，但登录态无效';
+                    else if (loginStatus === 'error') sessionCheckEl.textContent = '登录校验失败';
+                    else sessionCheckEl.textContent = payload.message || '等待系统自动加载登录扩展';
+                }}
+                sessionHealthy = loginStatus === 'valid';
+                if (!sessionHealthy && launcher.accountUsername) {{
+                    const failMessage = failed.length ? ('失败 Cookie：' + failed.map(function (item) {{ return item.name || 'unknown'; }}).join('、')) : '';
+                    autoOpenHint.textContent = (payload.message || '登录态尚未恢复。') + (failMessage ? ('；' + failMessage) : '');
+                }}
+                refreshOpenGate();
+            }} catch (_error) {{
+                sessionPolled = false;
+                sessionHealthy = false;
+                if (sessionCheckEl) sessionCheckEl.textContent = '等待系统自动加载登录扩展回报';
+            }}
+        }}
+
+    openTargetBtn.addEventListener('click', function () {{
+      if (!proxyHealthy) {{
+        alert('当前代理尚未通过检测，暂时不能打开 TikTok。');
+        return;
+      }}
+      targetWindow = window.open(launcher.targetUrl, 'tkops_target');
+      if (!targetWindow) {{
+        alert('浏览器拦截了新标签，请允许当前页面打开新标签后重试。');
+        return;
+      }}
+      setStatus('ok', '代理可用', 'TikTok 已通过当前代理打开，请保持此页面开启以便持续监控。');
+    }});
+
+    recheckBtn.addEventListener('click', function () {{
+      detectProxy();
+            if (launcher.accountUsername) pollSessionStatus();
+    }});
+
+    renderPrecheck();
+    detectProxy();
+        if (launcher.accountUsername && launcher.sessionStatusUrl) {{
+            pollSessionStatus();
+            window.setInterval(pollSessionStatus, 1500);
+        }}
+    window.setInterval(detectProxy, Number(launcher.monitorIntervalMs || 10000));
+  </script>
+</body>
+</html>
+"""
+        launcher_path.write_text(page, encoding="utf-8")
+        return launcher_path
+
+    def _resolve_platform_home_url(self, platform: str | None) -> str:
+        key = str(platform or "tiktok").strip().lower() or "tiktok"
+        return _PLATFORM_HOME_URLS.get(key, _PLATFORM_HOME_URLS["tiktok"])
+
+    def _resolve_platform_probe_url(self, platform: str | None) -> str:
+        key = str(platform or "tiktok").strip().lower() or "tiktok"
+        if key in {"tiktok", "tiktok_shop"}:
+            return "https://www.tiktok.com/favicon.ico"
+        if key == "instagram":
+            return "https://www.instagram.com/favicon.ico"
+        return self._resolve_platform_home_url(platform)
+
+    def _default_cookie_domain_for_platform(self, platform: str | None) -> str:
+        key = str(platform or "tiktok").strip().lower() or "tiktok"
+        return _PLATFORM_DEFAULT_COOKIE_DOMAINS.get(key, _PLATFORM_DEFAULT_COOKIE_DOMAINS["tiktok"])
+
+    def _prepare_browser_cookie_records(
+        self,
+        cookie_entries: list[dict[str, Any]],
+        *,
+        platform: str | None,
+    ) -> list[dict[str, Any]]:
+        default_domain = self._default_cookie_domain_for_platform(platform)
+        records: list[dict[str, Any]] = []
+        for cookie in cookie_entries:
+            name = str(cookie.get("name") or "").strip()
+            if not name:
+                continue
+            domain = str(cookie.get("domain") or default_domain).strip() or default_domain
+            path = str(cookie.get("path") or "/").strip() or "/"
+            secure = self._cookie_flag(cookie.get("secure"), default=True)
+            http_only = self._cookie_flag(cookie.get("httpOnly"), default=False)
+            same_site = self._normalize_extension_same_site(cookie.get("sameSite"))
+            record = {
+                "url": self._cookie_url_for_domain(domain, path=path, secure=secure),
+                "domain": domain,
+                "path": path,
+                "name": name,
+                "value": str(cookie.get("value") or ""),
+                "secure": secure,
+                "httpOnly": http_only,
+            }
+            expires_at = self._resolve_cookie_expiry(cookie)
+            if expires_at is not None:
+                record["expirationDate"] = int(expires_at / 1000)
+            if same_site is not None:
+                record["sameSite"] = same_site
+            records.append(record)
+        return records
+
+    def _write_account_cookie_extension(
+        self,
+        profile_dir: Path,
+        account: Account,
+        cookie_records: list[dict[str, Any]],
+        *,
+        target_url: str,
+        report_url: str,
+        validation: dict[str, Any],
+    ) -> Path:
+        extension_dir = profile_dir / "tkops-account-session-extension"
+        extension_dir.mkdir(parents=True, exist_ok=True)
+
+        permissions = sorted(self._build_cookie_host_permissions(cookie_records, target_url=target_url))
+        manifest = {
+            "manifest_version": 3,
+            "name": f"{_ACCOUNT_SESSION_EXTENSION_NAME} / {account.username or account.id}",
+            "version": "1.0.0",
+            "permissions": ["cookies", "storage"],
+            "host_permissions": permissions,
+            "background": {"service_worker": "background.js"},
+            "minimum_chrome_version": "120",
+        }
+        payload = {
+            "accountId": account.id,
+            "username": account.username,
+            "targetUrl": target_url,
+            "cookies": cookie_records,
+                        "reportUrl": report_url,
+                        "validation": validation,
+        }
+        background = """
+const payload = __PAYLOAD__;
+
+async function reportState(partial) {
+    if (!payload.reportUrl) return;
+    try {
+        await fetch(payload.reportUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(partial || {}),
+        });
+    } catch (_error) {
+        // ignore report failures; launcher will continue polling
+    }
+}
+
+function extractTikTokIdentity(payload) {
+    const candidates = [];
+    if (payload && typeof payload === 'object') candidates.push(payload);
+    if (payload && payload.data && typeof payload.data === 'object') candidates.push(payload.data);
+    for (const candidate of candidates) {
+        for (const key of ['username', 'unique_id', 'screen_name', 'nickname', 'user_id', 'uid']) {
+            if (candidate && candidate[key]) return String(candidate[key]);
+        }
+        for (const nestedKey of ['user', 'account_info', 'account', 'user_info']) {
+            const nested = candidate ? candidate[nestedKey] : null;
+            if (!nested || typeof nested !== 'object') continue;
+            for (const key of ['username', 'unique_id', 'screen_name', 'nickname', 'user_id', 'uid']) {
+                if (nested[key]) return String(nested[key]);
+            }
+        }
+    }
+    return '';
+}
+
+function payloadIndicatesInvalidLogin(payload) {
+    if (!payload || typeof payload !== 'object') return false;
+    const texts = [];
+    for (const key of ['message', 'status_msg', 'error_message', 'description', 'detail']) {
+        if (payload[key]) texts.push(String(payload[key]).toLowerCase());
+    }
+    const text = texts.join(' ');
+    return ['login', 'not login', 'not logged', 'expired', 'invalid', 'unauthorized', 'challenge_required', 'checkpoint_required', '请登录', '登录', '失效'].some((marker) => text.includes(marker));
+}
+
+async function validateLoginState() {
+    const validation = payload.validation || {};
+    const requests = Array.isArray(validation.requests) ? validation.requests : [];
+    if (!requests.length) {
+        return { loginStatus: 'unknown', message: '当前平台未配置浏览器侧登录校验' };
+    }
+    const reasons = [];
+    for (const request of requests) {
+        try {
+            const response = await fetch(request.url, {
+                method: 'GET',
+                headers: request.headers || {},
+                credentials: 'include',
+                cache: 'no-store',
+            });
+            const contentType = String(response.headers.get('content-type') || '').toLowerCase();
+            const payloadData = contentType.includes('json') ? await response.json().catch(() => ({})) : {};
+            const identity = request.type === 'tiktok' ? extractTikTokIdentity(payloadData) : '';
+            if (identity) {
+                return { loginStatus: 'valid', message: '已通过浏览器侧真实接口确认登录态：' + identity, target: request.url, httpStatus: response.status };
+            }
+            if (response.status === 401 || response.status === 403 || payloadIndicatesInvalidLogin(payloadData)) {
+                const detail = (payloadData && (payloadData.message || payloadData.status_msg || payloadData.error_message || payloadData.description || payloadData.detail)) || ('HTTP ' + response.status);
+                return { loginStatus: 'invalid', message: '浏览器侧登录校验失败：' + detail, target: request.url, httpStatus: response.status };
+            }
+            reasons.push(response.status + '/' + (contentType || 'unknown'));
+        } catch (error) {
+            reasons.push(String(error && error.message ? error.message : error));
+        }
+    }
+    return { loginStatus: 'unknown', message: '浏览器侧无法确认登录态：' + reasons.join('；') };
+}
+
+async function applySessionCookies() {
+    await reportState({ status: 'applying', loginStatus: 'pending', message: '正在注入账号 Cookie' });
+  const applied = [];
+  const failed = [];
+  for (const cookie of payload.cookies || []) {
+    const details = {
+      url: cookie.url,
+      name: cookie.name,
+      value: cookie.value,
+      path: cookie.path || '/',
+      secure: !!cookie.secure,
+      httpOnly: !!cookie.httpOnly,
+    };
+    if (cookie.domain) details.domain = cookie.domain;
+    if (cookie.sameSite) details.sameSite = cookie.sameSite;
+    if (cookie.expirationDate) details.expirationDate = cookie.expirationDate;
+    try {
+      const result = await chrome.cookies.set(details);
+      applied.push((result && result.name) || cookie.name);
+    } catch (error) {
+      failed.push({ name: cookie.name, message: String(error && error.message ? error.message : error) });
+    }
+  }
+    const validation = await validateLoginState();
+  await chrome.storage.local.set({
+    tkopsSession: {
+      accountId: payload.accountId,
+      username: payload.username,
+      targetUrl: payload.targetUrl,
+      appliedCount: applied.length,
+      failed,
+            loginStatus: validation.loginStatus,
+            validationMessage: validation.message,
+            validationTarget: validation.target || '',
+            validationHttpStatus: validation.httpStatus || null,
+      updatedAt: new Date().toISOString(),
+    },
+  });
+    await reportState({
+        status: validation.loginStatus === 'valid' ? 'ready' : (failed.length ? 'partial' : 'ready'),
+        loginStatus: validation.loginStatus,
+        appliedCount: applied.length,
+        failed,
+        message: validation.message,
+        target: validation.target || '',
+        httpStatus: validation.httpStatus || null,
+    });
+}
+
+chrome.runtime.onInstalled.addListener(() => { void applySessionCookies(); });
+chrome.runtime.onStartup.addListener(() => { void applySessionCookies(); });
+void applySessionCookies();
+""".replace("__PAYLOAD__", json.dumps(payload, ensure_ascii=False))
+
+        (extension_dir / "manifest.json").write_text(
+            json.dumps(manifest, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+        (extension_dir / "background.js").write_text(background, encoding="utf-8")
+        return extension_dir
+
+    def _build_cookie_host_permissions(
+        self,
+        cookie_records: list[dict[str, Any]],
+        *,
+        target_url: str,
+    ) -> set[str]:
+        permissions = {self._host_permission_for_url(target_url)}
+        for cookie in cookie_records:
+            permissions.add(self._host_permission_for_url(str(cookie.get("url") or target_url)))
+        return permissions
+
+    def _build_extension_validation_payload(self, account: Account, *, platform: str | None) -> dict[str, Any]:
+        platform_key = str(platform or account.platform or "tiktok").strip().lower() or "tiktok"
+        if platform_key in {"tiktok", "tiktok_shop"}:
+            region = str(account.region or "US").upper()
+            return {
+                "platform": platform_key,
+                "requests": [
+                    {
+                        "type": "tiktok",
+                        "url": (
+                            "https://www.tiktok.com/passport/web/account/info/"
+                            f"?aid=1459&app_language=zh-Hans&language=zh-Hans&region={quote(region, safe='')}"
+                        ),
+                        "headers": {
+                            "accept": "application/json, text/plain, */*",
+                            "referer": "https://www.tiktok.com/",
+                            "x-requested-with": "XMLHttpRequest",
+                        },
+                    },
+                    {
+                        "type": "tiktok",
+                        "url": (
+                            "https://www.tiktok.com/api/me/"
+                            f"?aid=1988&app_language=zh-Hans&language=zh-Hans&region={quote(region, safe='')}"
+                        ),
+                        "headers": {
+                            "accept": "application/json, text/plain, */*",
+                            "referer": "https://www.tiktok.com/",
+                            "x-requested-with": "XMLHttpRequest",
+                        },
+                    },
+                ],
+            }
+        return {"platform": platform_key, "requests": []}
+
+    def _release_account_session_tracker(self, account_id: int) -> None:
+        tracker = self._account_session_trackers.pop(int(account_id), None)
+        if tracker is not None:
+            tracker.close()
+
+    def _start_account_session_tracker(self, account_id: int) -> _AccountSessionTracker:
+        self._release_account_session_tracker(account_id)
+        tracker = _AccountSessionTracker(account_id)
+        self._account_session_trackers[int(account_id)] = tracker
+        return tracker
+
+    def _host_permission_for_url(self, url: str) -> str:
+        parts = urlsplit(str(url or "https://www.tiktok.com/"))
+        host = parts.hostname or "www.tiktok.com"
+        return f"{parts.scheme or 'https'}://{host}/*"
+
+    def _cookie_url_for_domain(self, domain: str, *, path: str = "/", secure: bool = True) -> str:
+        host = str(domain or "").strip().lstrip(".") or self._default_cookie_domain_for_platform("tiktok").lstrip(".")
+        normalized_path = path if str(path or "/").startswith("/") else "/" + str(path)
+        scheme = "https" if secure else "http"
+        return f"{scheme}://{host}{normalized_path}"
+
+    def _cookie_flag(self, value: Any, *, default: bool) -> bool:
+        if value is None or value == "":
+            return default
+        if isinstance(value, bool):
+            return value
+        normalized = str(value).strip().lower()
+        if normalized in {"1", "true", "yes", "on"}:
+            return True
+        if normalized in {"0", "false", "no", "off"}:
+            return False
+        return default
+
+    def _normalize_extension_same_site(self, value: Any) -> str | None:
+        if value in (None, ""):
+            return None
+        normalized = str(value).strip().lower().replace("-", "_")
+        mapping = {
+            "lax": "lax",
+            "strict": "strict",
+            "none": "no_restriction",
+            "no_restriction": "no_restriction",
+            "unspecified": "unspecified",
+        }
+        return mapping.get(normalized)
+
+    def _resolve_browser_executable(self) -> str | None:
+        candidates = [
+            self._repo.get_setting("browser.executable_path", "").strip(),
+            shutil.which("msedge"),
+            shutil.which("chrome"),
+            r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
+            r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
+            r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+            r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
+        ]
+        for item in candidates:
+            if item and Path(item).exists():
+                return str(Path(item))
+        return None
+
+    def _browser_proxy_server(self, proxy_ip: str | None) -> str | None:
+        raw = str(proxy_ip or "").strip()
+        if not raw:
+            return None
+        try:
+            return self._parse_proxy_endpoint(raw).host_port
+        except ValueError:
+            return None
+
+    def _sanitize_device_key(self, value: str) -> str:
+        cleaned = re.sub(r"[^A-Za-z0-9._-]+", "-", str(value or "device")).strip("-")
+        return cleaned or "device"

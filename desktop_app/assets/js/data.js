@@ -116,6 +116,7 @@
             remove: function (id)    { return callBackend('deleteAccount', id); },
             testConnection: function (id) { return callBackend('testAccountConnection', id); },
             validateLogin: function (id) { return callBackend('validateAccountLogin', id); },
+            openEnvironment: function (id) { return callBackend('openAccountEnvironment', id); },
         },
         // -- Groups --
         groups: {
@@ -130,6 +131,10 @@
             create: function (data)  { return callBackend('createDevice', JSON.stringify(data)); },
             update: function (id, d) { return callBackend('updateDevice', id, JSON.stringify(d)); },
             remove: function (id)    { return callBackend('deleteDevice', id); },
+            inspect: function (id)   { return callBackend('inspectDevice', id); },
+            repair: function (id)    { return callBackend('repairDeviceEnvironment', id); },
+            openEnvironment: function (id) { return callBackend('openDeviceEnvironment', id); },
+            logs: function (id)      { return callBackend('getDeviceLogs', id); },
         },
         // -- Tasks --
         tasks: {

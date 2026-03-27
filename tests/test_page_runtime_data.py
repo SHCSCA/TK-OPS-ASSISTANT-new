@@ -15,7 +15,6 @@ STATE_JS = ROOT / "desktop_app" / "assets" / "js" / "state.js"
 PRIMARY_RUNTIME_PAGES = [
     "dashboard",
     "account",
-    "group-management",
     "device-management",
     "ai-provider",
     "task-queue",

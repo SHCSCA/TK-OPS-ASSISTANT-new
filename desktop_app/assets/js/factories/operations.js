@@ -141,50 +141,6 @@ function makeListManagementRoute(config) {
    设备-账号绑定关系、隔离覆盖率和批量操作面板
    ═══════════════════════════════════════════════ */
 function makeDeviceManagementRoute(config = {}) {
-    const metrics = [
-        { label: '设备总量', value: '64', delta: '+6', note: '本周新增 6 台环境', color: 'var(--status-success)', search: '设备 总量 64' },
-        { label: '隔离覆盖率', value: '91%', delta: '+3%', note: '大部分账号已进入独立环境', color: 'var(--brand-primary)', search: '隔离 覆盖率 91' },
-        { label: '异常环境', value: '3', delta: '待修复', note: '指纹漂移与代理丢失', color: 'var(--status-warning)', search: '异常 环境 3 指纹 代理' },
-        { label: '空闲设备', value: '12', delta: '可分配', note: '建议优先分配给高价值账号', color: 'var(--text-secondary)', search: '空闲 设备 12' },
-    ];
-
-    const devices = [
-        { id: 'DEV-US-01', name: '美国直播池 A1', ip: '192.168.1.101 (US)', fingerprint: '正常', proxy: '在线', accounts: 4, status: 'healthy', search: '美国 直播池 A1 正常' },
-        { id: 'DEV-US-02', name: '美国内容池 A2', ip: '192.168.1.102 (US)', fingerprint: '正常', proxy: '在线', accounts: 3, status: 'healthy', search: '美国 内容池 A2 正常' },
-        { id: 'DEV-UK-01', name: '英国短视频池', ip: '154.22.81.44 (UK)', fingerprint: '正常', proxy: '丢失', accounts: 2, status: 'warning', search: '英国 短视频池 代理丢失' },
-        { id: 'DEV-DE-01', name: '德国店铺池 B1', ip: '—', fingerprint: '漂移', proxy: '离线', accounts: 3, status: 'error', search: '德国 店铺池 指纹漂移 离线' },
-        { id: 'DEV-DE-02', name: '德国店铺池 B2', ip: '—', fingerprint: '漂移', proxy: '离线', accounts: 2, status: 'error', search: '德国 店铺池 B2 指纹漂移' },
-        { id: 'DEV-JP-01', name: '日本客服池', ip: '103.44.22.8 (JP)', fingerprint: '正常', proxy: '在线', accounts: 1, status: 'idle', search: '日本 客服池 空闲' },
-    ];
-
-    const statusMap = { healthy: { label: '正常', tone: 'success' }, warning: { label: '告警', tone: 'warning' }, error: { label: '异常', tone: 'error' }, idle: { label: '空闲', tone: 'info' } };
-
-    const metricsHtml = metrics.map(m => `<article class="stat-card" data-search="${m.search}"><div><div class="subtle">${m.label}</div><div class="stat-card__value">${m.value}</div></div><div class="stat-card__delta" style="color:${m.color};"><span>${m.delta}</span><span class="subtle">${m.note}</span></div></article>`).join('');
-
-    const envCardsHtml = devices.map((d, i) => {
-        const st = statusMap[d.status];
-        return `<article class="device-env-card device-env-card--${d.status} ${i === 0 ? 'is-selected' : ''}" data-search="${d.search}">
-            <div class="device-env-card__head"><strong>${d.name}</strong><span class="status-chip ${st.tone}">${st.label}</span></div>
-            <div class="device-env-card__meta">
-                <div class="list-row"><span class="subtle">设备 ID</span><strong class="mono">${d.id}</strong></div>
-                <div class="list-row"><span class="subtle">代理 IP</span><strong class="mono">${d.ip}</strong></div>
-                <div class="list-row"><span class="subtle">指纹状态</span><span class="tag ${d.fingerprint === '正常' ? 'success' : 'error'}">${d.fingerprint}</span></div>
-                <div class="list-row"><span class="subtle">代理状态</span><span class="tag ${d.proxy === '在线' ? 'success' : d.proxy === '丢失' ? 'warning' : 'error'}">${d.proxy}</span></div>
-                <div class="list-row"><span class="subtle">绑定账号</span><strong>${d.accounts} 个</strong></div>
-            </div>
-            <div class="detail-actions">
-                <button class="secondary-button" type="button">${d.status === 'error' ? '修复环境' : d.status === 'idle' ? '分配账号' : '查看详情'}</button>
-                <button class="ghost-button" type="button">环境日志</button>
-            </div>
-        </article>`;
-    }).join('');
-
-    const bindingRows = [
-        { device: 'DEV-US-01', accounts: ['TK_User_US_01', 'TK_User_US_02', 'TK_Live_US_03', 'TK_Shop_US_04'], status: '正常' },
-        { device: 'DEV-UK-01', accounts: ['TK_Creator_UK_02', 'TK_Shop_UK_05'], status: '代理丢失' },
-        { device: 'DEV-DE-01', accounts: ['Shop_Manager_03', 'TK_DE_Growth_06', 'TK_DE_Live_07'], status: '指纹漂移' },
-    ];
-
     const mainHtml = `
         <div class="breadcrumbs"><span>account</span><span>/</span><span>设备管理</span></div>
         <div class="page-header">
@@ -196,27 +152,32 @@ function makeDeviceManagementRoute(config = {}) {
             </div>
         </div>
         <section class="section-stack">
-            <div class="stat-grid">${metricsHtml}</div>
-            <div class="notice-banner"><div><strong>3 台设备环境异常</strong><div>德国站 2 台指纹漂移，英国站 1 台代理丢失。建议先修复后再恢复批量登录任务。</div></div><div class="toolbar__group"><button class="primary-button" type="button">批量修复</button><button class="ghost-button" type="button">查看详情</button></div></div>
+            <div class="stat-grid">
+                <article class="stat-card"><div><div class="subtle">设备总量</div><div class="stat-card__value">--</div></div><div class="stat-card__delta"><span>实时汇总</span><span class="subtle">来自真实设备记录</span></div></article>
+                <article class="stat-card"><div><div class="subtle">隔离覆盖率</div><div class="stat-card__value">--</div></div><div class="stat-card__delta"><span>实时汇总</span><span class="subtle">按真实绑定账号计算</span></div></article>
+                <article class="stat-card"><div><div class="subtle">异常环境</div><div class="stat-card__value">--</div></div><div class="stat-card__delta"><span>实时汇总</span><span class="subtle">指纹、代理与绑定状态综合判断</span></div></article>
+                <article class="stat-card"><div><div class="subtle">空闲设备</div><div class="stat-card__value">--</div></div><div class="stat-card__delta"><span>实时汇总</span><span class="subtle">当前无绑定账号的设备</span></div></article>
+            </div>
+            <div class="notice-banner" data-device-banner><div><strong>正在加载设备巡检摘要</strong><div>加载后根据真实设备状态、账号绑定与环境问题自动更新。</div></div><div class="toolbar__group"><button class="primary-button" type="button">批量修复</button><button class="ghost-button" type="button">查看详情</button></div></div>
             <div class="device-management-shell">
                 <div class="device-filter-bar">
                     <div class="local-tabs" data-filter-group="device-status">
-                        <button class="local-tab is-active" data-filter-value="all" type="button">全部 (${devices.length})</button>
-                        <button class="local-tab" data-filter-value="healthy" type="button">正常 (2)</button>
-                        <button class="local-tab" data-filter-value="warning" type="button">告警 (1)</button>
-                        <button class="local-tab" data-filter-value="error" type="button">异常 (2)</button>
-                        <button class="local-tab" data-filter-value="idle" type="button">空闲 (1)</button>
+                        <button class="local-tab is-active" data-filter-value="all" type="button">全部 (--)</button>
+                        <button class="local-tab" data-filter-value="healthy" type="button">正常 (--)</button>
+                        <button class="local-tab" data-filter-value="warning" type="button">告警 (--)</button>
+                        <button class="local-tab" data-filter-value="error" type="button">异常 (--)</button>
+                        <button class="local-tab" data-filter-value="idle" type="button">空闲 (--)</button>
                     </div>
                     <div class="segmented" data-segmented data-view-toggle="devices">
                         <button class="is-active" data-view="card" type="button">卡片</button>
                         <button data-view="list" type="button">列表</button>
                     </div>
                 </div>
-                <div class="device-env-grid">${envCardsHtml}</div>
+                <div class="device-env-grid" data-collection="devices"></div>
             </div>
             <div class="analytics-two-column">
-                <section class="table-card"><div class="table-card__header"><div><strong>设备-账号绑定表</strong><div class="subtle">快速查看每台设备绑定了哪些账号及隔离状态</div></div></div><div class="table-wrapper"><table><thead><tr><th>设备 ID</th><th>绑定账号</th><th>状态</th><th>操作</th></tr></thead><tbody>${bindingRows.map(r => `<tr class="route-row" data-search="${r.device} ${r.accounts.join(' ')} ${r.status}"><td class="mono"><strong>${r.device}</strong></td><td>${r.accounts.map(a => `<span class="tag">${a}</span>`).join(' ')}</td><td><span class="status-chip ${r.status === '正常' ? 'success' : r.status === '代理丢失' ? 'warning' : 'error'}">${r.status}</span></td><td><button class="ghost-button" type="button">调整绑定</button></td></tr>`).join('')}</tbody></table></div></section>
-                <section class="panel"><div class="panel__header"><div><strong>隔离覆盖率</strong><div class="subtle">环境覆盖率越高，批量操作越安全</div></div></div><div class="device-coverage-bar"><div class="coverage-track"><span class="coverage-fill" style="width: 91%;"></span></div><div class="coverage-labels"><span>已隔离 58 台</span><span>未隔离 6 台</span></div></div><div class="device-pool-summary"><div class="task-item is-selected"><div><strong>高价值账号未覆盖</strong><div class="subtle">VIP 客服号与德国站主号仍在默认环境</div></div><span class="pill warning">优先</span></div><div class="task-item"><div><strong>空闲设备可回收</strong><div class="subtle">12 台空闲设备建议分配给新增账号</div></div><span class="pill info">调度</span></div></div></section>
+                <section class="table-card"><div class="table-card__header"><div><strong>设备-账号绑定表</strong><div class="subtle">快速查看每台设备绑定了哪些账号及隔离状态</div></div></div><div class="table-wrapper"><table><thead><tr><th>设备 ID</th><th>绑定账号</th><th>隔离覆盖</th><th>状态</th><th>操作</th></tr></thead><tbody data-device-binding-body><tr><td colspan="5" style="text-align:center;padding:32px;">正在加载真实绑定数据</td></tr></tbody></table></div></section>
+                <section class="panel" data-device-coverage-panel><div class="panel__header"><div><strong>隔离覆盖率</strong><div class="subtle">环境覆盖率越高，批量操作越安全</div></div></div><div class="device-coverage-bar"><div class="coverage-track"><span class="coverage-fill" style="width: 0%;"></span></div><div class="coverage-labels"><span>已隔离 --</span><span>未隔离 --</span></div></div><div class="device-pool-summary"><div class="task-item"><div><strong>正在加载覆盖明细</strong><div class="subtle">加载后根据真实设备绑定和隔离状态更新。</div></div><span class="pill info">载入中</span></div></div></section>
             </div>
         </section>
     `;
@@ -230,7 +191,7 @@ function makeDeviceManagementRoute(config = {}) {
         statusRight: [{ text: '实时汇总', tone: 'info' }, { text: '等待加载', tone: 'warning' }],
         hideDetailPanel: false,
         mainHtml,
-        detailHtml: `<div class="detail-root"><section class="panel"><div class="panel__header"><div><strong>设备详情</strong><div class="subtle">选中设备的环境参数与绑定信息</div></div><span class="status-chip success">正常</span></div><div class="detail-stack"><div><strong>美国直播池 A1</strong><div class="subtle mono">DEV-US-01</div></div><div class="detail-list"><div class="detail-item"><span class="subtle">代理 IP</span><strong class="mono">192.168.1.101 (US)</strong></div><div class="detail-item"><span class="subtle">指纹状态</span><strong>正常</strong></div><div class="detail-item"><span class="subtle">绑定账号</span><strong>4 个</strong></div><div class="detail-item"><span class="subtle">最近巡检</span><strong>12:18</strong></div></div><div class="detail-actions"><button class="primary-button" type="button">打开环境</button><button class="secondary-button" type="button">修改绑定</button></div></div></section><section class="panel"><div class="panel__header"><div><strong>维护建议</strong><div class="subtle">避免设备与账号混绑带来风险</div></div></div><div class="audit-list"><div class="audit-item"><div><strong>优先修复德国设备池</strong><div class="subtle">指纹漂移会影响 5 个账号的登录环境</div></div><span class="pill warning">优先</span></div><div class="audit-item"><div><strong>英国代理恢复后再操作</strong><div class="subtle">当前代理丢失，不宜继续投流</div></div><span class="pill error">阻塞</span></div><div class="audit-item"><div><strong>空闲设备调度</strong><div class="subtle">12 台空闲可分配给新增高价值账号</div></div><span class="pill info">调度</span></div></div></section></div>`,
+        detailHtml: `<div class="detail-root"><section class="panel"><div class="panel__header"><div><strong>设备详情</strong><div class="subtle">选中设备后显示真实环境参数、绑定账号和维护建议</div></div><span class="status-chip info">待选择</span></div><div class="detail-list"><div class="detail-item"><span class="subtle">当前状态</span><strong>请先在左侧选择设备</strong></div></div></section></div>`,
     };
 }
 /* Template A: KPI 卡片 + 图表/分析区 + 洞察面板
