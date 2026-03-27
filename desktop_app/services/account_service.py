@@ -116,8 +116,11 @@ class _ProxyRelayHandler(socketserver.StreamRequestHandler):
 
 
 class _ProxyRelay:
-    def __init__(self, endpoint: _ProxyEndpoint, timeout: float = 8.0) -> None:
+    def __init__(
+        self, endpoint: _ProxyEndpoint, parent_proxy: _ProxyEndpoint | None = None, timeout: float = 8.0
+    ) -> None:
         self._endpoint = endpoint
+        self._parent_proxy = parent_proxy
         self._timeout = timeout
         self._server = _ProxyRelayServer(("127.0.0.1", 0), _ProxyRelayHandler, self)
         self._thread = threading.Thread(
@@ -126,6 +129,51 @@ class _ProxyRelay:
             daemon=True,
         )
         self._thread.start()
+
+    def _open_upstream(self) -> socket.socket:
+        target_host, target_port = self._endpoint.host, self._endpoint.port
+
+        if self._parent_proxy:
+            # Connect to the parent proxy first
+            upstream = socket.create_connection(
+                (self._parent_proxy.host, self._parent_proxy.port), timeout=self._timeout
+            )
+            upstream.settimeout(self._timeout)
+
+            if self._parent_proxy.auth_present:
+                auth = f"{self._parent_proxy.username}:{self._parent_proxy.password}"
+                auth_header = base64.b64encode(auth.encode()).decode()
+                connect_request = (
+                    f"CONNECT {target_host}:{target_port} HTTP/1.1\r\n"
+                    f"Host: {target_host}:{target_port}\r\n"
+                    f"Proxy-Authorization: Basic {auth_header}\r\n\r\n"
+                )
+            else:
+                connect_request = (
+                    f"CONNECT {target_host}:{target_port} HTTP/1.1\r\n"
+                    f"Host: {target_host}:{target_port}\r\n\r\n"
+                )
+
+            upstream.sendall(connect_request.encode())
+            response = upstream.recv(4096)
+            if b"200 Connection established" not in response:
+                raise ConnectionError("Failed to establish connection via parent proxy")
+
+            # Wrap the connection with SSL if the target is HTTPS
+            if self._endpoint.scheme == "https":
+                context = ssl.create_default_context()
+                upstream = context.wrap_socket(upstream, server_hostname=target_host)
+                upstream.settimeout(self._timeout)
+        else:
+            # Direct connection to the target
+            upstream = socket.create_connection((target_host, target_port), timeout=self._timeout)
+            upstream.settimeout(self._timeout)
+            if self._endpoint.scheme == "https":
+                context = ssl.create_default_context()
+                upstream = context.wrap_socket(upstream, server_hostname=target_host)
+                upstream.settimeout(self._timeout)
+
+        return upstream
 
     @property
     def local_endpoint(self) -> str:
@@ -163,15 +211,6 @@ class _ProxyRelay:
                     b"Content-Length: 0\r\n"
                     b"Connection: close\r\n\r\n"
                 )
-
-    def _open_upstream(self) -> socket.socket:
-        upstream = socket.create_connection((self._endpoint.host, self._endpoint.port), timeout=self._timeout)
-        upstream.settimeout(self._timeout)
-        if self._endpoint.scheme == "https":
-            context = ssl.create_default_context()
-            upstream = context.wrap_socket(upstream, server_hostname=self._endpoint.host)
-            upstream.settimeout(self._timeout)
-        return upstream
 
     def _read_request(self, client_socket: socket.socket) -> tuple[str, list[str], bytes]:
         data = b""
