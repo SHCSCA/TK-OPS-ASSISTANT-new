@@ -931,9 +931,12 @@
     }
 
     window.__pageLoaderShared = {
+        // Shell and batch helpers consumed across split page modules.
         wireHeaderPrimary: _wireHeaderPrimary,
         bindBatchBar: _bindBatchBar,
         batchDelete: _batchDelete,
+
+        // Account page view-model, search, and environment helpers.
         buildAccountViewModel: _buildAccountViewModel,
         buildAccountSearchText: _buildAccountSearchText,
         buildAccountAdvice: _buildAccountAdvice,
@@ -943,13 +946,19 @@
         mergeAccountTags: _mergeAccountTags,
         accountFilterStatus: _accountFilterStatus,
         accountSortOrder: _accountSortOrder,
-        accountPlatformLabel: _accountPlatformLabel,
-        accountRegionLabel: _accountRegionLabel,
         openAccountEnvironment: _openAccountEnvironment,
         openAccountProxyConfig: _openAccountProxyConfig,
         openAccountCookieModal: _openAccountCookieModal,
         runAccountConnectionTest: _runAccountConnectionTest,
         runAccountLoginValidation: _runAccountLoginValidation,
+
+        // Device page helpers retained in the root aggregator for now.
+        buildDeviceViewModel: _buildDeviceViewModel,
+        deviceBool: _deviceBool,
+
+        // Shared labels and formatting helpers.
+        accountPlatformLabel: _accountPlatformLabel,
+        accountRegionLabel: _accountRegionLabel,
         esc: _esc,
         formatNum: _formatNum,
         formatRelativeDate: _formatRelativeDate,
@@ -1507,54 +1516,7 @@
     /* ══════════════════════════════════════════════
        Device Management 页面
        ══════════════════════════════════════════════ */
-    loaders['device-management'] = function () {
-        _wireHeaderPrimary(function () { openDeviceForm(); });
-
-        Promise.all([
-            api.devices.list(),
-            api.accounts.list(),
-        ]).then(function (results) {
-            var devices = results[0] || [];
-            var accounts = results[1] || [];
-            var models = (devices || []).map(function (device) {
-                return _buildDeviceViewModel(device, accounts || []);
-            }).sort(function (left, right) {
-                if (left.sortOrder !== right.sortOrder) return left.sortOrder - right.sortOrder;
-                return String(left.name || '').localeCompare(String(right.name || ''), 'zh-CN');
-            });
-
-            window.__devicePageData = models;
-            window.__devicePageAccounts = accounts || [];
-
-            runtimeSummaryHandlers['device-management']({ devices: devices, accounts: accounts });
-            _renderDeviceMetrics(models, accounts || []);
-            _renderDeviceFilterTabs(models);
-            _renderDeviceBanner(models);
-            _renderDeviceGrid(models);
-            _renderDeviceBindingTable(models);
-            _renderDeviceCoverage(models, accounts || []);
-            _bindDeviceActions(models);
-            _bindDeviceFilterControls();
-            _bindDeviceBannerActions(models);
-
-            var preferredDeviceId = uiState['device-management'] && uiState['device-management'].selectedId ? String(uiState['device-management'].selectedId) : '';
-            var selected = models.find(function (item) { return String(item.id || '') === preferredDeviceId; }) || models[0] || null;
-            if (selected) {
-                _selectDeviceCard(selected.id, models);
-            } else {
-                _renderDeviceDetail(null);
-            }
-
-            _bindBatchBar('.js-batch-device', function (ids) {
-                return _batchDelete(ids, api.devices.remove, '设备', 'device-management');
-            });
-            applyCurrentRouteState();
-        }).catch(function (e) {
-            window.__devicePageData = [];
-            window.__devicePageAccounts = [];
-            console.warn('[page-loaders] device-management load failed:', e);
-        });
-    };
+    // Device Management 主渲染与交互已拆分至 page-loaders/device-management-main.js。
 
     function _deviceStatusMap(status) {
         var map = {
@@ -1737,469 +1699,47 @@
         };
     }
 
-    function _renderDeviceFilterTabs(models) {
-        var counts = { all: (models || []).length, healthy: 0, warning: 0, error: 0, idle: 0 };
-        (models || []).forEach(function (item) {
-            var key = String(item.status || '').toLowerCase();
-            if (counts[key] !== undefined) counts[key] += 1;
-        });
-        document.querySelectorAll('#mainHost [data-filter-group="device-status"] .local-tab').forEach(function (tab) {
-            var key = tab.dataset.filterValue || 'all';
-            var labels = {
-                all: '全部',
-                healthy: '正常',
-                warning: '告警',
-                error: '异常',
-                idle: '空闲',
-            };
-            tab.textContent = (labels[key] || '全部') + ' (' + (counts[key] || 0) + ')';
-        });
-    }
-
-    function _renderDeviceMetrics(models, accounts) {
-        var statCards = document.querySelectorAll('#mainHost .stat-card');
-        if (statCards.length < 4) return;
-        var totalAccounts = (accounts || []).length;
-        var isolatedAccounts = (accounts || []).filter(function (account) { return _deviceBool(account.isolation_enabled) && account.device_id; }).length;
-        var abnormalDevices = (models || []).filter(function (item) { return item.status === 'error' || item.status === 'warning'; }).length;
-        var idleDevices = (models || []).filter(function (item) { return item.status === 'idle'; }).length;
-        var values = [
-            _formatNum((models || []).length),
-            _safePercent(isolatedAccounts, totalAccounts),
-            _formatNum(abnormalDevices),
-            _formatNum(idleDevices),
-        ];
-        statCards.forEach(function (card, index) {
-            var valueEl = card.querySelector('.stat-card__value');
-            if (valueEl) valueEl.textContent = values[index] || '--';
-        });
-    }
-
-    function _renderDeviceBanner(models) {
-        var banner = document.querySelector('#mainHost [data-device-banner]');
-        if (!banner) return;
-        var abnormal = (models || []).filter(function (item) { return item.status === 'error'; });
-        var warning = (models || []).filter(function (item) { return item.status === 'warning'; });
-        var summary = abnormal.length ? ('当前有 ' + abnormal.length + ' 台异常设备待处理') : (warning.length ? ('当前有 ' + warning.length + ' 台告警设备待复核') : '当前设备环境整体稳定');
-        var detail = abnormal.length || warning.length
-            ? (abnormal.length
-                ? ('优先处理：' + abnormal.slice(0, 2).map(function (item) { return item.name; }).join('、') + (warning.length ? ('；其次复核 ' + warning.slice(0, 2).map(function (item) { return item.name; }).join('、')) : ''))
-                : ('优先复核：' + warning.slice(0, 2).map(function (item) { return item.name; }).join('、')))
-            : '所有设备已按真实代理、指纹与绑定关系完成归类，可继续做环境调度。';
-        banner.innerHTML = '<div><strong>' + _esc(summary) + '</strong><div>' + _esc(detail) + '</div></div><div class="toolbar__group"><button class="primary-button js-device-banner-repair" type="button">批量修复</button><button class="ghost-button js-device-banner-focus" type="button">查看详情</button></div>';
-    }
-
-    function _renderDeviceGrid(models) {
-        var grid = document.querySelector('#mainHost .device-env-grid');
-        if (!grid) return;
-        if (!(models || []).length) {
-            grid.innerHTML = '<div class="empty-state" style="padding:48px;text-align:center;grid-column:1/-1;"><p>暂无设备</p><p class="subtle">点击「新增设备环境」添加第一台设备</p></div>';
-            return;
-        }
-        grid.innerHTML = (models || []).map(function (item) {
-            return '<article class="device-env-card device-env-card--' + _esc(item.status) + '" data-id="' + (item.id || '') + '" data-status="' + _esc(item.status) + '" data-search="' + _esc(item.searchText) + '">'
-                + '<div class="device-env-card__head"><label class="batch-check-wrap"><input type="checkbox" class="batch-check js-batch-device" data-id="' + (item.id || '') + '" aria-label="选择设备 ' + _esc(item.name) + '"><span></span></label><strong>' + _esc(item.name) + '</strong><span class="status-chip ' + item.statusMeta.tone + '">' + _esc(item.statusMeta.label) + '</span></div>'
-                + '<div class="device-env-card__meta">'
-                + '<div class="list-row"><span class="subtle">设备编码</span><strong class="mono">' + _esc(item.deviceCode) + '</strong></div>'
-                + '<div class="list-row"><span class="subtle">代理 IP</span><strong class="mono">' + _esc(item.proxyLabel) + '</strong></div>'
-                + '<div class="list-row"><span class="subtle">地区</span><strong>' + _esc(item.regionLabel) + '</strong></div>'
-                + '<div class="list-row"><span class="subtle">绑定账号</span><strong>' + _esc(_formatNum(item.boundCount)) + ' 个</strong></div>'
-                + '<div class="list-row"><span class="subtle">隔离覆盖</span><strong>' + _esc(item.coveragePercent + '%') + '</strong></div>'
-                + '<div class="list-row"><span class="subtle">最近巡检</span><strong>' + _esc(item.lastInspectionLabel) + '</strong></div>'
-                + '</div>'
-                + '<div class="detail-actions">'
-                + '<button class="secondary-button js-view-device" data-id="' + (item.id || '') + '" type="button">查看详情</button>'
-                + '<button class="ghost-button js-edit-device" data-id="' + (item.id || '') + '" type="button">编辑</button>'
-                + '</div></article>';
-        }).join('');
-    }
-
-    function _renderDeviceBindingTable(models) {
-        var tbody = document.querySelector('#mainHost [data-device-binding-body]');
-        if (!tbody) return;
-        if (!(models || []).length) {
-            tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:32px;">暂无绑定数据</td></tr>';
-            return;
-        }
-        tbody.innerHTML = models.map(function (item) {
-            var accountsMarkup = item.boundAccounts.length
-                ? item.boundAccounts.map(function (account) {
-                    var tone = _deviceBool(account.isolation_enabled) ? 'success' : 'warning';
-                    return '<span class="tag ' + tone + '">' + _esc(account.username || ('账号#' + account.id)) + '</span>';
-                }).join(' ')
-                : '<span class="subtle">暂无绑定账号</span>';
-            return '<tr class="route-row js-device-binding-row" data-id="' + (item.id || '') + '" data-search="' + _esc(item.searchText) + '">'
-                + '<td class="mono"><strong>' + _esc(item.deviceCode) + '</strong></td>'
-                + '<td>' + accountsMarkup + '</td>'
-                + '<td>' + _esc(item.coveragePercent + '% / 已隔离 ' + item.isolatedCount + ' 个') + '</td>'
-                + '<td><span class="status-chip ' + item.statusMeta.tone + '">' + _esc(item.statusMeta.label) + '</span></td>'
-                + '<td><button class="ghost-button js-adjust-device-binding" data-id="' + (item.id || '') + '" type="button">调整绑定</button></td>'
-                + '</tr>';
-        }).join('');
-    }
-
-    function _renderDeviceCoverage(models, accounts) {
-        var panel = document.querySelector('#mainHost [data-device-coverage-panel]');
-        if (!panel) return;
-        var boundAccounts = (accounts || []).filter(function (account) { return account.device_id; });
-        var isolatedAccounts = boundAccounts.filter(function (account) { return _deviceBool(account.isolation_enabled); });
-        var uncoveredAccounts = (accounts || []).filter(function (account) { return !account.device_id || !_deviceBool(account.isolation_enabled); });
-        var fill = panel.querySelector('.coverage-fill');
-        if (fill) fill.style.width = _safePercent(isolatedAccounts.length, (accounts || []).length);
-        var labels = panel.querySelectorAll('.coverage-labels span');
-        if (labels.length >= 2) {
-            labels[0].textContent = '已隔离 ' + _formatNum(isolatedAccounts.length) + ' 个账号';
-            labels[1].textContent = '未覆盖 ' + _formatNum(uncoveredAccounts.length) + ' 个账号';
-        }
-        var summary = panel.querySelector('.device-pool-summary');
-        if (!summary) return;
-        var idleDevices = (models || []).filter(function (item) { return item.status === 'idle'; });
-        var riskyAccounts = uncoveredAccounts.slice(0, 3).map(function (account) { return account.username || ('账号#' + account.id); }).join('、') || '暂无';
-        summary.innerHTML = ''
-            + '<div class="task-item is-selected"><div><strong>未覆盖账号</strong><div class="subtle">' + _esc(riskyAccounts) + '</div></div><span class="pill warning">' + _esc(_safePercent(isolatedAccounts.length, (accounts || []).length)) + '</span></div>'
-            + '<div class="task-item"><div><strong>空闲设备池</strong><div class="subtle">当前有 ' + _esc(_formatNum(idleDevices.length)) + ' 台空闲设备可分配</div></div><span class="pill info">调度</span></div>';
-    }
-
-    function _renderDeviceLogPanel(logs, deviceId) {
-        var limit = 12;
-        var total = Array.isArray(logs) ? logs.length : 0;
-        var expanded = Boolean(uiState['device-management'] && String(uiState['device-management'].expandedLogDeviceId || '') === String(deviceId || ''));
-        var visibleLogs = expanded ? (logs || []) : (logs || []).slice(0, limit);
-        if (!logs || !logs.length) {
-            return '<section class="panel"><div class="panel__header"><div><strong>环境日志</strong><div class="subtle">当前设备还没有环境动作记录</div></div></div><div class="audit-list"><div class="audit-item"><div><strong>暂无日志</strong><div class="subtle audit-item__copy">执行打开环境、巡检或修复后，会在这里展示设备级日志详情。</div></div><span class="pill info">空</span></div></div></section>';
-        }
-        return '<section class="panel device-log-panel"><div class="panel__header"><div><strong>环境日志</strong><div class="subtle">当前设备最近 ' + _esc(String(total)) + ' 条动作记录</div></div>'
-            + (total > limit ? '<div class="device-log-panel__header-actions"><button class="ghost-button js-device-toggle-logs" data-id="' + _esc(String(deviceId || '')) + '" type="button">' + (expanded ? '收起较早日志' : '展开全部 ' + total + ' 条') + '</button></div>' : '')
-            + '</div><div class="audit-list device-log-list' + (expanded ? ' is-expanded' : '') + '">'
-            + visibleLogs.map(function (entry) {
-                var tone = String(entry.category || '').indexOf('repair') >= 0 ? 'success' : (String(entry.category || '').indexOf('inspection') >= 0 ? 'warning' : 'info');
-                return '<div class="audit-item device-log-item"><div class="device-log-item__body"><strong>' + _esc(entry.title || '设备日志') + '</strong><div class="subtle audit-item__copy device-log-item__message">' + _esc(entry.message || '系统记录已同步') + '</div><div class="subtle device-log-item__meta">' + _esc(_formatRelativeDate(entry.created_at)) + '</div></div><span class="pill ' + tone + '">' + _esc(entry.category || 'log') + '</span></div>';
-            }).join('')
-            + (!expanded && total > limit ? '<div class="audit-item device-log-item device-log-item--summary"><div class="device-log-item__body"><strong>还有 ' + _esc(String(total - limit)) + ' 条较早日志</strong><div class="subtle audit-item__copy device-log-item__message">默认只展示最新 ' + limit + ' 条，避免右侧详情区被超长日志撑满。点击上方按钮可展开完整记录。</div></div><span class="pill info">折叠</span></div>' : '')
-            + '</div></section>';
-    }
-
     function _renderDeviceDetail(deviceModel, logs) {
-        var detailHost = document.getElementById('detailHost');
-        if (!detailHost) return;
-        if (!deviceModel) {
-            detailHost.innerHTML = '<div class="detail-root"><section class="panel"><div class="panel__header"><div><strong>设备详情</strong><div class="subtle">请先在左侧选择设备</div></div><span class="status-chip info">待选择</span></div></section></div>';
-            return;
+        var page = window.__deviceManagementPageMain;
+        if (page && typeof page.renderDeviceDetail === 'function') {
+            return page.renderDeviceDetail(deviceModel, logs);
         }
-        var issueMarkup = deviceModel.issues.length
-            ? deviceModel.issues.map(function (issue) {
-                return '<div class="audit-item"><div><strong>' + _esc(issue.title) + '</strong><div class="subtle audit-item__copy">' + _esc(issue.copy) + '</div></div><span class="pill ' + _esc(issue.tone) + '">' + _esc(issue.tone === 'error' ? '阻塞' : issue.tone === 'warning' ? '待处理' : '提示') + '</span></div>';
-            }).join('')
-            : '<div class="audit-item"><div><strong>当前设备状态正常</strong><div class="subtle audit-item__copy">代理、指纹和绑定账号状态均未发现明显阻塞。</div></div><span class="pill success">正常</span></div>';
-        detailHost.innerHTML = '<div class="detail-root">'
-            + '<section class="panel"><div class="panel__header"><div><strong>' + _esc(deviceModel.name) + '</strong><div class="subtle mono">' + _esc(deviceModel.deviceCode) + '</div></div><span class="status-chip ' + deviceModel.statusMeta.tone + '">' + _esc(deviceModel.statusMeta.label) + '</span></div>'
-            + '<div class="detail-list">'
-            + '<div class="detail-item"><span class="subtle">代理地址</span><strong class="mono">' + _esc(deviceModel.proxyLabel) + '</strong></div>'
-            + '<div class="detail-item"><span class="subtle">代理状态</span><strong>' + _esc(deviceModel.proxyStatusLabel) + '</strong></div>'
-            + '<div class="detail-item"><span class="subtle">地区</span><strong>' + _esc(deviceModel.regionLabel) + '</strong></div>'
-            + '<div class="detail-item"><span class="subtle">指纹状态</span><strong>' + _esc(deviceModel.fingerprintLabel) + '</strong></div>'
-            + '<div class="detail-item"><span class="subtle">绑定账号</span><strong>' + _esc(_formatNum(deviceModel.boundCount)) + ' 个</strong></div>'
-            + '<div class="detail-item"><span class="subtle">隔离覆盖</span><strong>' + _esc(deviceModel.coveragePercent + '%') + '</strong></div>'
-            + '<div class="detail-item"><span class="subtle">最近巡检</span><strong>' + _esc(deviceModel.lastInspectionLabel) + '</strong></div>'
-            + '</div>'
-            + '<div class="detail-actions account-detail__actions">'
-            + '<button class="primary-button js-device-open-environment" data-id="' + deviceModel.id + '" type="button">打开环境</button>'
-            + '<button class="secondary-button js-adjust-device-binding" data-id="' + deviceModel.id + '" type="button">修改绑定</button>'
-            + '<button class="secondary-button js-device-repair" data-id="' + deviceModel.id + '" type="button">修复环境</button>'
-            + '<button class="ghost-button js-device-export-log" data-id="' + deviceModel.id + '" type="button">环境日志</button>'
-            + '<button class="ghost-button js-edit-device" data-id="' + deviceModel.id + '" type="button">编辑设备</button>'
-            + '<button class="danger-button js-delete-device" data-id="' + deviceModel.id + '" type="button">删除设备</button>'
-            + '</div></section>'
-            + '<section class="panel"><div class="panel__header"><div><strong>巡检结果</strong><div class="subtle">根据真实代理、指纹、账号绑定与登录态汇总</div></div></div><div class="audit-list">' + issueMarkup + '</div></section>'
-                + _renderDeviceLogPanel(Array.isArray(logs) ? logs : (deviceModel.logs || []), deviceModel.id)
-            + '</div>';
-            _bindDeviceDetailActions(window.__devicePageData || []);
     }
 
     function _selectDeviceCard(deviceId, models) {
-        var selectedId = String(deviceId || '');
-        document.querySelectorAll('#mainHost .device-env-card').forEach(function (node) {
-            node.classList.toggle('is-selected', String(node.dataset.id || '') === selectedId);
-        });
-        var deviceModel = (models || []).find(function (item) { return String(item.id || '') === selectedId; }) || null;
-        if (uiState['device-management']) uiState['device-management'].selectedId = deviceModel ? deviceModel.id : null;
-        _renderDeviceDetail(deviceModel);
-    }
-
-    function _bindDeviceFilterControls() {
-        document.querySelectorAll('#mainHost [data-filter-group="device-status"] .local-tab').forEach(function (tab) {
-            tab.addEventListener('click', function () {
-                document.querySelectorAll('#mainHost [data-filter-group="device-status"] .local-tab').forEach(function (node) {
-                    node.classList.remove('is-active');
-                });
-                tab.classList.add('is-active');
-                uiState['device-management'] = uiState['device-management'] || { statusFilter: 'all', view: 'card', selectedId: null };
-                uiState['device-management'].statusFilter = tab.dataset.filterValue || 'all';
-                applyCurrentRouteState();
-            });
-        });
-        document.querySelectorAll('#mainHost [data-view-toggle="devices"] button').forEach(function (btn) {
-            btn.addEventListener('click', function () {
-                document.querySelectorAll('#mainHost [data-view-toggle="devices"] button').forEach(function (node) {
-                    node.classList.remove('is-active');
-                });
-                btn.classList.add('is-active');
-                uiState['device-management'] = uiState['device-management'] || { statusFilter: 'all', view: 'card', selectedId: null };
-                uiState['device-management'].view = btn.dataset.view || 'card';
-                var grid = document.querySelector('#mainHost .device-env-grid');
-                if (grid) grid.classList.toggle('list-mode', uiState['device-management'].view === 'list');
-            });
-        });
-        var grid = document.querySelector('#mainHost .device-env-grid');
-        if (grid && uiState['device-management']) {
-            grid.classList.toggle('list-mode', uiState['device-management'].view === 'list');
-        }
-        document.querySelectorAll('#mainHost [data-view-toggle="devices"] button').forEach(function (btn) {
-            btn.classList.toggle('is-active', (uiState['device-management'] && uiState['device-management'].view || 'card') === (btn.dataset.view || 'card'));
-        });
-    }
-
-    function _bindDeviceBannerActions(models) {
-        var banner = document.querySelector('#mainHost [data-device-banner]');
-        if (!banner) return;
-        var firstProblem = (models || []).find(function (item) { return item.status === 'error' || item.status === 'warning'; }) || (models || [])[0] || null;
-        var repairBtn = banner.querySelector('.js-device-banner-repair');
-        var focusBtn = banner.querySelector('.js-device-banner-focus');
-        if (repairBtn) {
-            repairBtn.addEventListener('click', function () {
-                _runDeviceRepair(firstProblem ? [firstProblem.id] : null);
-            });
-        }
-        if (focusBtn) {
-            focusBtn.addEventListener('click', function () {
-                if (firstProblem) {
-                    _selectDeviceCard(firstProblem.id, models || []);
-                }
-            });
+        var page = window.__deviceManagementPageMain;
+        if (page && typeof page.selectDeviceCard === 'function') {
+            return page.selectDeviceCard(deviceId, models);
         }
     }
 
-    function _bindDeviceDetailActions(models) {
-        var detailHost = document.getElementById('detailHost');
-        if (!detailHost) return;
-        detailHost.querySelectorAll('.js-adjust-device-binding').forEach(function (btn) {
-            btn.addEventListener('click', function (e) {
-                e.stopPropagation();
-                if (typeof _openDeviceBindingModal === 'function') _openDeviceBindingModal(btn);
-            });
-        });
-        detailHost.querySelectorAll('.js-device-repair').forEach(function (btn) {
-            btn.addEventListener('click', function (e) {
-                e.stopPropagation();
-                _runDeviceRepair([parseInt(btn.dataset.id, 10)]);
-            });
-        });
-        detailHost.querySelectorAll('.js-device-open-environment').forEach(function (btn) {
-            btn.addEventListener('click', function (e) {
-                e.stopPropagation();
-                _openDeviceEnvironment(parseInt(btn.dataset.id, 10) || null);
-            });
-        });
-        detailHost.querySelectorAll('.js-device-export-log').forEach(function (btn) {
-            btn.addEventListener('click', function (e) {
-                e.stopPropagation();
-                _exportDeviceLog(parseInt(btn.dataset.id, 10));
-            });
-        });
-        detailHost.querySelectorAll('.js-device-toggle-logs').forEach(function (btn) {
-            btn.addEventListener('click', function (e) {
-                e.stopPropagation();
-                var id = parseInt(btn.dataset.id, 10);
-                var state = uiState['device-management'] || (uiState['device-management'] = { statusFilter: 'all', view: 'card', selectedId: null });
-                state.expandedLogDeviceId = String(state.expandedLogDeviceId || '') === String(id || '') ? null : id;
-                _exportDeviceLog(id, { silent: true });
-            });
-        });
-        detailHost.querySelectorAll('.js-edit-device').forEach(function (btn) {
-            btn.addEventListener('click', function (e) {
-                e.stopPropagation();
-                var target = (models || []).find(function (item) { return String(item.id || '') === String(btn.dataset.id || ''); });
-                if (target) openDeviceForm(target.raw);
-            });
-        });
-        detailHost.querySelectorAll('.js-delete-device').forEach(function (btn) {
-            btn.addEventListener('click', function (e) {
-                e.stopPropagation();
-                var id = parseInt(btn.dataset.id, 10);
-                if (!id) return;
-                confirmModal({
-                    title: '删除设备',
-                    message: '确定删除此设备？绑定的账号关系将同时解除。',
-                    confirmText: '删除',
-                    tone: 'danger',
-                }).then(function (ok) {
-                    if (!ok) return;
-                    api.devices.remove(id).then(function () {
-                        showToast('设备已删除', 'success');
-                        loaders['device-management']();
-                    }).catch(function (err) {
-                        showToast('删除失败: ' + ((err && err.message) || '未知错误'), 'error');
-                    });
-                });
-            });
-        });
+    function _getDeviceEnvironmentHelpers() {
+        var helpers = window.__deviceEnvironmentHelpers;
+        if (!helpers) {
+            throw new Error('device environment helpers not loaded');
+        }
+        return helpers;
     }
 
-    function _bindDeviceActions(models) {
-        document.querySelectorAll('#mainHost .device-env-card').forEach(function (card) {
-            card.addEventListener('click', function (e) {
-                if (e.target.closest('button') || e.target.closest('input')) return;
-                _selectDeviceCard(card.dataset.id, models || []);
-            });
-        });
-        document.querySelectorAll('.js-view-device, .js-device-binding-row').forEach(function (node) {
-            node.addEventListener('click', function (e) {
-                if (e.target.closest('button') && !e.target.classList.contains('js-view-device')) return;
-                _selectDeviceCard(node.dataset.id, models || []);
-            });
-        });
-        document.querySelectorAll('.js-edit-device').forEach(function (btn) {
-            btn.addEventListener('click', function (e) {
-                e.stopPropagation();
-                var target = (models || []).find(function (item) { return String(item.id || '') === String(btn.dataset.id || ''); });
-                if (target) openDeviceForm(target.raw);
-            });
-        });
-        document.querySelectorAll('.js-delete-device').forEach(function (btn) {
-            btn.addEventListener('click', function (e) {
-                e.stopPropagation();
-                var id = parseInt(btn.dataset.id, 10);
-                if (!id) return;
-                confirmModal({
-                    title: '删除设备',
-                    message: '确定删除此设备？绑定的账号关系将同时解除。',
-                    confirmText: '删除',
-                    tone: 'danger',
-                }).then(function (ok) {
-                    if (!ok) return;
-                    api.devices.remove(id).then(function () {
-                        showToast('设备已删除', 'success');
-                        loaders['device-management']();
-                    }).catch(function (err) {
-                        showToast('删除失败: ' + ((err && err.message) || '未知错误'), 'error');
-                    });
-                });
-            });
-        });
-        document.querySelectorAll('.js-adjust-device-binding').forEach(function (btn) {
-            btn.addEventListener('click', function (e) {
-                e.stopPropagation();
-                if (typeof _openDeviceBindingModal === 'function') _openDeviceBindingModal(btn);
-            });
-        });
-        document.querySelectorAll('.js-device-repair').forEach(function (btn) {
-            btn.addEventListener('click', function (e) {
-                e.stopPropagation();
-                _runDeviceRepair([parseInt(btn.dataset.id, 10)]);
-            });
-        });
-        document.querySelectorAll('.js-device-open-environment').forEach(function (btn) {
-            btn.addEventListener('click', function (e) {
-                e.stopPropagation();
-                _openDeviceEnvironment(parseInt(btn.dataset.id, 10) || null);
-            });
-        });
-        document.querySelectorAll('.js-device-export-log').forEach(function (btn) {
-            btn.addEventListener('click', function (e) {
-                e.stopPropagation();
-                _exportDeviceLog(parseInt(btn.dataset.id, 10));
-            });
-        });
-    }
-
+    // Device Environment 动作链已拆分至 page-loaders/device-environment.js。
     function _runDeviceInspection(deviceIds) {
-        var models = window.__devicePageData || [];
-        var targets = Array.isArray(deviceIds) && deviceIds.length ? models.filter(function (item) { return deviceIds.indexOf(item.id) >= 0; }) : models;
-        return Promise.all((targets || []).map(function (item) {
-            return api.devices.inspect(item.id);
-        })).then(function (results) {
-            var abnormal = (results || []).filter(function (item) { return item && item.status === 'error'; }).length;
-            var warnings = (results || []).filter(function (item) { return item && item.status === 'warning'; }).length;
-            var idle = (results || []).filter(function (item) { return item && item.status === 'idle'; }).length;
-            showToast('已完成 ' + results.length + ' 台设备巡检，异常 ' + abnormal + ' 台，告警 ' + warnings + ' 台，空闲 ' + idle + ' 台', abnormal || warnings ? 'warning' : 'success');
-            if (uiState['device-management']) {
-                var firstProblem = (results || []).find(function (item) { return item && (item.status === 'error' || item.status === 'warning'); });
-                if (firstProblem) uiState['device-management'].selectedId = firstProblem.device_id;
-            }
-            loaders['device-management']();
-            return results;
-        }).catch(function (err) {
-            showToast('设备巡检失败: ' + ((err && err.message) || '未知错误'), 'error');
-            throw err;
-        });
+        return _getDeviceEnvironmentHelpers().runDeviceInspection(deviceIds);
     }
 
     function _runDeviceRepair(deviceIds) {
-        var models = window.__devicePageData || [];
-        var targets = Array.isArray(deviceIds) && deviceIds.length ? models.filter(function (item) { return deviceIds.indexOf(item.id) >= 0; }) : models;
-        return Promise.all((targets || []).map(function (item) {
-            return api.devices.repair(item.id);
-        })).then(function (results) {
-            var manual = (results || []).filter(function (item) {
-                var actions = (item && item.actions) || [];
-                return actions.some(function (action) { return String(action).indexOf('人工') >= 0; });
-            }).length;
-            showToast('已执行 ' + results.length + ' 台设备修复：完成状态归一、隔离 profile 准备，并记录修复日志。仍有 ' + manual + ' 台需要人工处理。', manual ? 'warning' : 'success');
-            loaders['device-management']();
-            return results;
-        });
+        return _getDeviceEnvironmentHelpers().runDeviceRepair(deviceIds);
     }
 
     function _openDeviceEnvironment(deviceId) {
-        if (!deviceId) {
-            showToast('请先选择设备', 'warning');
-            return Promise.resolve(null);
-        }
-        return api.devices.openEnvironment(deviceId).then(function (result) {
-            showToast('已启动外部浏览器隔离实例', 'success');
-            return result;
-        }).catch(function (err) {
-            showToast('打开环境失败: ' + ((err && err.message) || '未知错误'), 'error');
-            throw err;
-        });
+        return _getDeviceEnvironmentHelpers().openDeviceEnvironment(deviceId);
     }
 
     function _exportDeviceReport() {
-        var models = window.__devicePageData || [];
-        var lines = [];
-        models.forEach(function (item) {
-            lines.push('设备：' + item.name + ' / ' + item.deviceCode);
-            lines.push('状态：' + item.statusMeta.label + ' / 代理 ' + item.proxyStatusLabel + ' / 指纹 ' + item.fingerprintLabel);
-            lines.push('地区：' + item.regionLabel + ' / 代理地址：' + item.proxyLabel);
-            lines.push('绑定账号：' + (item.boundAccounts.length ? item.boundAccounts.map(function (account) {
-                var login = account.last_login_check_status || 'unknown';
-                var isolation = _deviceBool(account.isolation_enabled) ? '已隔离' : '未隔离';
-                return (account.username || ('账号#' + account.id)) + ' [' + isolation + ' / 登录态 ' + login + ']';
-            }).join('；') : '无'));
-            lines.push('隔离覆盖：' + item.coveragePercent + '% / 最近巡检：' + item.lastInspectionLabel);
-            lines.push('巡检问题：' + (item.issues.length ? item.issues.map(function (issue) { return issue.title + ' - ' + issue.copy; }).join('；') : '无'));
-            lines.push('');
-        });
-        return _exportThroughBackend('设备环境报告', lines, '设备报告已导出');
+        return _getDeviceEnvironmentHelpers().exportDeviceReport();
     }
 
     function _exportDeviceLog(deviceId, options) {
-        var config = options || {};
-        var models = window.__devicePageData || [];
-        var target = models.find(function (item) { return String(item.id || '') === String(deviceId || ''); });
-        if (!target) {
-            showToast('未找到设备日志数据', 'warning');
-            return Promise.resolve(null);
-        }
-        return api.devices.logs(target.id).then(function (logs) {
-            target.logs = logs || [];
-            _renderDeviceDetail(target, target.logs);
-            if (!config.silent) showToast('已切换到当前设备的日志详情', 'info');
-            return logs || [];
-        }).catch(function (err) {
-            showToast('加载设备日志失败: ' + ((err && err.message) || '未知错误'), 'error');
-            throw err;
-        });
+        return _getDeviceEnvironmentHelpers().exportDeviceLog(deviceId, options);
     }
 
     /* ══════════════════════════════════════════════
@@ -2341,53 +1881,7 @@
     /* ══════════════════════════════════════════════
        Asset Center 页面
        ══════════════════════════════════════════════ */
-    loaders['asset-center'] = function () {
-        _wireHeaderPrimary(function () { openAssetForm(); }, '上传素材');
-        Promise.all([
-            api.assets.list().catch(function () { return []; }),
-            api.assets.stats().catch(function () { return { total: 0, byType: {} }; }),
-        ]).then(function (results) {
-            var assets = results[0] || [];
-            var stats = results[1] || { total: 0, byType: {} };
-            var currentType = 'all';
-
-            runtimeSummaryHandlers['asset-center']({ assets: assets, stats: stats });
-            _updateAssetStats(assets, stats);
-            _renderAssetCategories(stats.byType || {}, assets.length);
-
-            function renderGrid(type) {
-                currentType = type || 'all';
-                var filtered = currentType === 'all'
-                    ? assets.slice()
-                    : assets.filter(function (asset) { return (asset.asset_type || '').toLowerCase() === currentType; });
-                var grid = document.querySelector('#mainHost .asset-source-grid');
-                if (!grid) return;
-                if (!filtered.length) {
-                    grid.innerHTML = '<div class="empty-state" style="padding:32px;text-align:center;grid-column:1/-1;"><p>暂无该分类素材</p><p class="subtle">当前分类下没有可展示的素材记录</p></div>';
-                    return;
-                }
-                grid.innerHTML = filtered.slice(0, 12).map(function (asset, index) {
-                    return _buildAssetThumb(asset, index === 0);
-                }).join('');
-                _bindAssetThumbs(filtered);
-                _renderAssetDetail(filtered[0]);
-                if (typeof bindRouteInteractions === 'function') bindRouteInteractions();
-            }
-
-            renderGrid('all');
-            document.querySelectorAll('#mainHost .asset-category-item').forEach(function (btn) {
-                btn.addEventListener('click', function () {
-                    document.querySelectorAll('#mainHost .asset-category-item').forEach(function (item) {
-                        item.classList.remove('is-active');
-                    });
-                    btn.classList.add('is-active');
-                    renderGrid(btn.dataset.assetType || 'all');
-                });
-            });
-        }).catch(function (e) {
-            console.warn('[page-loaders] asset-center load failed:', e);
-        });
-    };
+    // Asset Center 主渲染与交互已拆分至 page-loaders/asset-center-main.js。
 
     /* ══════════════════════════════════════════════
        System Settings 页面
@@ -5087,140 +4581,6 @@
         var n = parseInt(ms || 0, 10) || 0;
         if (n < 1000) return n + 'ms';
         return (n / 1000).toFixed(1) + 's';
-    }
-
-    function _updateAssetStats(assets, stats) {
-        var cards = document.querySelectorAll('#mainHost .stat-grid .stat-card');
-        var total = stats.total || assets.length;
-        var byType = stats.byType || {};
-        var reviewCount = (byType.text || 0) + (byType.template || 0);
-        var reusable = total ? Math.round(((byType.video || 0) + (byType.image || 0)) / total * 100) : 0;
-        if (cards.length >= 3) {
-            cards[0].querySelector('.stat-card__value').textContent = _formatNum(total);
-            cards[0].querySelector('.stat-card__delta .subtle').textContent = '真实素材库存总量';
-            cards[1].querySelector('.stat-card__value').textContent = reviewCount;
-            cards[1].querySelector('.stat-card__delta .subtle').textContent = '文本/模板素材待整理';
-            cards[2].querySelector('.stat-card__value').textContent = reusable + '%';
-            cards[2].querySelector('.stat-card__delta .subtle').textContent = '图片与视频素材占比';
-        }
-    }
-
-    function _renderAssetCategories(byType, total) {
-        var labels = {
-            all: '全部素材',
-            video: '短视频口播',
-            image: '封面图片',
-            audio: '音频 / 配乐',
-            text: '字幕 / 文案',
-            template: '模板 / 工程',
-        };
-        var order = ['all', 'video', 'image', 'audio', 'text', 'template'];
-        var list = document.querySelector('#mainHost .asset-category-list');
-        if (!list) return;
-        list.innerHTML = order.map(function (key, index) {
-            var count = key === 'all' ? total : (byType[key] || 0);
-            return '<button class="asset-category-item' + (index === 0 ? ' is-active' : '') + '" data-asset-type="' + key + '"><strong>' + labels[key] + '</strong><span>' + count + '</span></button>';
-        }).join('');
-    }
-
-    function _buildAssetThumb(asset, isSelected) {
-        var type = (asset.asset_type || 'image').toLowerCase();
-        var previewClass = type === 'video'
-            ? 'source-thumb__preview--video'
-            : type === 'audio'
-                ? 'source-thumb__preview--audio'
-                : type === 'text'
-                    ? 'source-thumb__preview--subtitle'
-                    : 'source-thumb__preview--image';
-        var label = type === 'audio' ? '♫' : type === 'video' ? '视频' : type === 'text' ? '文稿' : type === 'template' ? '模板' : '图片';
-        var tags = _assetTags(asset);
-        return '<article class="source-thumb' + (isSelected ? ' is-selected' : '') + '" data-id="' + (asset.id || '') + '">'
-            + '<div class="source-thumb__preview ' + previewClass + '">' + _esc(label) + (type === 'video' ? '<span class="source-thumb__dur">' + _humanFileSize(asset.file_size || 0) + '</span>' : '') + '</div>'
-            + '<div class="source-thumb__name">' + _esc(asset.filename || '未命名素材') + '</div>'
-            + '<div class="source-thumb__tag">' + tags.map(function (tag) { return '<span class="pill ' + tag.tone + '">' + _esc(tag.text) + '</span>'; }).join('') + '</div></article>';
-    }
-
-    function _assetTags(asset) {
-        var type = (asset.asset_type || 'image').toLowerCase();
-        var primaryTone = type === 'video' ? 'success' : type === 'audio' ? 'warning' : 'info';
-        var tags = [{ text: type, tone: primaryTone }];
-        if (asset.tags) {
-            String(asset.tags).split(/[,，]/).slice(0, 1).forEach(function (tag) {
-                if (tag.trim()) tags.push({ text: tag.trim(), tone: 'info' });
-            });
-        } else {
-            tags.push({ text: '已入库', tone: 'success' });
-        }
-        return tags;
-    }
-
-    function _bindAssetThumbs(assets) {
-        document.querySelectorAll('#mainHost .source-thumb').forEach(function (thumb) {
-            thumb.addEventListener('click', function () {
-                document.querySelectorAll('#mainHost .source-thumb').forEach(function (item) {
-                    item.classList.remove('is-selected');
-                });
-                thumb.classList.add('is-selected');
-                var id = parseInt(thumb.dataset.id, 10);
-                var asset = (assets || []).find(function (item) { return item.id === id || String(item.id) === String(id); });
-                _renderAssetDetail(asset);
-            });
-        });
-        _bindAssetActions(assets);
-    }
-
-    function _bindAssetActions(assets) {
-        var actionHost = document.querySelector('#detailHost .workbench-side-list');
-        if (!actionHost) return;
-        var selectedThumb = document.querySelector('#mainHost .source-thumb.is-selected');
-        if (!selectedThumb) return;
-        var selectedId = parseInt(selectedThumb.dataset.id, 10);
-        var asset = (assets || []).find(function (item) { return item.id === selectedId || String(item.id) === String(selectedId); });
-        if (!asset) return;
-        actionHost.innerHTML = '<article class="workbench-sidecard"><strong>素材操作</strong><div class="subtle"><button class="secondary-button js-edit-asset" data-id="' + _esc(asset.id || '') + '">编辑素材</button> <button class="danger-button js-delete-asset" data-id="' + _esc(asset.id || '') + '">删除素材</button></div></article>';
-        document.querySelectorAll('.js-edit-asset').forEach(function (btn) {
-            btn.addEventListener('click', function () {
-                openAssetForm(asset);
-            });
-        });
-        document.querySelectorAll('.js-delete-asset').forEach(function (btn) {
-            btn.addEventListener('click', function () {
-                confirmModal({
-                    title: '删除素材',
-                    message: '确定删除该素材记录？此操作不可恢复。',
-                    confirmText: '删除',
-                    tone: 'danger',
-                }).then(function (ok) {
-                    if (!ok) return;
-                    api.assets.remove(asset.id).then(function () {
-                        showToast('素材已删除', 'success');
-                        loaders['asset-center']();
-                    });
-                });
-            });
-        });
-    }
-
-    function _renderAssetDetail(asset) {
-        if (!asset) return;
-        var preview = document.querySelector('#detailHost .source-mini-preview');
-        if (preview) {
-            preview.innerHTML = '<div class="source-thumb__preview ' + ((asset.asset_type || '').toLowerCase() === 'video' ? 'source-thumb__preview--video' : (asset.asset_type || '').toLowerCase() === 'audio' ? 'source-thumb__preview--audio' : 'source-thumb__preview--image') + '">' + _esc((asset.asset_type || 'image').toUpperCase()) + '</div>'
-                + '<div><strong>' + _esc(asset.filename || '未命名素材') + '</strong><div class="subtle">' + _esc(asset.file_path || '未记录路径') + '</div></div>';
-        }
-        var items = document.querySelectorAll('#detailHost .detail-item strong');
-        if (items.length >= 3) {
-            items[0].textContent = (asset.asset_type || 'unknown') + ' / ' + _humanFileSize(asset.file_size || 0);
-            items[1].textContent = asset.tags ? String(asset.tags) : '已入库';
-            items[2].textContent = asset.created_at || '-';
-        }
-    }
-
-    function _humanFileSize(size) {
-        var n = parseInt(size || 0, 10) || 0;
-        if (n < 1024) return n + ' B';
-        if (n < 1024 * 1024) return (n / 1024).toFixed(1) + ' KB';
-        return (n / (1024 * 1024)).toFixed(1) + ' MB';
     }
 
     function _materializeSettingsControls(settings, theme) {

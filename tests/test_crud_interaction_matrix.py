@@ -9,6 +9,9 @@ PAGE_LOADERS_JS = ROOT / "desktop_app" / "assets" / "js" / "page-loaders.js"
 ACCOUNT_ENV_JS = ROOT / "desktop_app" / "assets" / "js" / "page-loaders" / "account-environment.js"
 ACCOUNT_MAIN_JS = ROOT / "desktop_app" / "assets" / "js" / "page-loaders" / "account-main.js"
 TASK_QUEUE_MAIN_JS = ROOT / "desktop_app" / "assets" / "js" / "page-loaders" / "task-queue-main.js"
+ASSET_CENTER_MAIN_JS = ROOT / "desktop_app" / "assets" / "js" / "page-loaders" / "asset-center-main.js"
+DEVICE_ENV_JS = ROOT / "desktop_app" / "assets" / "js" / "page-loaders" / "device-environment.js"
+DEVICE_MANAGEMENT_MAIN_JS = ROOT / "desktop_app" / "assets" / "js" / "page-loaders" / "device-management-main.js"
 UI_CRUD_FORMS_JS = ROOT / "desktop_app" / "assets" / "js" / "ui-crud-forms.js"
 SEARCH_JS = ROOT / "desktop_app" / "assets" / "js" / "search.js"
 STATE_JS = ROOT / "desktop_app" / "assets" / "js" / "state.js"
@@ -28,6 +31,20 @@ def _account_loader_runtime_text() -> str:
 
 def _task_queue_loader_runtime_text() -> str:
     return PAGE_LOADERS_JS.read_text(encoding="utf-8") + "\n" + TASK_QUEUE_MAIN_JS.read_text(encoding="utf-8")
+
+
+def _asset_center_loader_runtime_text() -> str:
+    return PAGE_LOADERS_JS.read_text(encoding="utf-8") + "\n" + ASSET_CENTER_MAIN_JS.read_text(encoding="utf-8")
+
+
+def _device_management_loader_runtime_text() -> str:
+    return (
+        PAGE_LOADERS_JS.read_text(encoding="utf-8")
+        + "\n"
+        + DEVICE_ENV_JS.read_text(encoding="utf-8")
+        + "\n"
+        + DEVICE_MANAGEMENT_MAIN_JS.read_text(encoding="utf-8")
+    )
 
 
 CRUD_ROUTE_EXPECTATIONS = {
@@ -146,11 +163,17 @@ def test_page_loaders_expose_real_loader_hooks_for_promised_crud_interactions() 
     text = PAGE_LOADERS_JS.read_text(encoding="utf-8")
     account_text = _account_loader_runtime_text()
     task_queue_text = _task_queue_loader_runtime_text()
+    asset_center_text = _asset_center_loader_runtime_text()
+    device_management_text = _device_management_loader_runtime_text()
     for route_key, markers in LOADER_MARKERS.items():
         if route_key == "account":
             source_text = account_text
+        elif route_key == "device-management":
+            source_text = device_management_text
         elif route_key == "task-queue":
             source_text = task_queue_text
+        elif route_key == "asset-center":
+            source_text = asset_center_text
         else:
             source_text = text
         for marker in markers:
@@ -259,6 +282,7 @@ def test_account_cookie_runtime_exposes_import_and_login_validation_actions() ->
 
 def test_account_toolbar_uses_real_environment_flow_and_log_toggle() -> None:
     page_text = _account_loader_runtime_text()
+    device_text = _device_management_loader_runtime_text()
     shell_text = (ROOT / "desktop_app" / "assets" / "app_shell.html").read_text(encoding="utf-8")
 
     assert "js-account-filter-exception" not in shell_text
@@ -266,4 +290,4 @@ def test_account_toolbar_uses_real_environment_flow_and_log_toggle() -> None:
     assert "api.accounts.openEnvironment(account.id)" in page_text
     assert "已为账号 " in page_text
     assert "已注入 " in page_text
-    assert "js-device-toggle-logs" in page_text
+    assert "js-device-toggle-logs" in device_text

@@ -7,6 +7,9 @@ ROOT = Path(__file__).resolve().parents[1]
 ROUTES_JS = ROOT / "desktop_app" / "assets" / "js" / "routes.js"
 PAGE_LOADERS_JS = ROOT / "desktop_app" / "assets" / "js" / "page-loaders.js"
 TASK_QUEUE_MAIN_JS = ROOT / "desktop_app" / "assets" / "js" / "page-loaders" / "task-queue-main.js"
+ASSET_CENTER_MAIN_JS = ROOT / "desktop_app" / "assets" / "js" / "page-loaders" / "asset-center-main.js"
+DEVICE_ENV_JS = ROOT / "desktop_app" / "assets" / "js" / "page-loaders" / "device-environment.js"
+DEVICE_MANAGEMENT_MAIN_JS = ROOT / "desktop_app" / "assets" / "js" / "page-loaders" / "device-management-main.js"
 OPERATIONS_JS = ROOT / "desktop_app" / "assets" / "js" / "factories" / "operations.js"
 GENERATION_JS = ROOT / "desktop_app" / "assets" / "js" / "factories" / "generation.js"
 MAIN_JS = ROOT / "desktop_app" / "assets" / "js" / "main.js"
@@ -65,7 +68,17 @@ def test_primary_page_route_summaries_no_longer_freeze_numeric_business_copy() -
 
 
 def test_runtime_summary_handlers_reference_real_data_sources() -> None:
-    text = PAGE_LOADERS_JS.read_text(encoding="utf-8") + "\n" + TASK_QUEUE_MAIN_JS.read_text(encoding="utf-8")
+    text = (
+        PAGE_LOADERS_JS.read_text(encoding="utf-8")
+        + "\n"
+        + DEVICE_ENV_JS.read_text(encoding="utf-8")
+        + "\n"
+        + DEVICE_MANAGEMENT_MAIN_JS.read_text(encoding="utf-8")
+        + "\n"
+        + TASK_QUEUE_MAIN_JS.read_text(encoding="utf-8")
+        + "\n"
+        + ASSET_CENTER_MAIN_JS.read_text(encoding="utf-8")
+    )
     required_sources = [
         "api.dashboard.overview(",
         "api.accounts.list()",
@@ -87,6 +100,27 @@ def test_task_queue_loader_split_remains_registered_in_shell_chain() -> None:
     assert './js/page-loaders/task-queue-main.js' in shell_text
     assert "loaders['task-queue'] = function ()" in task_text
     assert 'window.__taskQueuePageMain' in task_text
+
+
+def test_asset_center_loader_split_remains_registered_in_shell_chain() -> None:
+    shell_text = (ROOT / "desktop_app" / "assets" / "app_shell.html").read_text(encoding="utf-8")
+    asset_text = ASSET_CENTER_MAIN_JS.read_text(encoding="utf-8")
+
+    assert './js/page-loaders/asset-center-main.js' in shell_text
+    assert "loaders['asset-center'] = function ()" in asset_text
+    assert 'window.__assetCenterPageMain' in asset_text
+
+
+def test_device_management_loader_split_remains_registered_in_shell_chain() -> None:
+    shell_text = (ROOT / "desktop_app" / "assets" / "app_shell.html").read_text(encoding="utf-8")
+    env_text = DEVICE_ENV_JS.read_text(encoding="utf-8")
+    device_text = DEVICE_MANAGEMENT_MAIN_JS.read_text(encoding="utf-8")
+
+    assert './js/page-loaders/device-environment.js' in shell_text
+    assert './js/page-loaders/device-management-main.js' in shell_text
+    assert 'window.__deviceEnvironmentHelpers' in env_text
+    assert "loaders['device-management'] = function ()" in device_text
+    assert 'window.__deviceManagementPageMain' in device_text
 
 
 def test_remaining_realized_analytics_and_content_routes_reference_runtime_data_sources() -> None:

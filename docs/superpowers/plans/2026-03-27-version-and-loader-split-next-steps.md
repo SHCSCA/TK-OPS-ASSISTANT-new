@@ -9,7 +9,15 @@
 - 版本号统一到根级 `VERSION`，运行时通过 `desktop_app/version.py` 读取。
 - 账号页已拆成 `page-loaders.js` + `account-environment.js` + `account-main.js`。
 - 任务队列已拆成 `page-loaders.js` + `task-queue-main.js`。
+- 资产中心已拆成 `page-loaders.js` + `asset-center-main.js`。
+- 设备管理已拆成 `page-loaders.js` + `device-environment.js` + `device-management-main.js`。
 - 当前拆分相关 focused pytest 已通过。
+
+**Latest Status:**
+
+- 已完成 Asset Center 拆分、Device Management 主模块拆分，以及设备环境动作链拆分。
+- `window.__pageLoaderShared` 已完成分组整理，但对外 key 保持不变。
+- `page-loader-shared.js` 已完成评估，当前结论是暂不抽离，继续优先处理 account/device 深层 helper graph 去耦。
 
 **Architecture Constraint:** `page-loaders.js` 继续承担根聚合职责，保留 `window._pageLoaders`、`window.__pageAudits`、`window.__runtimeSummaryHandlers` 以及共享 helper 出口。子模块只接管页面级实现，不改动全局消费方式。
 
@@ -27,7 +35,7 @@
 - Modify: `tests/test_crud_interaction_matrix.py`
 - Modify: `tests/test_page_runtime_data.py`
 
-- [ ] **Step 1: 迁移 asset-center 主 loader 与素材详情渲染**
+- [x] **Step 1: 迁移 asset-center 主 loader 与素材详情渲染**
 
 把以下逻辑移动到 `asset-center-main.js`：
 
@@ -42,7 +50,7 @@ _renderAssetDetail
 
 要求：根文件仅保留共享函数和拆分标记注释。
 
-- [ ] **Step 2: 更新壳层脚本加载顺序**
+- [x] **Step 2: 更新壳层脚本加载顺序**
 
 在 `app_shell.html` 中确保顺序如下：
 
@@ -55,7 +63,7 @@ _renderAssetDetail
 <script src="./js/main.js"></script>
 ```
 
-- [ ] **Step 3: 调整静态断言为 root + asset 子模块聚合文本**
+- [x] **Step 3: 调整静态断言为 root + asset 子模块聚合文本**
 
 重点修改：
 
@@ -66,7 +74,7 @@ tests/test_page_runtime_data.py
 
 要求：仅对 `asset-center` 路由使用聚合读取，其它未拆分路由继续保留当前断言方式。
 
-- [ ] **Step 4: 运行 focused 回归**
+- [x] **Step 4: 运行 focused 回归**
 
 Run:
 
@@ -87,7 +95,7 @@ Expected: 与资产页拆分相关的静态契约和运行时测试通过。
 - Modify: `tests/test_crud_interaction_matrix.py`
 - Modify: `tests/test_page_runtime_data.py`
 
-- [ ] **Step 1: 识别必须留在根文件的共享 helper**
+- [x] **Step 1: 识别必须留在根文件的共享 helper**
 
 先确认以下函数是否仍被其他页面引用，再决定是否共享导出：
 
@@ -100,7 +108,7 @@ _formatNum
 _esc
 ```
 
-- [ ] **Step 2: 先抽设备页主 loader、详情渲染与绑定，不先抽环境工具函数**
+- [x] **Step 2: 先抽设备页主 loader、详情渲染与绑定，不先抽环境工具函数**
 
 优先迁移：
 
@@ -122,7 +130,9 @@ _runDeviceRepair
 
 原因：先减主文件体积，再处理更高风险的设备环境动作链。
 
-- [ ] **Step 3: 为设备页建立单独拆分测试文件**
+补充：在主模块稳定后，已继续把 `_runDeviceInspection`、`_runDeviceRepair`、`_openDeviceEnvironment`、`_exportDeviceReport`、`_exportDeviceLog` 迁入 `device-environment.js`，根文件保留兼容 wrapper。
+
+- [x] **Step 3: 为设备页建立单独拆分测试文件**
 
 新增类似账号页的拆分契约测试，验证：
 
@@ -142,7 +152,7 @@ loaders['device-management'] 在子模块中定义
 - Modify: `docs/superpowers/plans/*.md`（按需）
 - Modify: `tests/test_page_loader_account_split.py`
 
-- [ ] **Step 1: 为共享层建立明确分组**
+- [x] **Step 1: 为共享层建立明确分组**
 
 将 `window.__pageLoaderShared` 内导出按类别整理：
 
@@ -155,7 +165,7 @@ common formatting helpers
 
 要求：不改对外 key，先只整理声明顺序和注释，避免破坏已有子模块。
 
-- [ ] **Step 2: 评估是否需要拆出 page-loader-shared.js**
+- [x] **Step 2: 评估是否需要拆出 page-loader-shared.js**
 
 只有在满足以下条件时才执行：
 
@@ -163,7 +173,9 @@ common formatting helpers
 - 至少 3 个子模块依赖共享层
 - 测试可接受 root + shared + page 子模块的组合断言
 
-- [ ] **Step 3: 更新仓库计划与记忆**
+当前结论：条件虽部分满足，但 helper graph 仍深度耦合，现阶段抽 shared 文件只会增加脚本链和测试维护成本，因此暂不实施。
+
+- [x] **Step 3: 更新仓库计划与记忆**
 
 每完成一次页面拆分后，补充：
 
