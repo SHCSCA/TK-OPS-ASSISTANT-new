@@ -67,6 +67,14 @@ class _ProxyEndpoint:
     host: str
     port: int
 
+    def _open_upstream(self) -> socket.socket:
+        upstream = socket.create_connection((self._endpoint.host, self._endpoint.port), timeout=self._timeout)
+        upstream.settimeout(self._timeout)
+        if self._endpoint.scheme == "https":
+            context = ssl.create_default_context()
+            upstream = context.wrap_socket(upstream, server_hostname=self._endpoint.host)
+            upstream.settimeout(self._timeout)
+        return upstream
     @property
     def host_port(self) -> str:
         return f"{self.host}:{self.port}"
@@ -116,11 +124,8 @@ class _ProxyRelayHandler(socketserver.StreamRequestHandler):
 
 
 class _ProxyRelay:
-    def __init__(
-        self, endpoint: _ProxyEndpoint, parent_proxy: _ProxyEndpoint | None = None, timeout: float = 8.0
-    ) -> None:
+    def __init__(self, endpoint: _ProxyEndpoint, timeout: float = 8.0) -> None:
         self._endpoint = endpoint
-        self._parent_proxy = parent_proxy
         self._timeout = timeout
         self._server = _ProxyRelayServer(("127.0.0.1", 0), _ProxyRelayHandler, self)
         self._thread = threading.Thread(
@@ -131,48 +136,12 @@ class _ProxyRelay:
         self._thread.start()
 
     def _open_upstream(self) -> socket.socket:
-        target_host, target_port = self._endpoint.host, self._endpoint.port
-
-        if self._parent_proxy:
-            # Connect to the parent proxy first
-            upstream = socket.create_connection(
-                (self._parent_proxy.host, self._parent_proxy.port), timeout=self._timeout
-            )
+        upstream = socket.create_connection((self._endpoint.host, self._endpoint.port), timeout=self._timeout)
+        upstream.settimeout(self._timeout)
+        if self._endpoint.scheme == "https":
+            context = ssl.create_default_context()
+            upstream = context.wrap_socket(upstream, server_hostname=self._endpoint.host)
             upstream.settimeout(self._timeout)
-
-            if self._parent_proxy.auth_present:
-                auth = f"{self._parent_proxy.username}:{self._parent_proxy.password}"
-                auth_header = base64.b64encode(auth.encode()).decode()
-                connect_request = (
-                    f"CONNECT {target_host}:{target_port} HTTP/1.1\r\n"
-                    f"Host: {target_host}:{target_port}\r\n"
-                    f"Proxy-Authorization: Basic {auth_header}\r\n\r\n"
-                )
-            else:
-                connect_request = (
-                    f"CONNECT {target_host}:{target_port} HTTP/1.1\r\n"
-                    f"Host: {target_host}:{target_port}\r\n\r\n"
-                )
-
-            upstream.sendall(connect_request.encode())
-            response = upstream.recv(4096)
-            if b"200 Connection established" not in response:
-                raise ConnectionError("Failed to establish connection via parent proxy")
-
-            # Wrap the connection with SSL if the target is HTTPS
-            if self._endpoint.scheme == "https":
-                context = ssl.create_default_context()
-                upstream = context.wrap_socket(upstream, server_hostname=target_host)
-                upstream.settimeout(self._timeout)
-        else:
-            # Direct connection to the target
-            upstream = socket.create_connection((target_host, target_port), timeout=self._timeout)
-            upstream.settimeout(self._timeout)
-            if self._endpoint.scheme == "https":
-                context = ssl.create_default_context()
-                upstream = context.wrap_socket(upstream, server_hostname=target_host)
-                upstream.settimeout(self._timeout)
-
         return upstream
 
     @property
@@ -1861,6 +1830,9 @@ class AccountService:
     let proxyHealthy = false;
     let sessionHealthy = !launcher.accountUsername;
     let sessionPolled = !launcher.accountUsername;
+    let sessionLoginStatus = launcher.accountUsername ? 'pending' : 'valid';
+    let sessionAppliedCount = 0;
+    let autoOpenedTarget = false;
     let countdownTimer = null;
     let currentCountdown = 0;
 
@@ -1885,6 +1857,33 @@ class AccountService:
       openTargetBtn.textContent = label || (enabled ? '立即打开 TikTok' : '请先完成检测');
     }}
 
+        function openTarget(trigger) {{
+            if (!proxyHealthy) return;
+            if (targetWindow && !targetWindow.closed) return;
+            targetWindow = window.open(launcher.targetUrl, 'tkops_target');
+            if (!targetWindow) {{
+                autoOpenedTarget = false;
+                if (trigger === 'auto') {{
+                    setOpenButton(true, sessionHealthy ? '立即进入 TikTok' : '打开 TikTok 检查登录');
+                    autoOpenHint.textContent = '浏览器拦截了自动打开新标签，请点击按钮手动进入 TikTok。';
+                }} else {{
+                    alert('浏览器拦截了新标签，请允许当前页面打开新标签后重试。');
+                }}
+                return;
+            }}
+            setStatus('ok', '代理可用', sessionHealthy ? '已自动打开 TikTok，并保持当前页继续监控登录状态。' : 'TikTok 已打开，可直接在目标页确认登录状态或继续登录。');
+        }}
+
+        function tryAutoOpenTarget() {{
+            if (!launcher.accountUsername || autoOpenedTarget || !proxyHealthy || !sessionHealthy) return;
+            autoOpenedTarget = true;
+            setOpenButton(false, '正在自动进入 TikTok');
+            autoOpenHint.textContent = '登录态已通过校验，正在自动打开 TikTok。';
+            window.setTimeout(function () {{
+                openTarget('auto');
+            }}, 600);
+        }}
+
         function refreshOpenGate() {{
             stopCountdown();
             if (!proxyHealthy) {{
@@ -1893,15 +1892,28 @@ class AccountService:
             }}
             if (launcher.accountUsername) {{
                 if (!sessionPolled) {{
-                    setOpenButton(false, '等待登录态注入');
-                    autoOpenHint.textContent = '代理已通过，正在等待浏览器扩展回报 Cookie 注入与登录校验结果。';
+                                        setOpenButton(true, '进入 TikTok 并等待注入');
+                                        autoOpenHint.textContent = '代理已通过，扩展正在后台注入 Cookie；你现在就可以进入 TikTok，注入结果会继续回报到本页。';
                     return;
                 }}
-                if (!sessionHealthy) {{
-                    setOpenButton(false, '登录态未通过校验');
+                                if (sessionHealthy) {{
+                                        autoOpenHint.textContent = '代理检测与登录态校验均已通过，系统会自动打开 TikTok。';
+                                        tryAutoOpenTarget();
                     return;
                 }}
-                autoOpenHint.textContent = '代理检测与登录态校验均已通过，倒计时结束后才会开放打开按钮。';
+                                if (sessionLoginStatus === 'invalid') {{
+                                        setOpenButton(true, '打开 TikTok 并重新登录');
+                                        autoOpenHint.textContent = 'Cookie 已注入，但平台没有确认登录态；可以直接打开 TikTok 在该隔离环境里重新登录。';
+                                        return;
+                                }}
+                                if (sessionAppliedCount > 0) {{
+                                        setOpenButton(true, '打开 TikTok 检查登录');
+                                        autoOpenHint.textContent = 'Cookie 已写入浏览器，但平台接口还没有返回明确结果；可以直接进入 TikTok 观察是否已恢复登录。';
+                                        return;
+                                }}
+                                setOpenButton(true, '进入 TikTok');
+                                autoOpenHint.textContent = '代理已通过，但扩展还没有回报写入结果；可以先进入 TikTok，当前页会继续轮询状态。';
+                                return;
             }}
             startCountdown();
         }}
@@ -1995,10 +2007,13 @@ class AccountService:
                 sessionPolled = true;
                 const loginStatus = String(payload.loginStatus || payload.status || 'pending');
                 const failed = Array.isArray(payload.failed) ? payload.failed : [];
+                sessionLoginStatus = loginStatus;
+                sessionAppliedCount = Number(payload.appliedCount || 0);
                 if (sessionCheckEl) {{
                     if (loginStatus === 'valid') sessionCheckEl.textContent = '已通过真实登录校验';
                     else if (loginStatus === 'invalid') sessionCheckEl.textContent = 'Cookie 已注入，但登录态无效';
                     else if (loginStatus === 'error') sessionCheckEl.textContent = '登录校验失败';
+                    else if (sessionAppliedCount > 0) sessionCheckEl.textContent = 'Cookie 已注入，等待平台返回最终结果';
                     else sessionCheckEl.textContent = payload.message || '等待系统自动加载登录扩展';
                 }}
                 sessionHealthy = loginStatus === 'valid';
@@ -2019,12 +2034,7 @@ class AccountService:
         alert('当前代理尚未通过检测，暂时不能打开 TikTok。');
         return;
       }}
-      targetWindow = window.open(launcher.targetUrl, 'tkops_target');
-      if (!targetWindow) {{
-        alert('浏览器拦截了新标签，请允许当前页面打开新标签后重试。');
-        return;
-      }}
-      setStatus('ok', '代理可用', 'TikTok 已通过当前代理打开，请保持此页面开启以便持续监控。');
+            openTarget('manual');
     }});
 
     recheckBtn.addEventListener('click', function () {{
@@ -2110,6 +2120,10 @@ class AccountService:
         extension_dir.mkdir(parents=True, exist_ok=True)
 
         permissions = sorted(self._build_cookie_host_permissions(cookie_records, target_url=target_url))
+        report_permission = self._host_permission_for_url(report_url)
+        if report_permission not in permissions:
+            permissions.append(report_permission)
+            permissions.sort()
         manifest = {
             "manifest_version": 3,
             "name": f"{_ACCOUNT_SESSION_EXTENSION_NAME} / {account.username or account.id}",
