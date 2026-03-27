@@ -2132,7 +2132,12 @@ class AccountService:
         report_url: str,
         validation: dict[str, Any],
     ) -> Path:
-        extension_dir = profile_dir / "tkops-account-session-extension"
+        for stale_dir in profile_dir.glob("tkops-account-session-extension*"):
+            if stale_dir.is_dir():
+                shutil.rmtree(stale_dir, ignore_errors=True)
+
+        extension_suffix = _dt.datetime.now().strftime("%Y%m%d%H%M%S%f")
+        extension_dir = profile_dir / f"tkops-account-session-extension-{account.id}-{extension_suffix}"
         extension_dir.mkdir(parents=True, exist_ok=True)
 
         permissions = sorted(self._build_cookie_host_permissions(cookie_records, target_url=target_url))
@@ -2286,6 +2291,7 @@ async function applySessionCookies() {
 
 chrome.runtime.onInstalled.addListener(() => { void applySessionCookies(); });
 chrome.runtime.onStartup.addListener(() => { void applySessionCookies(); });
+void reportState({ status: 'booting', loginStatus: 'pending', message: '登录扩展已加载，准备注入账号 Cookie' });
 void applySessionCookies();
 """.replace("__PAYLOAD__", json.dumps(payload, ensure_ascii=False))
 

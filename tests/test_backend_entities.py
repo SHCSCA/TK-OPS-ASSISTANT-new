@@ -698,6 +698,74 @@ print(json.dumps(payload, ensure_ascii=False))
     assert result['target_status_code'] == 403
 
 
+def test_open_account_environment_recreates_extension_directory_each_time() -> None:
+    result = _run_isolated_script(
+        """
+import json
+import subprocess
+from pathlib import Path
+from desktop_app.database.repository import Repository
+from desktop_app.services.account_service import AccountService
+
+repo = Repository()
+service = AccountService(repo)
+device = service.create_device('DEV-ACCOUNT-02', 'Account Device 2', proxy_ip='http://127.0.0.1:7890')
+account = service.create_account(
+    'account_owner_2',
+    platform='tiktok',
+    device_id=device.id,
+    isolation_enabled=False,
+    cookie_content='[{"name":"sessionid","value":"cookie-owner-2","domain":".tiktok.com","path":"/","secure":true,"httpOnly":true}]',
+)
+
+service._resolve_browser_executable = lambda: r'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe'
+
+class DummyProcess:
+    pid = 88888
+
+class DummyRelay:
+    local_endpoint = '127.0.0.1:45555'
+    def close(self):
+        pass
+
+service._start_device_proxy_relay = lambda device_id, endpoint: DummyRelay()
+service._validate_proxy_endpoint = lambda endpoint: {
+    'ok': True,
+    'message': '代理连通性验证通过',
+    'status_code': 200,
+    'egress_ip': '91.204.17.22',
+    'detail': '出口 IP 91.204.17.22',
+}
+
+def fake_popen(command, creationflags=0, close_fds=False):
+    return DummyProcess()
+
+original_popen = subprocess.Popen
+subprocess.Popen = fake_popen
+try:
+    first = service.open_account_environment(account.id)
+    first_dir = Path(first['extension_dir'])
+    stale_dir = first_dir.parent / 'tkops-account-session-extension-stale'
+    stale_dir.mkdir(parents=True, exist_ok=True)
+    second = service.open_account_environment(account.id)
+finally:
+    subprocess.Popen = original_popen
+
+second_dir = Path(second['extension_dir'])
+print(json.dumps({
+    'first_exists_after_second': first_dir.exists(),
+    'stale_exists_after_second': stale_dir.exists(),
+    'second_exists': second_dir.exists(),
+    'dirs_differ': str(first_dir) != str(second_dir),
+}, ensure_ascii=False))
+"""
+    )
+    assert result['first_exists_after_second'] is False
+    assert result['stale_exists_after_second'] is False
+    assert result['second_exists'] is True
+    assert result['dirs_differ'] is True
+
+
 def test_open_account_environment_failure_is_logged_with_error_code() -> None:
     result = _run_isolated_script(
         """
