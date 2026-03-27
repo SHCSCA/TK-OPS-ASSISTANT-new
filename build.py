@@ -8,6 +8,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import re
 import shutil
 import subprocess
 import sys
@@ -18,6 +19,92 @@ ASSETS = ROOT / "desktop_app" / "assets"
 ICO_PATH = ROOT / "tkops.ico"
 LEGACY_ICO_PATH = ASSETS / "icon.ico"
 SPEC_PATH = ROOT / "tk_ops.spec"
+VERSION_FILE = ROOT / "VERSION"
+README_PATH = ROOT / "README.md"
+INSTALLER_PATH = ROOT / "installer.iss"
+FILE_VERSION_INFO_PATH = ROOT / "file_version_info.txt"
+BRIDGE_JS_PATH = ROOT / "desktop_app" / "assets" / "js" / "bridge.js"
+
+
+def _load_app_version() -> str:
+    version = VERSION_FILE.read_text(encoding="utf-8").strip()
+    if not version:
+        print("[ERR] VERSION file is empty")
+        sys.exit(1)
+    return version
+
+
+def _replace(pattern: str, replacement: str, text: str, label: str) -> str:
+    updated, count = re.subn(pattern, replacement, text, count=1, flags=re.MULTILINE)
+    if count != 1:
+        print(f"[ERR] Failed to update {label}")
+        sys.exit(1)
+    return updated
+
+
+def _sync_version_metadata(version: str) -> None:
+    major, minor, patch = version.split(".")
+    version_tuple = f"({major}, {minor}, {patch}, 0)"
+
+    readme_text = README_PATH.read_text(encoding="utf-8")
+    readme_text = _replace(
+        r"^当前发布版本：`[0-9]+\.[0-9]+\.[0-9]+`$",
+        f"当前发布版本：`{version}`",
+        readme_text,
+        "README current version",
+    )
+    README_PATH.write_text(readme_text, encoding="utf-8")
+
+    installer_text = INSTALLER_PATH.read_text(encoding="utf-8")
+    installer_text = _replace(
+        r'^#define MyAppVersion\s+"[0-9]+\.[0-9]+\.[0-9]+"$',
+        f'#define MyAppVersion   "{version}"',
+        installer_text,
+        "installer version",
+    )
+    INSTALLER_PATH.write_text(installer_text, encoding="utf-8")
+
+    version_info_text = FILE_VERSION_INFO_PATH.read_text(encoding="utf-8")
+    version_info_text = _replace(
+        r"filevers=\([0-9, ]+\)",
+        f"filevers={version_tuple}",
+        version_info_text,
+        "file version tuple",
+    )
+    version_info_text = _replace(
+        r"prodvers=\([0-9, ]+\)",
+        f"prodvers={version_tuple}",
+        version_info_text,
+        "product version tuple",
+    )
+    version_info_text = _replace(
+        r'StringStruct\("FileVersion",\s+"[0-9]+\.[0-9]+\.[0-9]+"\)',
+        f'StringStruct("FileVersion",      "{version}")',
+        version_info_text,
+        "file version string",
+    )
+    version_info_text = _replace(
+        r'StringStruct\("ProductVersion",\s+"[0-9]+\.[0-9]+\.[0-9]+"\)',
+        f'StringStruct("ProductVersion",   "{version}")',
+        version_info_text,
+        "product version string",
+    )
+    FILE_VERSION_INFO_PATH.write_text(version_info_text, encoding="utf-8")
+
+    bridge_text = BRIDGE_JS_PATH.read_text(encoding="utf-8")
+    bridge_text = _replace(
+        r"getAppVersion: \(\) => ok\(\{ version: '[0-9]+\.[0-9]+\.[0-9]+' \}\),",
+        f"getAppVersion: () => ok({{ version: '{version}' }}),",
+        bridge_text,
+        "bridge stub version",
+    )
+    bridge_text = _replace(
+        r"checkForUpdate: \(\) => ok\(\{ hasUpdate: false, current: '[0-9]+\.[0-9]+\.[0-9]+' \}\),",
+        f"checkForUpdate: () => ok({{ hasUpdate: false, current: '{version}' }}),",
+        bridge_text,
+        "bridge stub update version",
+        )
+    BRIDGE_JS_PATH.write_text(bridge_text, encoding="utf-8")
 
 
 def generate_ico() -> None:
@@ -50,6 +137,9 @@ def clean() -> None:
 
 
 def build(extra_args: list[str]) -> None:
+    version = _load_app_version()
+    _sync_version_metadata(version)
+
     if not ICO_PATH.exists():
         # Fallback for old icon pipeline.
         if LEGACY_ICO_PATH.exists():

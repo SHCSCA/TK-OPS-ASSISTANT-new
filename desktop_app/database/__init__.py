@@ -18,8 +18,8 @@ from sqlalchemy import create_engine, event, inspect
 from sqlalchemy.orm import Session, sessionmaker
 
 from desktop_app.database.models import Base
+from desktop_app.version import APP_VERSION
 
-APP_VERSION = "1.1.0"
 log = logging.getLogger(__name__)
 
 

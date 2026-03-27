@@ -13,7 +13,8 @@ from typing import Any
 
 import httpx
 
-from desktop_app.database import APP_VERSION, DATA_DIR
+from desktop_app.database import DATA_DIR
+from desktop_app.version import APP_VERSION
 
 log = logging.getLogger(__name__)
 

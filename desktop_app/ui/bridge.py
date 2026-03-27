@@ -19,7 +19,6 @@ from typing import Any
 from PySide6.QtCore import QObject, Signal, Slot
 from PySide6.QtWidgets import QFileDialog
 
-from desktop_app.database import APP_VERSION
 from desktop_app.database.models import (
     Account,
     AIProvider,
@@ -38,6 +37,7 @@ from desktop_app.services.asset_service import AssetService
 from desktop_app.services.chat_service import ChatService, list_presets, get_preset
 from desktop_app.services.dev_seed_service import DevSeedService
 from desktop_app.services.license_service import LicenseService
+from desktop_app.version import APP_VERSION
 from desktop_app.services.report_service import ReportService
 from desktop_app.services.task_service import TaskService
 from desktop_app.services.updater_service import UpdaterService
