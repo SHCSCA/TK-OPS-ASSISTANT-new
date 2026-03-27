@@ -15,11 +15,13 @@ def _run_isolated_script(script: str) -> dict[str, object]:
     with tempfile.TemporaryDirectory() as temp_dir:
         env = os.environ.copy()
         env["TK_OPS_DATA_DIR"] = temp_dir
+        env["PYTHONIOENCODING"] = "utf-8"
         output = subprocess.check_output(
             [sys.executable, "-c", script],
             cwd=str(ROOT),
             env=env,
             text=True,
+            encoding="utf-8",
         )
     return json.loads(output.strip().splitlines()[-1])
 
@@ -642,6 +644,58 @@ print(json.dumps({
     assert result['account_isolation_enabled'] is True
     assert result['account_last_login_at'] not in {'', 'None'}
     assert result['profile_exists'] is True
+
+
+def test_probe_browser_proxy_keeps_child_proxy_available_when_tiktok_probe_fails() -> None:
+    result = _run_isolated_script(
+        """
+import json
+from desktop_app.services import account_service as account_module
+from desktop_app.database.repository import Repository
+from desktop_app.services.account_service import AccountService
+
+service = AccountService(Repository())
+
+class DummyResponse:
+    def __init__(self, status_code, *, json_data=None, content_type='application/json'):
+        self.status_code = status_code
+        self._json_data = json_data or {}
+        self.headers = {'content-type': content_type}
+
+    def json(self):
+        return self._json_data
+
+
+class DummyClient:
+    def __init__(self, **kwargs):
+        self.proxy = kwargs.get('proxy')
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        return False
+
+    def get(self, url):
+        if 'ipify' in url:
+            return DummyResponse(200, json_data={'ip': '43.239.95.21'})
+        return DummyResponse(403, json_data={}, content_type='text/html')
+
+
+original_client = account_module.httpx.Client
+account_module.httpx.Client = DummyClient
+try:
+    payload = service._probe_browser_proxy(proxy_url='http://127.0.0.1:32914', target_url='https://www.tiktok.com/favicon.ico')
+finally:
+    account_module.httpx.Client = original_client
+
+print(json.dumps(payload, ensure_ascii=False))
+"""
+    )
+    assert result['ok'] is True
+    assert result['egress_ip'] == '43.239.95.21'
+    assert result['target_ok'] is False
+    assert result['target_status_code'] == 403
 
 
 def test_open_account_environment_failure_is_logged_with_error_code() -> None:

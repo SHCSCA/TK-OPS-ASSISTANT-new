@@ -67,14 +67,6 @@ class _ProxyEndpoint:
     host: str
     port: int
 
-    def _open_upstream(self) -> socket.socket:
-        upstream = socket.create_connection((self._endpoint.host, self._endpoint.port), timeout=self._timeout)
-        upstream.settimeout(self._timeout)
-        if self._endpoint.scheme == "https":
-            context = ssl.create_default_context()
-            upstream = context.wrap_socket(upstream, server_hostname=self._endpoint.host)
-            upstream.settimeout(self._timeout)
-        return upstream
     @property
     def host_port(self) -> str:
         return f"{self.host}:{self.port}"
@@ -791,14 +783,30 @@ class AccountService:
                         "target_status_code": None,
                         "checked_at": checked_at,
                     }
+                target_ok: bool | None = None
+                target_status_code: int | None = None
+                target_detail = f"出口 IP {ip}"
+                if str(target_url or "").strip():
+                    try:
+                        target_response = client.get(target_url)
+                        target_status_code = int(target_response.status_code)
+                        target_ok = 200 <= target_response.status_code < 400
+                        if target_ok:
+                            target_detail = f"出口 IP {ip}，TikTok 探测 HTTP {target_response.status_code}"
+                        else:
+                            target_detail = f"出口 IP {ip}，TikTok 探测 HTTP {target_response.status_code}"
+                    except (httpx.TimeoutException, httpx.ProxyError, httpx.NetworkError, httpx.HTTPError, ValueError) as exc:
+                        target_ok = False
+                        target_status_code = None
+                        target_detail = f"出口 IP {ip}，TikTok 探测失败：{str(exc) or type(exc).__name__}"
                 return {
                     "ok": True,
                     "message": "代理连通性验证通过",
                     "status_code": ip_response.status_code,
                     "egress_ip": str(ip),
-                    "detail": f"出口 IP {ip}",
-                    "target_ok": None,
-                    "target_status_code": None,
+                    "detail": target_detail,
+                    "target_ok": target_ok,
+                    "target_status_code": target_status_code,
                     "checked_at": checked_at,
                 }
         except (httpx.TimeoutException, httpx.ProxyError, httpx.NetworkError, httpx.HTTPError, ValueError) as exc:
@@ -1470,10 +1478,11 @@ class AccountService:
         profile_dir = self._ensure_device_profile(device)
         relay = self._start_device_proxy_relay(device.id, endpoint)
         target_url = self._resolve_platform_home_url(platform or (account.platform if account else None))
+        probe_target_url = self._resolve_platform_probe_url(platform or (account.platform if account else None))
         launcher_probe = self._start_launcher_probe(
             device.id,
             proxy_url=f"http://{relay.local_endpoint}",
-            target_url=target_url,
+            target_url=probe_target_url,
         )
         validation = self._validate_proxy_endpoint(endpoint)
         extension_dir: Path | None = None
@@ -1974,18 +1983,25 @@ class AccountService:
         if (!egressIp) throw new Error('出口 IP 探测结果为空');
         egressIpEl.textContent = egressIp;
 
-                if (!launcher.checkTarget) throw new Error('当前实例未提供 TikTok 探测地址');
-                await fetch(launcher.checkTarget + '?_=' + Date.now(), {{ cache: 'no-store', mode: 'no-cors' }});
-                targetCheckEl.textContent = 'TikTok 探测通过';
+                const targetOk = probe && typeof probe.target_ok === 'boolean' ? probe.target_ok : null;
+                const targetStatus = probe && probe.target_status_code ? probe.target_status_code : null;
+                if (targetOk === true) targetCheckEl.textContent = 'TikTok 探测通过';
+                else if (targetOk === false) targetCheckEl.textContent = targetStatus ? ('TikTok 探测异常 / HTTP ' + targetStatus) : 'TikTok 探测异常';
+                else targetCheckEl.textContent = 'TikTok 探测未启用';
         proxyHealthy = true;
-                setStatus('ok', '代理可用', (probe && probe.detail) || '当前浏览器实例通过本机 relay 访问上游代理，认证信息未暴露到命令行。');
+                if (targetOk === false) {{
+                    setStatus('warn', '子代理可用', (probe && probe.detail) || '代理出口已建立，但 TikTok 探测未得到稳定结果。');
+                    autoOpenHint.textContent = '子代理已建立，虽然 TikTok 探测未稳定通过，但你已经可以直接进入 TikTok 验证注入和登录态。';
+                }} else {{
+                    setStatus('ok', '子代理可用', (probe && probe.detail) || '当前浏览器实例通过本机子代理访问上游代理，认证信息未暴露到命令行。');
+                }}
                 refreshOpenGate();
       }} catch (error) {{
             proxyHealthy = false;
             if (!String(egressIpEl.textContent || '').trim() || egressIpEl.textContent === '检测中') egressIpEl.textContent = '不可达';
         targetCheckEl.textContent = 'TikTok 探测失败';
-            setStatus('error', 'TikTok 探测失败', String(error && error.message ? error.message : error));
-            autoOpenHint.textContent = '代理出口已建立，但当前浏览器还不能稳定打开 TikTok。请点击“立即重新检测”；若仍失败，再检查当前节点是否限制 TikTok。';
+            setStatus('error', '子代理检测失败', String(error && error.message ? error.message : error));
+            autoOpenHint.textContent = '当前子代理还没有建立成功，暂时不能判断 TikTok 注入是否生效。请先修复代理链路后再试。';
         if (targetWindow && !targetWindow.closed) {{
           try {{
             targetWindow.close();
