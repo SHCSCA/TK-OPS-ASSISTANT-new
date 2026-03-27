@@ -14,6 +14,7 @@ import socketserver
 import ssl
 import subprocess
 import threading
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from dataclasses import dataclass
 from pathlib import Path
@@ -1488,8 +1489,10 @@ class AccountService:
         extension_dir: Path | None = None
         cookie_records: list[dict[str, Any]] = []
         session_tracker: _AccountSessionTracker | None = None
+        remote_debugging_port: int | None = None
         if account is not None:
             session_tracker = self._start_account_session_tracker(account.id)
+            remote_debugging_port = self._reserve_loopback_port()
             cookie_records = self._prepare_browser_cookie_records(
                 cookie_entries or [],
                 platform=platform or str(account.platform or "tiktok"),
@@ -1532,6 +1535,8 @@ class AccountService:
             "--no-default-browser-check",
             f"--proxy-server={relay.local_endpoint}",
         ]
+        if remote_debugging_port is not None:
+            command.append(f"--remote-debugging-port={remote_debugging_port}")
         if extension_dir is not None:
             command.extend([
                 f"--disable-extensions-except={extension_dir}",
@@ -1551,6 +1556,20 @@ class AccountService:
             if account is not None:
                 raise AccountEnvironmentError("浏览器启动失败，请检查浏览器路径与扩展加载权限", code="browser_launch_failed")
             raise
+
+        if (
+            account is not None
+            and session_tracker is not None
+            and cookie_records
+            and remote_debugging_port is not None
+        ):
+            self._start_account_cdp_fallback(
+                account_id=account.id,
+                remote_debugging_port=remote_debugging_port,
+                launcher_url=launcher_url,
+                cookie_records=cookie_records,
+                tracker=session_tracker,
+            )
 
         return {
             "device_id": device.id,
@@ -1583,6 +1602,8 @@ class AccountService:
             "extension_install_hint": "无需手动安装，系统会在启动隔离浏览器时自动生成并加载登录扩展。" if account is not None else "",
             "extension_dir": str(extension_dir) if extension_dir is not None else "",
             "session_status_url": session_tracker.status_url if session_tracker is not None else "",
+            "cdp_port": remote_debugging_port,
+            "cdp_fallback_enabled": bool(remote_debugging_port) if account is not None else False,
         }
 
     def _normalize_device_runtime_fields(
@@ -2508,6 +2529,182 @@ void applySessionCookies('boot');
             if item and Path(item).exists():
                 return str(Path(item))
         return None
+
+    def _reserve_loopback_port(self) -> int:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            sock.bind(("127.0.0.1", 0))
+            sock.listen(1)
+            return int(sock.getsockname()[1])
+
+    def _start_account_cdp_fallback(
+        self,
+        *,
+        account_id: int,
+        remote_debugging_port: int,
+        launcher_url: str,
+        cookie_records: list[dict[str, Any]],
+        tracker: _AccountSessionTracker,
+    ) -> None:
+        thread = threading.Thread(
+            target=self._run_account_cdp_fallback,
+            name=f"tkops-account-cdp-{account_id}",
+            daemon=True,
+            kwargs={
+                "remote_debugging_port": remote_debugging_port,
+                "launcher_url": launcher_url,
+                "cookie_records": [dict(item) for item in cookie_records],
+                "tracker": tracker,
+            },
+        )
+        thread.start()
+
+    def _run_account_cdp_fallback(
+        self,
+        *,
+        remote_debugging_port: int,
+        launcher_url: str,
+        cookie_records: list[dict[str, Any]],
+        tracker: _AccountSessionTracker,
+    ) -> None:
+        try:
+            tracker.update({
+                "status": "cdp_pending",
+                "loginStatus": "pending",
+                "message": "正在等待浏览器调试端口，准备执行 CDP Cookie 回退注入",
+                "cdpPort": remote_debugging_port,
+            })
+            websocket_url = self._wait_for_cdp_target_websocket(
+                remote_debugging_port=remote_debugging_port,
+                launcher_url=launcher_url,
+            )
+            applied, failed = self._cdp_set_cookies(websocket_url, cookie_records)
+            tracker.update({
+                "status": "cdp_applied",
+                "loginStatus": "pending",
+                "appliedCount": len(applied),
+                "failed": failed,
+                "message": (
+                    f"已通过 CDP 回退注入 {len(applied)} 条 Cookie，等待扩展或页面完成登录校验"
+                    if not failed else
+                    f"CDP 已注入 {len(applied)} 条 Cookie，另有 {len(failed)} 条失败"
+                ),
+                "cdpPort": remote_debugging_port,
+            })
+        except Exception as exc:
+            tracker.update({
+                "status": "cdp_failed",
+                "loginStatus": "pending",
+                "message": f"CDP 回退注入未完成：{exc}",
+                "cdpPort": remote_debugging_port,
+            })
+
+    def _wait_for_cdp_target_websocket(
+        self,
+        *,
+        remote_debugging_port: int,
+        launcher_url: str,
+        timeout: float = 15.0,
+    ) -> str:
+        deadline = time.time() + timeout
+        endpoint = f"http://127.0.0.1:{remote_debugging_port}/json/list"
+        while time.time() < deadline:
+            try:
+                with httpx.Client(timeout=1.5) as client:
+                    response = client.get(endpoint)
+                    response.raise_for_status()
+                    payload = response.json()
+            except Exception:
+                time.sleep(0.25)
+                continue
+            if isinstance(payload, list):
+                for item in payload:
+                    if not isinstance(item, dict) or item.get("type") != "page":
+                        continue
+                    current_url = str(item.get("url") or "")
+                    if current_url == launcher_url or "tkops-proxy-launcher.html" in current_url:
+                        websocket_url = str(item.get("webSocketDebuggerUrl") or "").strip()
+                        if websocket_url:
+                            return websocket_url
+            time.sleep(0.25)
+        raise TimeoutError("浏览器调试端口未在预期时间内就绪")
+
+    def _cdp_set_cookies(
+        self,
+        websocket_url: str,
+        cookie_records: list[dict[str, Any]],
+    ) -> tuple[list[str], list[dict[str, str]]]:
+        import websocket
+
+        ws = websocket.create_connection(websocket_url, timeout=5)
+        try:
+            next_id = 1
+
+            def call(method: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
+                nonlocal next_id
+                message_id = next_id
+                next_id += 1
+                payload = {"id": message_id, "method": method}
+                if params:
+                    payload["params"] = params
+                ws.send(json.dumps(payload, ensure_ascii=False))
+                deadline = time.time() + 8.0
+                while time.time() < deadline:
+                    raw = ws.recv()
+                    response = json.loads(raw)
+                    if int(response.get("id") or 0) != message_id:
+                        continue
+                    if response.get("error"):
+                        error = response["error"]
+                        raise RuntimeError(str(error.get("message") or error))
+                    return response.get("result") or {}
+                raise TimeoutError(f"CDP 命令超时：{method}")
+
+            call("Network.enable")
+            applied: list[str] = []
+            failed: list[dict[str, str]] = []
+            for cookie in cookie_records:
+                params: dict[str, Any] = {
+                    "url": str(cookie.get("url") or ""),
+                    "name": str(cookie.get("name") or ""),
+                    "value": str(cookie.get("value") or ""),
+                }
+                if cookie.get("domain"):
+                    params["domain"] = str(cookie["domain"])
+                if cookie.get("path"):
+                    params["path"] = str(cookie["path"])
+                if "secure" in cookie:
+                    params["secure"] = bool(cookie["secure"])
+                if "httpOnly" in cookie:
+                    params["httpOnly"] = bool(cookie["httpOnly"])
+                if cookie.get("expirationDate"):
+                    params["expires"] = float(cookie["expirationDate"])
+                same_site = self._normalize_cdp_same_site(cookie.get("sameSite"))
+                if same_site is not None:
+                    params["sameSite"] = same_site
+                try:
+                    result = call("Network.setCookie", params)
+                    if result.get("success"):
+                        applied.append(str(cookie.get("name") or ""))
+                    else:
+                        failed.append({"name": str(cookie.get("name") or ""), "message": "CDP 返回 success=false"})
+                except Exception as exc:
+                    failed.append({"name": str(cookie.get("name") or ""), "message": str(exc)})
+            return applied, failed
+        finally:
+            with contextlib.suppress(Exception):
+                ws.close()
+
+    def _normalize_cdp_same_site(self, value: Any) -> str | None:
+        mapping = {
+            "lax": "Lax",
+            "strict": "Strict",
+            "no_restriction": "None",
+            "none": "None",
+        }
+        if value in (None, "", "unspecified"):
+            return None
+        normalized = str(value).strip().lower()
+        return mapping.get(normalized)
 
     def _browser_proxy_server(self, proxy_ip: str | None) -> str | None:
         raw = str(proxy_ip or "").strip()

@@ -580,6 +580,7 @@ service._validate_proxy_endpoint = lambda endpoint: {
     'egress_ip': '91.204.17.22',
     'detail': '出口 IP 91.204.17.22',
 }
+service._start_account_cdp_fallback = lambda **kwargs: captured.setdefault('cdp_port', kwargs.get('remote_debugging_port'))
 
 def fake_popen(command, creationflags=0, close_fds=False):
     captured['command'] = command
@@ -621,9 +622,13 @@ print(json.dumps({
     'background_mentions_tab_retry': 'chrome.tabs.onUpdated.addListener' in background,
     'command_has_load_extension': any(str(part).startswith('--load-extension=') for part in captured['command']),
     'command_has_disable_except': any(str(part).startswith('--disable-extensions-except=') for part in captured['command']),
+    'command_has_cdp_port': any(str(part).startswith('--remote-debugging-port=') for part in captured['command']),
     'account_isolation_enabled': bool(updated.isolation_enabled),
     'account_last_login_at': str(updated.last_login_at),
     'profile_exists': profile_dir.exists(),
+    'cdp_port': opened['cdp_port'],
+    'cdp_fallback_enabled': opened['cdp_fallback_enabled'],
+    'captured_cdp_port': captured.get('cdp_port'),
 }, ensure_ascii=False))
 """
     )
@@ -649,6 +654,10 @@ print(json.dumps({
     assert result['background_mentions_tab_retry'] is True
     assert result['command_has_load_extension'] is True
     assert result['command_has_disable_except'] is True
+    assert result['command_has_cdp_port'] is True
+    assert int(result['cdp_port']) > 0
+    assert result['cdp_fallback_enabled'] is True
+    assert int(result['captured_cdp_port']) == int(result['cdp_port'])
     assert result['account_isolation_enabled'] is True
     assert result['account_last_login_at'] not in {'', 'None'}
     assert result['profile_exists'] is True
