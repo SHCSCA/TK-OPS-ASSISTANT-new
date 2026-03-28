@@ -233,8 +233,10 @@ class Test06_JsSyntax(unittest.TestCase):
 
     JS_FILES = [
         "desktop_app/assets/js/data.js",
+        "desktop_app/assets/js/bridge.js",
         "desktop_app/assets/js/ui-aichat.js",
         "desktop_app/assets/js/main.js",
+        "desktop_app/assets/js/page-loaders/ai-generation-main.js",
     ]
 
     def _check_balance(self, filepath):

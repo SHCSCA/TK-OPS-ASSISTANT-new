@@ -6,19 +6,23 @@ nul
 *.pyd
 __pycache__/
 
-# 构建产物与临时目录
+# Build artifacts and temporary directories
 build/
 dist/
 .pytest_cache/
 
-# 日志与本地数据库
+# Logs and local databases
 *.log
 build_log.txt
 *.db
 data/*.db
 !sample_data/*.db
 
-# 虚拟环境
+# Virtual env
 venv/
 .venv/
 .worktrees/
+
+# Temporary runtime artifacts
+.tmp_runtime/
+.tmp_candidate.js

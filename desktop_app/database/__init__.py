@@ -8,6 +8,7 @@ from __future__ import annotations
 import logging
 import os
 import sys
+import threading
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Generator
@@ -21,6 +22,8 @@ from desktop_app.database.models import Base
 from desktop_app.version import APP_VERSION
 
 log = logging.getLogger(__name__)
+_DB_INIT_LOCK = threading.Lock()
+_DB_INITIALIZED = False
 
 
 def _resolve_data_dir() -> Path:
@@ -65,7 +68,7 @@ def _set_sqlite_pragma(dbapi_conn, connection_record):
     cursor.close()
 
 
-SessionLocal = sessionmaker(bind=engine, class_=Session, expire_on_commit=False)
+_SESSION_FACTORY = sessionmaker(bind=engine, class_=Session, expire_on_commit=True)
 
 
 def _alembic_cfg() -> AlembicConfig:
@@ -105,12 +108,31 @@ def _run_migrations() -> None:
 
 def init_db() -> None:
     """Create data directory and bring schema to latest revision."""
+    global _DB_INITIALIZED
+
+    if _DB_INITIALIZED:
+        return
+
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     try:
         _run_migrations()
     except Exception:
         log.critical("Database migration failed", exc_info=True)
         raise
+    _DB_INITIALIZED = True
+
+
+def _ensure_db_initialized() -> None:
+    if _DB_INITIALIZED or os.environ.get("TKOPS_SKIP_DB_AUTO_INIT") == "1":
+        return
+    with _DB_INIT_LOCK:
+        if not _DB_INITIALIZED and os.environ.get("TKOPS_SKIP_DB_AUTO_INIT") != "1":
+            init_db()
+
+
+def SessionLocal(*args, **kwargs) -> Session:  # noqa: N802 - preserve public API
+    _ensure_db_initialized()
+    return _SESSION_FACTORY(*args, **kwargs)
 
 
 def get_session() -> Session:
@@ -129,12 +151,3 @@ def session_scope() -> Generator[Session, None, None]:
         raise
     finally:
         session.close()
-
-# Auto-initialize the database when this module is imported (helps tests run reliably
-# in fresh environments where migrations may not have run yet).
-if os.environ.get("TKOPS_SKIP_DB_AUTO_INIT") != "1":
-    try:
-        init_db()
-    except Exception:
-        # Do not crash import if DB cannot be initialized in some environments
-        pass

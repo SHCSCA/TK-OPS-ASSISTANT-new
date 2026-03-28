@@ -242,7 +242,12 @@
             copyToClipboard: function(text) { return callBackend('copyToClipboard', text); },
             pickFiles: function () { return callBackend('pickLocalFiles'); },
             importTextFile: function () { return callBackend('importTextFile'); },
-            exportTextFile: function (text) { return callBackend('exportTextFile', text || ''); },
+            exportTextFile: function (text, suggestedName) {
+                if (suggestedName) {
+                    return callBackend('exportNamedTextFile', text || '', suggestedName);
+                }
+                return callBackend('exportTextFile', text || '');
+            },
         },
         diagnostics: {
             run: function () { return callBackend('runNetworkDiagnostics'); },

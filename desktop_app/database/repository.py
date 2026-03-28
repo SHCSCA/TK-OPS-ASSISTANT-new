@@ -34,11 +34,20 @@ class Repository:
     """Thin wrapper around SQLAlchemy Session providing common CRUD ops."""
 
     def __init__(self, session: Session | None = None) -> None:
+        self._owns_session = session is None
         self._session = session or get_session()
+        self._session.expire_on_commit = True
 
     @property
     def session(self) -> Session:
         return self._session
+
+    def reset_session(self) -> None:
+        if not self._owns_session:
+            return
+        self._session.close()
+        self._session = get_session()
+        self._session.expire_on_commit = True
 
     # ── generic CRUD ──
 
@@ -67,6 +76,7 @@ class Repository:
     def delete(self, instance: T) -> None:
         self._session.delete(instance)
         self._session.commit()
+        self._session.expire_all()
 
     # ── specialized queries ──
 
@@ -176,6 +186,7 @@ class Repository:
         else:
             self._session.add(AppSetting(key=key, value=value))
         self._session.commit()
+        self._session.expire_all()
 
     def get_all_settings(self) -> dict[str, str]:
         rows = self._session.execute(select(AppSetting)).scalars().all()

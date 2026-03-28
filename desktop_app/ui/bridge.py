@@ -81,6 +81,13 @@ def _safe(func):
             except Exception:
                 pass
             return _err(f"{type(exc).__name__}: {exc}")
+        finally:
+            repo = getattr(self, "_repo", None)
+            if repo is not None and hasattr(repo, "reset_session"):
+                try:
+                    repo.reset_session()
+                except Exception:
+                    log.exception("Bridge session reset failed after %s", func.__name__)
     wrapper.__name__ = func.__name__
     return wrapper
 
@@ -1347,6 +1354,22 @@ class Bridge(QObject):
             "导出文本",
             str(Path.home() / "diagnostics-report.txt"),
             "Text Files (*.txt);;All Files (*.*)",
+        )
+        if not file_path:
+            return _ok({"saved": False, "path": ""})
+        path = Path(file_path)
+        path.write_text(content or "", encoding="utf-8")
+        return _ok({"saved": True, "path": str(path)})
+
+    @Slot(str, str, result=str)
+    @_safe
+    def exportNamedTextFile(self, content: str, suggested_name: str) -> str:
+        suggested = str(suggested_name or "").strip() or "export.txt"
+        file_path, _ = QFileDialog.getSaveFileName(
+            None,
+            "导出文本",
+            str(Path.home() / suggested),
+            "CSV Files (*.csv);;Text Files (*.txt);;All Files (*.*)",
         )
         if not file_path:
             return _ok({"saved": False, "path": ""})

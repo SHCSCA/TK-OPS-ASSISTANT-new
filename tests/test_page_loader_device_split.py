@@ -26,6 +26,7 @@ def test_device_management_logic_is_split_from_page_loaders() -> None:
     assert "'device-management': function (payload)" in page_loaders
     assert 'window.__pageLoaderShared' in page_loaders
     assert 'buildDeviceViewModel: _buildDeviceViewModel' in page_loaders
+    assert 'safePercent: _safePercent' in page_loaders
     assert 'function _getDeviceEnvironmentHelpers()' in page_loaders
     assert 'window.__deviceEnvironmentHelpers' in device_env
     assert 'runDeviceRepair: _runDeviceRepair' in device_env
@@ -33,6 +34,7 @@ def test_device_management_logic_is_split_from_page_loaders() -> None:
     assert 'exportDeviceLog: _exportDeviceLog' in device_env
     assert "loaders['device-management'] = function ()" in device_main
     assert 'var deviceEnvironment = window.__deviceEnvironmentHelpers' in device_main
+    assert 'var _safePercent = shared.safePercent' in device_main
     assert '_renderDeviceDetail' in device_main
     assert '_renderDeviceGrid' in device_main
     assert '_bindDeviceDetailActions' in device_main

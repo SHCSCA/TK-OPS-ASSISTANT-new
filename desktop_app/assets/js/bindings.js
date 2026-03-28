@@ -944,6 +944,11 @@ function _bindRouteButtonPresets() {
                         const value = String(cell == null ? '' : cell).replace(/"/g, '""');
                         return '"' + value + '"';
                     }).join(',')).join('\r\n');
+                    if (api && api.utils && typeof api.utils.exportTextFile === 'function') {
+                        return api.utils.exportTextFile('\uFEFF' + csv, 'accounts-export.csv').then((saved) => {
+                            showToast(saved && saved.saved ? '账号清单已导出' : '已取消导出', saved && saved.saved ? 'success' : 'warning');
+                        });
+                    }
                     _downloadTextFile('accounts-export.csv', '\uFEFF' + csv, 'text/csv;charset=utf-8');
                     showToast('账号清单已导出', 'success');
                 }).catch((err) => {

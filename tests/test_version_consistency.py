@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+from build import collect_version_metadata_updates
 from desktop_app.version import APP_VERSION
 
 
@@ -38,3 +39,36 @@ def test_file_version_info_matches_version_file() -> None:
     assert f"prodvers=({major}, {minor}, {patch}, 0)" in version_info
     assert f'StringStruct("FileVersion",      "{version}")' in version_info
     assert f'StringStruct("ProductVersion",   "{version}")' in version_info
+
+
+def test_collect_version_metadata_updates_detects_drift_without_writing_files(
+    tmp_path: Path,
+) -> None:
+    version = _read(ROOT / "VERSION").strip()
+
+    for relative_path in (
+        "README.md",
+        "installer.iss",
+        "file_version_info.txt",
+        Path("desktop_app") / "assets" / "js" / "bridge.js",
+    ):
+        source_path = ROOT / relative_path
+        target_path = tmp_path / relative_path
+        target_path.parent.mkdir(parents=True, exist_ok=True)
+        target_path.write_text(_read(source_path), encoding="utf-8")
+
+    readme_path = tmp_path / "README.md"
+    readme_path.write_text(
+        _read(readme_path).replace(
+            f"当前发布版本：`{version}`",
+            "当前发布版本：`0.0.0`",
+            1,
+        ),
+        encoding="utf-8",
+    )
+
+    updates = collect_version_metadata_updates(version, root=tmp_path)
+
+    assert set(updates) == {readme_path}
+    assert f"当前发布版本：`{version}`" in updates[readme_path]
+    assert "当前发布版本：`0.0.0`" in _read(readme_path)

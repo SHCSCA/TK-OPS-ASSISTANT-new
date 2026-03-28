@@ -25,9 +25,44 @@
     var _esc = shared.esc;
     var _formatNum = shared.formatNum;
     var _formatRelativeDate = shared.formatRelativeDate;
+    var _safePercent = shared.safePercent;
     var _runDeviceRepair = deviceEnvironment.runDeviceRepair;
     var _openDeviceEnvironment = deviceEnvironment.openDeviceEnvironment;
     var _exportDeviceLog = deviceEnvironment.exportDeviceLog;
+
+    function _renderDeviceLoadFailure(error) {
+        var message = (error && error.message) ? error.message : '设备数据加载失败，请稍后重试';
+        var statCards = document.querySelectorAll('#mainHost .stat-card');
+        statCards.forEach(function (card) {
+            var valueEl = card.querySelector('.stat-card__value');
+            if (valueEl) valueEl.textContent = '--';
+        });
+        var banner = document.querySelector('#mainHost [data-device-banner]');
+        if (banner) {
+            banner.innerHTML = '<div><strong>设备数据加载失败</strong><div>' + _esc(message) + '</div></div><div class="toolbar__group"><button class="ghost-button js-device-banner-retry" type="button">重新加载</button></div>';
+            var retryBtn = banner.querySelector('.js-device-banner-retry');
+            if (retryBtn) {
+                retryBtn.addEventListener('click', function () {
+                    loaders['device-management']();
+                });
+            }
+        }
+        var grid = document.querySelector('#mainHost .device-env-grid');
+        if (grid) {
+            grid.innerHTML = '<div class="empty-state" style="padding:48px;text-align:center;grid-column:1/-1;"><p>设备数据暂时不可用</p><p class="subtle">' + _esc(message) + '</p></div>';
+        }
+        var tbody = document.querySelector('#mainHost [data-device-binding-body]');
+        if (tbody) {
+            tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:32px;">设备绑定数据加载失败，请稍后重试</td></tr>';
+        }
+        var panel = document.querySelector('#mainHost [data-device-coverage-panel] .device-pool-summary');
+        if (panel) {
+            panel.innerHTML = '<div class="task-item"><div><strong>覆盖明细加载失败</strong><div class="subtle">' + _esc(message) + '</div></div><span class="pill error">失败</span></div>';
+        }
+        if (typeof showToast === 'function') {
+            showToast('设备数据加载失败：' + message, 'error');
+        }
+    }
 
     function _renderDeviceFilterTabs(models) {
         var counts = { all: (models || []).length, healthy: 0, warning: 0, error: 0, idle: 0 };
@@ -450,6 +485,7 @@
             window.__devicePageData = [];
             window.__devicePageAccounts = [];
             console.warn('[page-loaders] device-management load failed:', error);
+            _renderDeviceLoadFailure(error);
         });
     };
 

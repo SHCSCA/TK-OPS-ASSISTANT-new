@@ -6,6 +6,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 GENERATION_JS = ROOT / "desktop_app" / "assets" / "js" / "factories" / "generation.js"
 PAGE_LOADERS_JS = ROOT / "desktop_app" / "assets" / "js" / "page-loaders.js"
+AI_GENERATION_MAIN_JS = ROOT / "desktop_app" / "assets" / "js" / "page-loaders" / "ai-generation-main.js"
+APP_SHELL_HTML = ROOT / "desktop_app" / "assets" / "app_shell.html"
 
 
 def _load_text(path: Path) -> str:
@@ -41,12 +43,15 @@ class TestViralTitleCleanup:
         section = text[idx:end]
         assert "--" in section, "placeholder metrics should be present"
 
-    def test_viral_title_loader_wires_runtime_handler(self) -> None:
-        text = _load_text(PAGE_LOADERS_JS)
-        idx = text.find("loaders['viral-title']")
-        assert idx != -1, "viral-title loader should exist"
-        assert "runtimeSummaryHandlers['viral-title']" in text, \
-            "viral-title loader should call runtimeSummaryHandlers"
+    def test_viral_title_loader_moved_to_split_module(self) -> None:
+        root_text = _load_text(PAGE_LOADERS_JS)
+        split_text = _load_text(AI_GENERATION_MAIN_JS)
+        assert "loaders['viral-title']" not in root_text, \
+            "viral-title loader should move out of root page-loaders.js"
+        assert "loaders['viral-title']" in split_text, \
+            "viral-title loader should live in ai-generation-main.js"
+        assert "runtimeSummaryHandlers['viral-title']" in split_text, \
+            "viral-title loader should still call runtimeSummaryHandlers"
 
     def test_viral_title_page_audit_registered(self) -> None:
         text = _load_text(PAGE_LOADERS_JS)
@@ -73,11 +78,15 @@ class TestScriptExtractorCleanup:
         for marker in forbidden:
             assert marker not in section, f"found hardcoded prototype content: {marker}"
 
-    def test_script_extractor_loader_wires_runtime_handler(self) -> None:
-        text = _load_text(PAGE_LOADERS_JS)
-        assert "loaders['script-extractor']" in text, "script-extractor loader should exist"
-        assert "runtimeSummaryHandlers['script-extractor']" in text, \
-            "script-extractor loader should call runtimeSummaryHandlers"
+    def test_script_extractor_loader_moved_to_split_module(self) -> None:
+        root_text = _load_text(PAGE_LOADERS_JS)
+        split_text = _load_text(AI_GENERATION_MAIN_JS)
+        assert "loaders['script-extractor']" not in root_text, \
+            "script-extractor loader should move out of root page-loaders.js"
+        assert "loaders['script-extractor']" in split_text, \
+            "script-extractor loader should live in ai-generation-main.js"
+        assert "runtimeSummaryHandlers['script-extractor']" in split_text, \
+            "script-extractor loader should still call runtimeSummaryHandlers"
 
     def test_script_extractor_page_audit_registered(self) -> None:
         text = _load_text(PAGE_LOADERS_JS)
@@ -105,11 +114,15 @@ class TestProductTitleCleanup:
         for marker in forbidden:
             assert marker not in section, f"found hardcoded prototype content: {marker}"
 
-    def test_product_title_loader_wires_runtime_handler(self) -> None:
-        text = _load_text(PAGE_LOADERS_JS)
-        assert "loaders['product-title']" in text, "product-title loader should exist"
-        assert "runtimeSummaryHandlers['product-title']" in text, \
-            "product-title loader should call runtimeSummaryHandlers"
+    def test_product_title_loader_moved_to_split_module(self) -> None:
+        root_text = _load_text(PAGE_LOADERS_JS)
+        split_text = _load_text(AI_GENERATION_MAIN_JS)
+        assert "loaders['product-title']" not in root_text, \
+            "product-title loader should move out of root page-loaders.js"
+        assert "loaders['product-title']" in split_text, \
+            "product-title loader should live in ai-generation-main.js"
+        assert "runtimeSummaryHandlers['product-title']" in split_text, \
+            "product-title loader should still call runtimeSummaryHandlers"
 
     def test_product_title_page_audit_registered(self) -> None:
         text = _load_text(PAGE_LOADERS_JS)
@@ -137,11 +150,15 @@ class TestAICopywriterCleanup:
         for marker in forbidden:
             assert marker not in section, f"found hardcoded prototype content: {marker}"
 
-    def test_ai_copywriter_loader_wires_runtime_handler(self) -> None:
-        text = _load_text(PAGE_LOADERS_JS)
-        assert "loaders['ai-copywriter']" in text, "ai-copywriter loader should exist"
-        assert "runtimeSummaryHandlers['ai-copywriter']" in text, \
-            "ai-copywriter loader should call runtimeSummaryHandlers"
+    def test_ai_copywriter_loader_moved_to_split_module(self) -> None:
+        root_text = _load_text(PAGE_LOADERS_JS)
+        split_text = _load_text(AI_GENERATION_MAIN_JS)
+        assert "loaders['ai-copywriter']" not in root_text, \
+            "ai-copywriter loader should move out of root page-loaders.js"
+        assert "loaders['ai-copywriter']" in split_text, \
+            "ai-copywriter loader should live in ai-generation-main.js"
+        assert "runtimeSummaryHandlers['ai-copywriter']" in split_text, \
+            "ai-copywriter loader should still call runtimeSummaryHandlers"
 
     def test_ai_copywriter_page_audit_registered(self) -> None:
         text = _load_text(PAGE_LOADERS_JS)
@@ -154,7 +171,7 @@ class TestGenerationPageAudits:
     def test_all_four_generation_routes_have_runtime_handlers(self) -> None:
         text = _load_text(PAGE_LOADERS_JS)
         for route in ['viral-title', 'script-extractor', 'product-title', 'ai-copywriter']:
-            assert f"runtimeSummaryHandlers['{route}']" in text, \
+            assert f"'{route}': function (payload)" in text, \
                 f"{route} should have a runtimeSummaryHandler"
 
     def test_all_four_generation_routes_have_page_audit_entries(self) -> None:
@@ -164,3 +181,38 @@ class TestGenerationPageAudits:
         for route in ['viral-title', 'script-extractor', 'product-title', 'ai-copywriter']:
             assert f"'{route}':" in audits_section, \
                 f"{route} should have a pageAudit entry"
+
+    def test_generation_helpers_move_out_of_root_page_loader(self) -> None:
+        root_text = _load_text(PAGE_LOADERS_JS)
+        split_text = _load_text(AI_GENERATION_MAIN_JS)
+        helper_defs = [
+            'function _loadAiGenerationPage(config)',
+            'function _runAiGeneration(config, input, btn, options)',
+            'function _applyAiResultToDownstream(config, text)',
+            'function _collectAiResultText(config)',
+            'function _hydrateAiSelects(providers)',
+            'function _updateAiUsageHint(rows)',
+            'function _renderVariantList(selector, items, labels)',
+            'function _renderCompliance(selector, text)',
+            'function _renderExtractorResult(text)',
+            'function _extractAiItems(text, limit)',
+            'function _calcTitleScore(text)',
+            'function _keywordChunks(text)',
+            'function _keywordDensity(text, token)',
+            'function _detectRiskWords(text)',
+            'function _formatElapsed(ms)',
+        ]
+        for marker in helper_defs:
+            assert marker not in root_text, f"generation helper should leave root file: {marker}"
+            assert marker in split_text, f"generation helper should exist in split module: {marker}"
+
+    def test_app_shell_loads_split_generation_module_after_root_loader(self) -> None:
+        text = _load_text(APP_SHELL_HTML)
+        root_idx = text.find('./js/page-loaders.js')
+        split_idx = text.find('./js/page-loaders/ai-generation-main.js')
+        main_idx = text.find('./js/main.js')
+        assert root_idx != -1, "app_shell should load root page-loaders.js"
+        assert split_idx != -1, "app_shell should load ai-generation-main.js"
+        assert main_idx != -1, "app_shell should load main.js"
+        assert root_idx < split_idx < main_idx, \
+            "ai-generation-main.js should load after page-loaders.js and before main.js"
