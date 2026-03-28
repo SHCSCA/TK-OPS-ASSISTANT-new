@@ -1057,12 +1057,20 @@ function _bindRouteButtonPresets() {
     };
 
     const handlers = Object.assign({}, groupHandlers, routeHandlers[currentRoute] || {});
+    if (currentRoute === 'account') {
+        const accountExportButton = mainHost.querySelector('.page-header .header-actions .secondary-button');
+        const accountExportHandler = handlers['\u5bfc\u51fa\u8d26\u53f7\u6e05\u5355'];
+        if (accountExportButton && accountExportHandler) {
+            _bindButtonAction(accountExportButton, 'tkopsAccountExportBound', accountExportHandler);
+        }
+    }
     if (!Object.keys(handlers).length) return;
 
     mainHost.querySelectorAll('button').forEach((btn) => {
         const text = _buttonText(btn);
         const handler = handlers[text];
         if (!handler) return;
+        if (currentRoute === 'account' && text === '导出账号清单') return;
         if (btn.id || /(^|\s)js-/.test(btn.className || '')) return;
         _bindButtonAction(btn, 'tkopsPresetBound', () => handler(btn));
     });

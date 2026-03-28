@@ -7,6 +7,7 @@ ROOT = Path(__file__).resolve().parents[1]
 ROUTES_JS = ROOT / "desktop_app" / "assets" / "js" / "routes.js"
 PAGE_LOADERS_JS = ROOT / "desktop_app" / "assets" / "js" / "page-loaders.js"
 TASK_QUEUE_MAIN_JS = ROOT / "desktop_app" / "assets" / "js" / "page-loaders" / "task-queue-main.js"
+TASK_OPS_MAIN_JS = ROOT / "desktop_app" / "assets" / "js" / "page-loaders" / "task-ops-main.js"
 ASSET_CENTER_MAIN_JS = ROOT / "desktop_app" / "assets" / "js" / "page-loaders" / "asset-center-main.js"
 DEVICE_ENV_JS = ROOT / "desktop_app" / "assets" / "js" / "page-loaders" / "device-environment.js"
 DEVICE_MANAGEMENT_MAIN_JS = ROOT / "desktop_app" / "assets" / "js" / "page-loaders" / "device-management-main.js"
@@ -100,6 +101,16 @@ def test_task_queue_loader_split_remains_registered_in_shell_chain() -> None:
     assert './js/page-loaders/task-queue-main.js' in shell_text
     assert "loaders['task-queue'] = function ()" in task_text
     assert 'window.__taskQueuePageMain' in task_text
+
+
+def test_task_ops_loader_split_remains_registered_in_shell_chain() -> None:
+    shell_text = (ROOT / "desktop_app" / "assets" / "app_shell.html").read_text(encoding="utf-8")
+    task_ops_text = TASK_OPS_MAIN_JS.read_text(encoding="utf-8")
+
+    assert './js/page-loaders/task-ops-main.js' in shell_text
+    assert "loaders['auto-reply'] = function ()" in task_ops_text
+    assert "loaders['task-scheduler'] = function ()" in task_ops_text
+    assert 'function _loadTaskOpsPage(config)' in task_ops_text
 
 
 def test_asset_center_loader_split_remains_registered_in_shell_chain() -> None:

@@ -294,6 +294,84 @@ print(json.dumps({
     assert '绑定代理校验失败' in result['login_check_message']
 
 
+def test_tiktok_login_validation_accepts_camel_case_identity_payload() -> None:
+    result = _run_isolated_script(
+        """
+import json
+from desktop_app.services import account_service as account_module
+from desktop_app.database.repository import Repository
+from desktop_app.services.account_service import AccountService
+
+repo = Repository()
+service = AccountService(repo)
+account = service.create_account(
+    'cookie_editor_owner',
+    platform='tiktok',
+    cookie_status='unknown',
+    cookie_content='[{"name":"sessionid","value":"cookie-owner","domain":".tiktok.com","path":"/"}]',
+)
+
+class DummyRequest:
+    def __init__(self, url):
+        self.url = url
+
+
+class DummyResponse:
+    def __init__(self, url, status_code, *, json_data=None, content_type='application/json; charset=utf-8', text=''):
+        self.status_code = status_code
+        self._json_data = json_data or {}
+        self.headers = {'content-type': content_type}
+        self.request = DummyRequest(url)
+        self.text = text
+
+    def json(self):
+        return self._json_data
+
+
+class DummyClient:
+    def __init__(self, **kwargs):
+        pass
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        return False
+
+    def get(self, url, params=None, headers=None):
+        if 'passport/web/account/info' in url:
+            return DummyResponse(
+                url,
+                200,
+                json_data={'data': {'user': {'uniqueId': 'cookie_editor_owner'}}},
+            )
+        if 'api/me' in url:
+            return DummyResponse(url, 200, json_data={})
+        return DummyResponse(url, 200, content_type='text/html', text='<html><body>ok</body></html>')
+
+
+original_client = account_module.httpx.Client
+account_module.httpx.Client = DummyClient
+try:
+    checked = service.validate_account_login(account.id)
+finally:
+    account_module.httpx.Client = original_client
+
+updated = service.get_account(account.id)
+print(json.dumps({
+    'result_status': checked['status'],
+    'cookie_status': updated.cookie_status,
+    'login_check_status': updated.last_login_check_status,
+    'login_check_message': updated.last_login_check_message,
+}, ensure_ascii=False))
+"""
+    )
+    assert result['result_status'] == 'valid'
+    assert result['cookie_status'] == 'valid'
+    assert result['login_check_status'] == 'valid'
+    assert 'cookie_editor_owner' in result['login_check_message']
+
+
 def test_delete_account_clears_task_and_asset_references() -> None:
     result = _run_isolated_script(
         """

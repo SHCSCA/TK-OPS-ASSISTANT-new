@@ -970,21 +970,21 @@ class AccountService:
                 },
             )
             payload = self._safe_json(response)
-            identity = self._extract_tiktok_identity(payload)
-            if identity:
-                return {
-                    "status": "valid",
-                    "label": "已登录",
-                    "message": f"已通过 TikTok 账号接口确认登录态，可识别账号 {identity}",
-                    "target": str(response.request.url),
-                    "http_status": response.status_code,
-                }
             if response.status_code in {401, 403} or self._payload_indicates_invalid_login(payload):
                 detail = self._extract_error_message(payload) or f"HTTP {response.status_code}"
                 return {
                     "status": "invalid",
                     "label": "未登录",
                     "message": f"TikTok 返回未登录或已失效：{detail}",
+                    "target": str(response.request.url),
+                    "http_status": response.status_code,
+                }
+            identity = self._extract_tiktok_identity(payload)
+            if identity:
+                return {
+                    "status": "valid",
+                    "label": "已登录",
+                    "message": f"已通过 TikTok 账号接口确认登录态，可识别账号 {identity}",
                     "target": str(response.request.url),
                     "http_status": response.status_code,
                 }
@@ -1210,22 +1210,41 @@ class AccountService:
         return payload if isinstance(payload, dict) else {}
 
     def _extract_tiktok_identity(self, payload: dict[str, Any]) -> str:
-        data = payload.get("data") if isinstance(payload, dict) else None
-        candidates = [payload, data] if isinstance(data, dict) else [payload]
-        for candidate in candidates:
+        identity_keys = (
+            "username",
+            "user_name",
+            "userName",
+            "unique_id",
+            "uniqueId",
+            "screen_name",
+            "screenName",
+            "nickname",
+            "nick_name",
+            "display_name",
+            "displayName",
+            "user_id",
+            "userId",
+            "user_id_str",
+            "uid",
+            "uid_str",
+        )
+        queue: list[Any] = [payload]
+        seen: set[int] = set()
+        while queue:
+            candidate = queue.pop(0)
             if not isinstance(candidate, dict):
                 continue
-            for key in ("username", "unique_id", "screen_name", "nickname", "user_id", "uid"):
+            marker = id(candidate)
+            if marker in seen:
+                continue
+            seen.add(marker)
+            for key in identity_keys:
                 value = candidate.get(key)
-                if value:
-                    return str(value)
-            for nested_key in ("user", "account_info", "account", "user_info"):
-                nested = candidate.get(nested_key)
+                if value not in (None, ""):
+                    return str(value).strip()
+            for nested in candidate.values():
                 if isinstance(nested, dict):
-                    for key in ("username", "unique_id", "screen_name", "nickname", "user_id", "uid"):
-                        value = nested.get(key)
-                        if value:
-                            return str(value)
+                    queue.append(nested)
         return ""
 
     def _extract_tiktok_identity_from_html(self, html: str) -> str:
@@ -1243,31 +1262,46 @@ class AccountService:
         return ""
 
     def _payload_indicates_invalid_login(self, payload: dict[str, Any]) -> bool:
-        message = self._extract_error_message(payload).lower()
-        if not message:
-            return False
-        invalid_markers = (
-            "login",
-            "not login",
-            "not logged",
-            "expired",
-            "invalid",
-            "unauthorized",
-            "challenge_required",
-            "checkpoint_required",
-            "请登录",
-            "登录",
-            "失效",
-        )
-        return any(marker in message for marker in invalid_markers)
+        for message in self._iter_payload_error_texts(payload):
+            lowered = message.lower()
+            invalid_markers = (
+                "not login",
+                "not logged",
+                "login_required",
+                "login expired",
+                "session expired",
+                "unauthorized",
+                "challenge_required",
+                "checkpoint_required",
+                "captcha",
+                "verify",
+                "verification",
+                "please login",
+                "please log in",
+                "请登录",
+                "未登录",
+                "登录已过期",
+                "挑战",
+                "验证码",
+                "验证",
+                "风控",
+            )
+            if any(marker in lowered for marker in invalid_markers):
+                return True
+        return False
 
     def _extract_error_message(self, payload: dict[str, Any]) -> str:
+        for text in self._iter_payload_error_texts(payload):
+            if text:
+                return text
+        return ""
+
+    def _iter_payload_error_texts(self, payload: Any):
         for mapping in self._iter_payload_mappings(payload):
             for key in ("message", "status_msg", "error_message", "description", "detail"):
                 value = mapping.get(key)
                 if value:
-                    return str(value)
-        return ""
+                    yield str(value)
 
     def _iter_payload_mappings(self, payload: Any):
         if isinstance(payload, dict):
@@ -2203,19 +2237,21 @@ async function reportState(partial) {
 }
 
 function extractTikTokIdentity(payload) {
-    const candidates = [];
-    if (payload && typeof payload === 'object') candidates.push(payload);
-    if (payload && payload.data && typeof payload.data === 'object') candidates.push(payload.data);
-    for (const candidate of candidates) {
-        for (const key of ['username', 'unique_id', 'screen_name', 'nickname', 'user_id', 'uid']) {
-            if (candidate && candidate[key]) return String(candidate[key]);
-        }
-        for (const nestedKey of ['user', 'account_info', 'account', 'user_info']) {
-            const nested = candidate ? candidate[nestedKey] : null;
-            if (!nested || typeof nested !== 'object') continue;
-            for (const key of ['username', 'unique_id', 'screen_name', 'nickname', 'user_id', 'uid']) {
-                if (nested[key]) return String(nested[key]);
+    const queue = [payload];
+    const visited = new Set();
+    const keys = ['username', 'user_name', 'userName', 'unique_id', 'uniqueId', 'screen_name', 'screenName', 'nickname', 'nick_name', 'display_name', 'displayName', 'user_id', 'userId', 'user_id_str', 'uid', 'uid_str'];
+    while (queue.length) {
+        const candidate = queue.shift();
+        if (!candidate || typeof candidate !== 'object') continue;
+        if (visited.has(candidate)) continue;
+        visited.add(candidate);
+        for (const key of keys) {
+            if (candidate[key] !== undefined && candidate[key] !== null && candidate[key] !== '') {
+                return String(candidate[key]).trim();
             }
+        }
+        for (const value of Object.values(candidate)) {
+            if (value && typeof value === 'object' && !Array.isArray(value)) queue.push(value);
         }
     }
     return '';
@@ -2224,11 +2260,43 @@ function extractTikTokIdentity(payload) {
 function payloadIndicatesInvalidLogin(payload) {
     if (!payload || typeof payload !== 'object') return false;
     const texts = [];
-    for (const key of ['message', 'status_msg', 'error_message', 'description', 'detail']) {
-        if (payload[key]) texts.push(String(payload[key]).toLowerCase());
+    const queue = [payload];
+    const visited = new Set();
+    while (queue.length) {
+        const candidate = queue.shift();
+        if (!candidate || typeof candidate !== 'object') continue;
+        if (visited.has(candidate)) continue;
+        visited.add(candidate);
+        for (const key of ['message', 'status_msg', 'error_message', 'description', 'detail']) {
+            if (candidate[key]) texts.push(String(candidate[key]).toLowerCase());
+        }
+        for (const value of Object.values(candidate)) {
+            if (value && typeof value === 'object') queue.push(value);
+        }
     }
     const text = texts.join(' ');
-    return ['login', 'not login', 'not logged', 'expired', 'invalid', 'unauthorized', 'challenge_required', 'checkpoint_required', '请登录', '登录', '失效'].some((marker) => text.includes(marker));
+    return [
+        'not login',
+        'not logged',
+        'login_required',
+        'login expired',
+        'session expired',
+        'unauthorized',
+        'challenge_required',
+        'checkpoint_required',
+        'captcha',
+        'verify',
+        'verification',
+        'please login',
+        'please log in',
+        '请登录',
+        '未登录',
+        '登录已过期',
+        '挑战',
+        '验证码',
+        '验证',
+        '风控',
+    ].some((marker) => text.includes(marker));
 }
 
 function targetHostCandidates() {
@@ -2304,13 +2372,13 @@ async function validateLoginState() {
             });
             const contentType = String(response.headers.get('content-type') || '').toLowerCase();
             const payloadData = contentType.includes('json') ? await response.json().catch(() => ({})) : {};
-            const identity = request.type === 'tiktok' ? extractTikTokIdentity(payloadData) : '';
-            if (identity) {
-                return { loginStatus: 'valid', message: '已通过浏览器侧真实接口确认登录态：' + identity, target: request.url, httpStatus: response.status };
-            }
             if (response.status === 401 || response.status === 403 || payloadIndicatesInvalidLogin(payloadData)) {
                 const detail = (payloadData && (payloadData.message || payloadData.status_msg || payloadData.error_message || payloadData.description || payloadData.detail)) || ('HTTP ' + response.status);
                 return { loginStatus: 'invalid', message: '浏览器侧登录校验失败：' + detail, target: request.url, httpStatus: response.status };
+            }
+            const identity = request.type === 'tiktok' ? extractTikTokIdentity(payloadData) : '';
+            if (identity) {
+                return { loginStatus: 'valid', message: '已通过浏览器侧真实接口确认登录态：' + identity, target: request.url, httpStatus: response.status };
             }
             reasons.push(response.status + '/' + (contentType || 'unknown'));
         } catch (error) {

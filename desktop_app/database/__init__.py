@@ -113,21 +113,22 @@ def init_db() -> None:
     if _DB_INITIALIZED:
         return
 
-    DATA_DIR.mkdir(parents=True, exist_ok=True)
-    try:
-        _run_migrations()
-    except Exception:
-        log.critical("Database migration failed", exc_info=True)
-        raise
-    _DB_INITIALIZED = True
+    with _DB_INIT_LOCK:
+        if _DB_INITIALIZED:
+            return
+        DATA_DIR.mkdir(parents=True, exist_ok=True)
+        try:
+            _run_migrations()
+        except Exception:
+            log.critical("Database migration failed", exc_info=True)
+            raise
+        _DB_INITIALIZED = True
 
 
 def _ensure_db_initialized() -> None:
     if _DB_INITIALIZED or os.environ.get("TKOPS_SKIP_DB_AUTO_INIT") == "1":
         return
-    with _DB_INIT_LOCK:
-        if not _DB_INITIALIZED and os.environ.get("TKOPS_SKIP_DB_AUTO_INIT") != "1":
-            init_db()
+    init_db()
 
 
 def SessionLocal(*args, **kwargs) -> Session:  # noqa: N802 - preserve public API

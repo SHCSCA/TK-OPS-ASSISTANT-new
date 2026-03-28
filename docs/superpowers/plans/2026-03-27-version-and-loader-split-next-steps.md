@@ -9,6 +9,7 @@
 - 版本号统一到根级 `VERSION`，运行时通过 `desktop_app/version.py` 读取。
 - 账号页已拆成 `page-loaders.js` + `account-environment.js` + `account-main.js`。
 - 任务队列已拆成 `page-loaders.js` + `task-queue-main.js`。
+- 任务运营页族已拆成 `page-loaders.js` + `task-ops-main.js`。
 - 资产中心已拆成 `page-loaders.js` + `asset-center-main.js`。
 - 设备管理已拆成 `page-loaders.js` + `device-environment.js` + `device-management-main.js`。
 - AI 生成页族已拆成 `page-loaders.js` + `ai-generation-main.js`。
@@ -16,6 +17,7 @@
 **Latest Status:**
 
 - 已完成 Asset Center 拆分、Device Management 主模块拆分、设备环境动作链拆分，以及 AI 生成页族拆分。
+- Task Ops 家族已完成 loader + helper 收口，`page-loaders.js` 仅保留共享任务状态 helper 与迁移注释。
 - `window.__pageLoaderShared` 已完成分组整理，但对外 key 保持不变；设备页补充了 `safePercent` 共享契约。
 - 账号卡片等高、设备页失败态可见化、Bridge + Repository 短会话化已完成一轮收口。
 - `page-loader-shared.js` 已完成评估，当前结论是暂不抽离，继续优先处理 account/device 深层 helper graph 去耦。

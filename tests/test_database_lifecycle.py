@@ -81,18 +81,45 @@ import json
 from desktop_app.ui.bridge import Bridge
 
 bridge = Bridge()
-first_session_id = id(bridge._repo.session)
+_ = bridge._repo.session
 bridge.listDevices()
-second_session_id = id(bridge._repo.session)
+session_cleared_after_first_call = bridge._repo._session is None
+_ = bridge._repo.session
 bridge.listAccounts()
-third_session_id = id(bridge._repo.session)
+session_cleared_after_second_call = bridge._repo._session is None
 
 print(json.dumps({
-    'changed_after_first_call': first_session_id != second_session_id,
-    'changed_after_second_call': second_session_id != third_session_id,
+    'session_cleared_after_first_call': session_cleared_after_first_call,
+    'session_cleared_after_second_call': session_cleared_after_second_call,
 }, ensure_ascii=False))
 """
     )
 
-    assert result["changed_after_first_call"] is True
-    assert result["changed_after_second_call"] is True
+    assert result["session_cleared_after_first_call"] is True
+    assert result["session_cleared_after_second_call"] is True
+
+
+def test_repository_init_stays_lazy_until_a_session_is_needed() -> None:
+    result = _run_isolated_script(
+        """
+import json
+from pathlib import Path
+from desktop_app.database import DB_PATH
+from desktop_app.database.repository import Repository
+from sqlalchemy import text
+
+repo = Repository()
+exists_after_init = Path(DB_PATH).exists()
+_ = repo.session.execute(text("SELECT 1")).scalar()
+exists_after_first_query = Path(DB_PATH).exists()
+repo.close()
+
+print(json.dumps({
+    'exists_after_init': exists_after_init,
+    'exists_after_first_query': exists_after_first_query,
+}, ensure_ascii=False))
+"""
+    )
+
+    assert result["exists_after_init"] is False
+    assert result["exists_after_first_query"] is True

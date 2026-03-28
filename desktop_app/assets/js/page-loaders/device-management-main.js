@@ -26,9 +26,34 @@
     var _formatNum = shared.formatNum;
     var _formatRelativeDate = shared.formatRelativeDate;
     var _safePercent = shared.safePercent;
-    var _runDeviceRepair = deviceEnvironment.runDeviceRepair;
     var _openDeviceEnvironment = deviceEnvironment.openDeviceEnvironment;
     var _exportDeviceLog = deviceEnvironment.exportDeviceLog;
+    var DEVICE_BANNER_DISMISS_KEY = 'device.management.notice.dismissed';
+
+    function _isTruthySetting(value) {
+        var normalized = String(value || '').toLowerCase();
+        return normalized === '1' || normalized === 'true' || normalized === 'yes';
+    }
+
+    function _readDeviceBannerDismissedSession() {
+        try {
+            return window.sessionStorage.getItem(DEVICE_BANNER_DISMISS_KEY) === '1';
+        } catch (err) {
+            return false;
+        }
+    }
+
+    function _rememberDeviceBannerDismissed() {
+        try {
+            window.sessionStorage.setItem(DEVICE_BANNER_DISMISS_KEY, '1');
+        } catch (err) {}
+    }
+
+    function _applyDeviceBannerDismissed(dismissed) {
+        var banner = document.querySelector('#mainHost [data-device-banner]');
+        if (!banner) return;
+        banner.classList.toggle('shell-hidden', Boolean(dismissed));
+    }
 
     function _renderDeviceLoadFailure(error) {
         var message = (error && error.message) ? error.message : '设备数据加载失败，请稍后重试';
@@ -102,7 +127,7 @@
         });
     }
 
-    function _renderDeviceBanner(models) {
+    function _renderDeviceBanner(models, dismissed) {
         var banner = document.querySelector('#mainHost [data-device-banner]');
         if (!banner) return;
         var abnormal = (models || []).filter(function (item) { return item.status === 'error'; });
@@ -113,7 +138,8 @@
                 ? ('优先处理：' + abnormal.slice(0, 2).map(function (item) { return item.name; }).join('、') + (warning.length ? ('；其次复核 ' + warning.slice(0, 2).map(function (item) { return item.name; }).join('、')) : ''))
                 : ('优先复核：' + warning.slice(0, 2).map(function (item) { return item.name; }).join('、')))
             : '所有设备已按真实代理、指纹与绑定关系完成归类，可继续做环境调度。';
-        banner.innerHTML = '<div><strong>' + _esc(summary) + '</strong><div>' + _esc(detail) + '</div></div><div class="toolbar__group"><button class="primary-button js-device-banner-repair" type="button">批量修复</button><button class="ghost-button js-device-banner-focus" type="button">查看详情</button></div>';
+        banner.innerHTML = '<div><strong>' + _esc(summary) + '</strong><div>' + _esc(detail) + '</div></div><div class="toolbar__group"><button class="ghost-button js-device-banner-dismiss" type="button">关闭</button></div>';
+        _applyDeviceBannerDismissed(dismissed);
     }
 
     function _renderDeviceGrid(models) {
@@ -232,7 +258,6 @@
             + '<div class="detail-actions account-detail__actions">'
             + '<button class="primary-button js-device-open-environment" data-id="' + deviceModel.id + '" type="button">打开环境</button>'
             + '<button class="secondary-button js-adjust-device-binding" data-id="' + deviceModel.id + '" type="button">修改绑定</button>'
-            + '<button class="secondary-button js-device-repair" data-id="' + deviceModel.id + '" type="button">修复环境</button>'
             + '<button class="ghost-button js-device-export-log" data-id="' + deviceModel.id + '" type="button">环境日志</button>'
             + '<button class="ghost-button js-edit-device" data-id="' + deviceModel.id + '" type="button">编辑设备</button>'
             + '<button class="danger-button js-delete-device" data-id="' + deviceModel.id + '" type="button">删除设备</button>'
@@ -286,21 +311,19 @@
         });
     }
 
-    function _bindDeviceBannerActions(models) {
+    function _bindDeviceBannerActions() {
         var banner = document.querySelector('#mainHost [data-device-banner]');
         if (!banner) return;
-        var firstProblem = (models || []).find(function (item) { return item.status === 'error' || item.status === 'warning'; }) || (models || [])[0] || null;
-        var repairBtn = banner.querySelector('.js-device-banner-repair');
-        var focusBtn = banner.querySelector('.js-device-banner-focus');
-        if (repairBtn) {
-            repairBtn.addEventListener('click', function () {
-                _runDeviceRepair(firstProblem ? [firstProblem.id] : null);
-            });
-        }
-        if (focusBtn) {
-            focusBtn.addEventListener('click', function () {
-                if (firstProblem) {
-                    _selectDeviceCard(firstProblem.id, models || []);
+        var dismissBtn = banner.querySelector('.js-device-banner-dismiss');
+        if (dismissBtn) {
+            dismissBtn.addEventListener('click', function () {
+                _rememberDeviceBannerDismissed();
+                _applyDeviceBannerDismissed(true);
+                api.settings.set(DEVICE_BANNER_DISMISS_KEY, '1').catch(function (err) {
+                    console.warn('[page-loaders] device banner dismiss persist failed:', err);
+                });
+                if (typeof showToast === 'function') {
+                    showToast('设备管理提示已隐藏', 'info');
                 }
             });
         }
@@ -313,12 +336,6 @@
             btn.addEventListener('click', function (e) {
                 e.stopPropagation();
                 if (typeof _openDeviceBindingModal === 'function') _openDeviceBindingModal(btn);
-            });
-        });
-        detailHost.querySelectorAll('.js-device-repair').forEach(function (btn) {
-            btn.addEventListener('click', function (e) {
-                e.stopPropagation();
-                _runDeviceRepair([parseInt(btn.dataset.id, 10)]);
             });
         });
         detailHost.querySelectorAll('.js-device-open-environment').forEach(function (btn) {
@@ -419,12 +436,6 @@
                 if (typeof _openDeviceBindingModal === 'function') _openDeviceBindingModal(btn);
             });
         });
-        document.querySelectorAll('.js-device-repair').forEach(function (btn) {
-            btn.addEventListener('click', function (e) {
-                e.stopPropagation();
-                _runDeviceRepair([parseInt(btn.dataset.id, 10)]);
-            });
-        });
         document.querySelectorAll('.js-device-open-environment').forEach(function (btn) {
             btn.addEventListener('click', function (e) {
                 e.stopPropagation();
@@ -445,9 +456,12 @@
         Promise.all([
             api.devices.list(),
             api.accounts.list(),
+            api.settings.get(DEVICE_BANNER_DISMISS_KEY).catch(function () { return null; }),
         ]).then(function (results) {
             var devices = results[0] || [];
             var accounts = results[1] || [];
+            var bannerDismissed = _isTruthySetting(results[2]) || _readDeviceBannerDismissedSession();
+            if (bannerDismissed) _rememberDeviceBannerDismissed();
             var models = (devices || []).map(function (device) {
                 return _buildDeviceViewModel(device, accounts || []);
             }).sort(function (left, right) {
@@ -461,13 +475,13 @@
             runtimeSummaryHandlers['device-management']({ devices: devices, accounts: accounts });
             _renderDeviceMetrics(models, accounts || []);
             _renderDeviceFilterTabs(models);
-            _renderDeviceBanner(models);
+            _renderDeviceBanner(models, bannerDismissed);
             _renderDeviceGrid(models);
             _renderDeviceBindingTable(models);
             _renderDeviceCoverage(models, accounts || []);
             _bindDeviceActions(models);
             _bindDeviceFilterControls();
-            _bindDeviceBannerActions(models);
+            _bindDeviceBannerActions();
 
             var preferredDeviceId = uiState['device-management'] && uiState['device-management'].selectedId ? String(uiState['device-management'].selectedId) : '';
             var selected = models.find(function (item) { return String(item.id || '') === preferredDeviceId; }) || models[0] || null;

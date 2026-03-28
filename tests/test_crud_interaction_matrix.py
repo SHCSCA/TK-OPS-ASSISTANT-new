@@ -17,6 +17,7 @@ SEARCH_JS = ROOT / "desktop_app" / "assets" / "js" / "search.js"
 STATE_JS = ROOT / "desktop_app" / "assets" / "js" / "state.js"
 BINDINGS_JS = ROOT / "desktop_app" / "assets" / "js" / "bindings.js"
 DATA_JS = ROOT / "desktop_app" / "assets" / "js" / "data.js"
+COMPONENTS_CSS = ROOT / "desktop_app" / "assets" / "css" / "components.css"
 
 
 def _account_loader_runtime_text() -> str:
@@ -63,7 +64,6 @@ LOADER_MARKERS = {
         ".js-edit-account",
         ".js-delete-account",
         ".js-view-account",
-        ".js-account-configure-proxy",
         ".js-account-rebind-validate",
         ".js-batch-account",
         "_renderAccountDetail(",
@@ -246,21 +246,15 @@ def test_account_cookie_runtime_exposes_import_and_login_validation_actions() ->
     form_text = UI_CRUD_FORMS_JS.read_text(encoding="utf-8")
 
     required_page_markers = [
-        "js-validate-account-login",
-        "js-account-configure-proxy",
-        "js-account-rebind-validate",
-        "查看详情与更多操作",
-        "配置代理 / ",
-        "重绑并校验 / ",
-        "_saveAccountProxyBinding(",
-        "_unbindAccountProxyBinding(",
-        "解除绑定代理",
-        "_buildProxyMismatchGuidance(",
-        "_predictDeviceRuntimeState(",
-        "导入 Cookie 文件",
-        "保存并校验登录态",
-        "_runAccountLoginValidation(",
-        "_importCookieFileIntoModal(",
+        'js-validate-account-login',
+        'js-account-rebind-validate',
+        'validateAfterSave: true',
+        '_saveAccountProxyBinding(',
+        '_unbindAccountProxyBinding(',
+        '_buildProxyMismatchGuidance(',
+        '_predictDeviceRuntimeState(',
+        '_runAccountLoginValidation(',
+        '_importCookieFileIntoModal(',
     ]
     for marker in required_page_markers:
         assert marker in page_text, marker
@@ -274,11 +268,12 @@ def test_account_cookie_runtime_exposes_import_and_login_validation_actions() ->
 
     required_form_markers = [
         "key: 'device_id'",
-        "账号代理来自绑定设备",
+        "key: 'proxy_ip'",
+        "key: 'region'",
+        'disabled: true',
     ]
     for marker in required_form_markers:
         assert marker in form_text, marker
-
 
 def test_account_toolbar_uses_real_environment_flow_and_log_toggle() -> None:
     page_text = _account_loader_runtime_text()
@@ -291,3 +286,19 @@ def test_account_toolbar_uses_real_environment_flow_and_log_toggle() -> None:
     assert "已为账号 " in page_text
     assert "已注入 " in page_text
     assert "js-device-toggle-logs" in device_text
+
+
+def test_account_loader_keeps_newest_accounts_first_sort_contract() -> None:
+    account_text = ACCOUNT_MAIN_JS.read_text(encoding="utf-8")
+
+    assert '_sortAccountsNewestFirst(accounts.map(function (account) {' in account_text
+    assert 'return rightCreated - leftCreated;' in account_text
+
+
+def test_account_status_cards_keep_offline_and_exception_tints_in_css() -> None:
+    css_text = COMPONENTS_CSS.read_text(encoding="utf-8")
+
+    assert '.account-card[data-status="offline"] {' in css_text
+    assert '.account-card[data-status="exception"] {' in css_text
+    assert 'background: color-mix(in srgb, var(--status-info) 6%, var(--surface-secondary));' in css_text
+    assert 'background: color-mix(in srgb, var(--status-error) 6%, var(--surface-secondary));' in css_text
