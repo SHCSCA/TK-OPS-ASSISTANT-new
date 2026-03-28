@@ -39,6 +39,8 @@
         category: 'all',
         tab: 'all',
         keyword: '',
+        groupTag: '',
+        packKey: '',
         selectedId: null,
     };
 
@@ -165,6 +167,50 @@
         return '图片';
     }
 
+    function _fileUrl(filePath) {
+        var raw = String(filePath || '').trim();
+        if (!raw) return '';
+        if (/^https?:\/\//i.test(raw) || /^file:\/\//i.test(raw)) return raw;
+        var normalized = raw.replace(/\\/g, '/');
+        if (/^[a-zA-Z]:\//.test(normalized)) {
+            return 'file:///' + encodeURI(normalized);
+        }
+        if (normalized.charAt(0) === '/') {
+            return 'file://' + encodeURI(normalized);
+        }
+        return encodeURI(normalized);
+    }
+
+    function _buildCardPreview(asset) {
+        var fileUrl = _fileUrl(asset.file_path);
+        if (asset.asset_type === 'image' && fileUrl) {
+            return '<img class="source-thumb__media js-asset-media" src="' + _esc(fileUrl) + '" alt="' + _esc(asset.filename) + '" loading="lazy">';
+        }
+        if (asset.asset_type === 'video' && fileUrl) {
+            return '<video class="source-thumb__media js-asset-media" src="' + _esc(fileUrl) + '" preload="metadata" muted></video>';
+        }
+        return '';
+    }
+
+    function _bindMediaFallbacks(scopeRoot) {
+        var root = scopeRoot || document;
+        root.querySelectorAll('.js-asset-media').forEach(function (media) {
+            if (media.dataset.fallbackBound === '1') return;
+            media.dataset.fallbackBound = '1';
+            var markMissing = function () {
+                var host = media.closest('.source-thumb__preview');
+                if (host) host.classList.add('is-media-missing');
+                media.remove();
+            };
+            media.addEventListener('error', markMissing);
+            if (media.tagName === 'VIDEO') {
+                media.addEventListener('loadeddata', function () {
+                    media.currentTime = 0;
+                });
+            }
+        });
+    }
+
     function _updateAssetStats(assets, stats) {
         var cards = document.querySelectorAll('#mainHost .stat-grid .stat-card');
         var byType = _resolveTypeCounts(assets, stats);
@@ -238,12 +284,12 @@
         }).join('');
     }
 
-    function _renderCategoryFolders(assets, typeCounts) {
+    function _renderCategoryFolders(state, typeCounts) {
         var host = document.querySelector('#mainHost .asset-category-column .workbench-side-list');
         if (!host) return;
 
         var tagCounter = {};
-        assets.forEach(function (asset) {
+        state.assets.forEach(function (asset) {
             asset.tagList.forEach(function (tag) {
                 tagCounter[tag] = (tagCounter[tag] || 0) + 1;
             });
@@ -254,46 +300,56 @@
             .sort(function (a, b) { return b.count - a.count; })
             .slice(0, 3);
 
-        var cards = [];
+        var cards = [{ key: '', title: '常用分组 · 全部', desc: '清空标签分组筛选，展示当前分类内素材。', tone: 'info' }];
         if (topTags.length) {
-            cards = topTags.map(function (entry) {
+            cards = cards.concat(topTags.map(function (entry) {
                 return {
+                    key: entry.key,
                     title: '标签分组 · ' + entry.key,
                     desc: '共 ' + _formatNum(entry.count) + ' 个素材，可快速聚合复用。',
                     tone: entry.count >= 3 ? 'success' : 'info',
                 };
-            });
+            }));
         } else {
-            cards = [
-                { title: '图片素材池', desc: '当前共 ' + _formatNum(typeCounts.image || 0) + ' 个图片素材。', tone: 'info' },
-                { title: '视频素材池', desc: '当前共 ' + _formatNum(typeCounts.video || 0) + ' 个视频素材。', tone: 'success' },
-                { title: '文本与模板', desc: '当前共 ' + _formatNum((typeCounts.text || 0) + (typeCounts.template || 0)) + ' 个待整理素材。', tone: 'warning' },
-            ];
+            cards = cards.concat([
+                { key: '图片', title: '图片素材池', desc: '当前共 ' + _formatNum(typeCounts.image || 0) + ' 个图片素材。', tone: 'info' },
+                { key: '视频', title: '视频素材池', desc: '当前共 ' + _formatNum(typeCounts.video || 0) + ' 个视频素材。', tone: 'success' },
+                { key: '模板', title: '文本与模板', desc: '当前共 ' + _formatNum((typeCounts.text || 0) + (typeCounts.template || 0)) + ' 个待整理素材。', tone: 'warning' },
+            ]);
         }
 
         host.innerHTML = cards.map(function (card) {
-            return '<article class="workbench-sidecard"><strong>' + _esc(card.title) + '</strong><div class="subtle">' + _esc(card.desc) + '</div><span class="pill ' + card.tone + '">' + _esc(card.tone === 'warning' ? '关注' : '可用') + '</span></article>';
+            return '<article class="workbench-sidecard js-asset-tag-group' + (state.groupTag === card.key ? ' is-selected' : '') + '" data-tag-group="' + _esc(card.key) + '"><strong>' + _esc(card.title) + '</strong><div class="subtle">' + _esc(card.desc) + '</div><span class="pill ' + card.tone + '">' + _esc(card.key ? '筛选' : '默认') + '</span></article>';
         }).join('');
     }
 
-    function _renderPackRecommendations(assets) {
+    function _renderPackRecommendations(state) {
         var host = document.querySelector('#mainHost .asset-pack-grid');
         if (!host) return;
-        var recentCount = assets.filter(_isRecentUpload).length;
-        var largeCount = assets.filter(function (asset) { return _toNumber(asset.file_size) >= 5 * 1024 * 1024; }).length;
-        var unboundCount = assets.filter(function (asset) { return !String(asset.account_id || '').trim(); }).length;
-        var taggedCount = assets.filter(function (asset) { return asset.tagList.length > 0; }).length;
-
+        var assets = state.assets || [];
         var cards = [
-            { title: '最近上传素材包', desc: '近 7 天上传素材，便于快速回看新资源。', count: recentCount, tone: 'info' },
-            { title: '大文件素材包', desc: '文件 >= 5MB，建议优先做压缩与转码。', count: largeCount, tone: 'warning' },
-            { title: '待关联账号素材', desc: '未绑定账号素材，避免后续链路无法追溯。', count: unboundCount, tone: 'error' },
-            { title: '已打标签素材', desc: '标签齐全的素材更适合批量检索复用。', count: taggedCount, tone: 'success' },
-        ];
+            { key: 'recent', title: '最近上传素材包', desc: '近 7 天上传素材，便于快速回看新资源。', count: assets.filter(_isRecentUpload).length, tone: 'info' },
+            { key: 'large', title: '大文件素材包', desc: '文件 >= 5MB，建议优先做压缩与转码。', count: assets.filter(function (asset) { return _toNumber(asset.file_size) >= 5 * 1024 * 1024; }).length, tone: 'warning' },
+            { key: 'unbound', title: '待关联账号素材', desc: '未绑定账号素材，避免后续链路无法追溯。', count: assets.filter(function (asset) { return !String(asset.account_id || '').trim(); }).length, tone: 'error' },
+            { key: 'tagged', title: '已打标签素材', desc: '标签齐全的素材更适合批量检索复用。', count: assets.filter(function (asset) { return asset.tagList.length > 0; }).length, tone: 'success' },
+        ]
+            .sort(function (a, b) { return b.count - a.count; })
+            .slice(0, 3)
+            .concat([{ key: '', title: '清空推荐筛选', desc: '恢复当前分类与标签页筛选结果。', count: 0, tone: 'info' }]);
 
-        host.innerHTML = cards.slice(0, 3).map(function (card) {
-            return '<article class="strip-card"><strong>' + _esc(card.title) + '</strong><div class="subtle">' + _esc(card.desc) + '</div><span class="pill ' + card.tone + '">' + _formatNum(card.count) + ' 项</span></article>';
+        host.innerHTML = cards.map(function (card) {
+            var active = state.packKey === card.key;
+            return '<article class="strip-card js-asset-pack' + (active ? ' is-selected' : '') + '" data-pack-key="' + _esc(card.key) + '"><strong>' + _esc(card.title) + '</strong><div class="subtle">' + _esc(card.desc) + '</div><span class="pill ' + card.tone + '">' + _formatNum(card.count) + ' 项</span></article>';
         }).join('');
+    }
+
+    function _matchPack(asset, packKey) {
+        if (!packKey) return true;
+        if (packKey === 'recent') return _isRecentUpload(asset);
+        if (packKey === 'large') return _toNumber(asset.file_size) >= 5 * 1024 * 1024;
+        if (packKey === 'unbound') return !String(asset.account_id || '').trim();
+        if (packKey === 'tagged') return asset.tagList.length > 0;
+        return true;
     }
 
     function _buildAssetThumb(asset, isSelected) {
@@ -305,7 +361,11 @@
             asset.tags,
         ].join(' ');
         return '<article class="source-thumb' + (isSelected ? ' is-selected' : '') + '" data-id="' + _esc(asset.id) + '" data-search="' + _esc(searchText) + '">'
-            + '<div class="source-thumb__preview ' + _assetPreviewClass(asset.asset_type) + '">' + _esc(_assetPreviewLabel(asset.asset_type)) + (asset.asset_type === 'video' ? '<span class="source-thumb__dur">' + _humanFileSize(asset.file_size) + '</span>' : '') + '</div>'
+            + '<div class="source-thumb__preview ' + _assetPreviewClass(asset.asset_type) + '">'
+            + _buildCardPreview(asset)
+            + '<span class="source-thumb__preview-label">' + _esc(_assetPreviewLabel(asset.asset_type)) + '</span>'
+            + (asset.asset_type === 'video' ? '<span class="source-thumb__dur">' + _humanFileSize(asset.file_size) + '</span>' : '')
+            + '</div>'
             + '<div class="source-thumb__name">' + _esc(asset.filename) + '</div>'
             + '<div class="subtle">' + _esc(asset.file_path || '未记录路径') + '</div>'
             + '<div class="source-thumb__tag">' + tags.map(function (tag) { return '<span class="pill ' + tag.tone + '">' + _esc(tag.text) + '</span>'; }).join('') + '</div></article>';
@@ -335,8 +395,12 @@
         }
 
         if (preview) {
-            preview.innerHTML = '<div class="source-thumb__preview ' + _assetPreviewClass(asset.asset_type) + '">' + _esc(_assetPreviewLabel(asset.asset_type)) + '</div>'
+            preview.innerHTML = '<div class="source-thumb__preview ' + _assetPreviewClass(asset.asset_type) + '">'
+                + _buildCardPreview(asset)
+                + '<span class="source-thumb__preview-label">' + _esc(_assetPreviewLabel(asset.asset_type)) + '</span>'
+                + '</div>'
                 + '<div><strong>' + _esc(asset.filename) + '</strong><div class="subtle">' + _esc(asset.file_path || '未记录路径') + '</div></div>';
+            _bindMediaFallbacks(preview);
         }
 
         if (detailValues.length >= 3) {
@@ -357,36 +421,24 @@
 
         var tagText = asset.tagList.length ? asset.tagList.join(' / ') : '未打标签';
         actionHost.innerHTML = ''
-            + '<article class="workbench-sidecard"><strong>素材操作</strong><div class="subtle">选中素材后可直接编辑、删除，或推送到创作链路。</div>'
+            + '<article class="workbench-sidecard"><strong>素材操作</strong><div class="subtle">选中素材后可直接编辑、删除与标签维护。</div>'
             + '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;">'
             + '<button class="secondary-button js-edit-asset" data-id="' + _esc(asset.id) + '">编辑素材信息</button>'
-            + '<button class="secondary-button js-send-creative" data-id="' + _esc(asset.id) + '">发送到创意工坊</button>'
-            + '<button class="secondary-button js-send-factory" data-id="' + _esc(asset.id) + '">发送到内容工厂</button>'
             + '<button class="danger-button js-delete-asset" data-id="' + _esc(asset.id) + '">删除素材</button>'
             + '</div></article>'
-            + '<article class="workbench-sidecard"><strong>当前素材摘要</strong><div class="subtle">类型：' + _esc(TYPE_LABELS[asset.asset_type] || asset.asset_type)
-            + ' / 标签：' + _esc(tagText)
-            + ' / 入库：' + _esc(_formatDate(asset.created_at)) + '</div></article>';
+            + '<article class="workbench-sidecard asset-current-summary"><strong>当前素材摘要</strong>'
+            + '<div class="asset-summary-grid">'
+            + '<div class="asset-summary-item"><span>类型</span><strong>' + _esc(TYPE_LABELS[asset.asset_type] || asset.asset_type) + '</strong></div>'
+            + '<div class="asset-summary-item"><span>大小</span><strong>' + _esc(_humanFileSize(asset.file_size)) + '</strong></div>'
+            + '<div class="asset-summary-item"><span>标签</span><strong>' + _esc(tagText) + '</strong></div>'
+            + '<div class="asset-summary-item"><span>入库时间</span><strong>' + _esc(_formatDate(asset.created_at)) + '</strong></div>'
+            + '</div></article>';
 
         actionHost.querySelectorAll('.js-edit-asset').forEach(function (btn) {
             btn.addEventListener('click', function () {
                 if (typeof openAssetForm === 'function') {
                     openAssetForm(asset);
                 }
-            });
-        });
-
-        actionHost.querySelectorAll('.js-send-creative').forEach(function (btn) {
-            btn.addEventListener('click', function () {
-                if (typeof renderRoute === 'function') renderRoute('creative-workshop');
-                if (typeof showToast === 'function') showToast('已跳转到创意工坊，可继续使用该素材。', 'info');
-            });
-        });
-
-        actionHost.querySelectorAll('.js-send-factory').forEach(function (btn) {
-            btn.addEventListener('click', function () {
-                if (typeof renderRoute === 'function') renderRoute('ai-content-factory');
-                if (typeof showToast === 'function') showToast('已跳转到 AI 内容工厂，可继续批量处理素材。', 'info');
             });
         });
 
@@ -433,7 +485,20 @@
             var passCategory = state.category === 'all' || asset.asset_type === state.category;
             var passTab = _matchTab(asset, state.tab);
             var passKeyword = _matchKeyword(asset, state.keyword);
-            return passCategory && passTab && passKeyword;
+            var passGroupTag = !state.groupTag || asset.tagList.indexOf(state.groupTag) !== -1;
+            var passPack = _matchPack(asset, state.packKey);
+            return passCategory && passTab && passKeyword && passGroupTag && passPack;
+        });
+    }
+
+    function _currentBatchCandidates() {
+        return _filteredAssets(_assetCenterState).map(function (asset) {
+            return {
+                id: asset.id,
+                filename: asset.filename,
+                asset_type: asset.asset_type,
+                tags: asset.tags,
+            };
         });
     }
 
@@ -442,6 +507,8 @@
         uiState['asset-center'].category = state.category;
         uiState['asset-center'].tab = state.tab;
         uiState['asset-center'].keyword = state.keyword;
+        uiState['asset-center'].groupTag = state.groupTag;
+        uiState['asset-center'].packKey = state.packKey;
         uiState['asset-center'].selectedId = state.selectedId;
     }
 
@@ -466,6 +533,7 @@
         grid.innerHTML = filtered.slice(0, 24).map(function (asset) {
             return _buildAssetThumb(asset, asset.id === selectedId);
         }).join('');
+        _bindMediaFallbacks(grid);
 
         var selected = filtered.find(function (item) { return item.id === selectedId; }) || filtered[0];
         _renderAssetDetail(selected);
@@ -485,6 +553,7 @@
         document.querySelectorAll('#mainHost .asset-category-item').forEach(function (btn) {
             btn.addEventListener('click', function () {
                 state.category = btn.dataset.assetType || 'all';
+                state.packKey = '';
                 _persistRouteState(state);
                 _render(state);
             });
@@ -493,6 +562,7 @@
         document.querySelectorAll('#mainHost .asset-filter-row [data-asset-type]').forEach(function (chip) {
             chip.addEventListener('click', function () {
                 state.category = chip.dataset.assetType || 'all';
+                state.packKey = '';
                 _persistRouteState(state);
                 _render(state);
             });
@@ -501,6 +571,22 @@
         document.querySelectorAll('#mainHost .source-browser-tabs [data-asset-tab]').forEach(function (tab) {
             tab.addEventListener('click', function () {
                 state.tab = tab.dataset.assetTab || 'all';
+                _persistRouteState(state);
+                _render(state);
+            });
+        });
+
+        document.querySelectorAll('#mainHost .js-asset-tag-group[data-tag-group]').forEach(function (card) {
+            card.addEventListener('click', function () {
+                state.groupTag = card.dataset.tagGroup || '';
+                _persistRouteState(state);
+                _render(state);
+            });
+        });
+
+        document.querySelectorAll('#mainHost .js-asset-pack[data-pack-key]').forEach(function (card) {
+            card.addEventListener('click', function () {
+                state.packKey = card.dataset.packKey || '';
                 _persistRouteState(state);
                 _render(state);
             });
@@ -530,8 +616,8 @@
         _renderAssetCategories(byType, total, state.category);
         _renderTypeFilters(byType, total, state.category);
         _renderSourceTabs(state.assets, state.tab);
-        _renderCategoryFolders(state.assets, byType);
-        _renderPackRecommendations(state.assets);
+        _renderCategoryFolders(state, byType);
+        _renderPackRecommendations(state);
         _renderGrid(state);
         _bindFilterInteractions(state);
     }
@@ -555,6 +641,8 @@
                 category: routeState.category || 'all',
                 tab: routeState.tab || _assetCenterState.tab || 'all',
                 keyword: routeState.keyword || '',
+                groupTag: routeState.groupTag || '',
+                packKey: routeState.packKey || '',
                 selectedId: routeState.selectedId ? String(routeState.selectedId) : null,
             };
 
@@ -574,5 +662,6 @@
     window.__assetCenterPageMain = {
         renderAssetDetail: _renderAssetDetail,
         buildAssetThumb: _buildAssetThumb,
+        getBatchCandidates: _currentBatchCandidates,
     };
 })();

@@ -620,21 +620,79 @@ function _openDeviceBindingModal(btn) {
 }
 
 function _openAssetTagBatchModal() {
-    const thumbs = [...document.querySelectorAll('#mainHost .source-thumb.is-selected[data-id]')];
-    const selectedIds = thumbs.map((thumb) => parseInt(thumb.dataset.id || '0', 10)).filter(Boolean);
-    if (!selectedIds.length) {
-        showToast('请先选择需要打标签的素材', 'warning');
+    const esc = function (value) {
+        return String(value == null ? '' : value)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+    };
+    const helper = window.__assetCenterPageMain;
+    const candidates = helper && typeof helper.getBatchCandidates === 'function'
+        ? helper.getBatchCandidates()
+        : [];
+    if (!candidates.length) {
+        showToast('当前筛选条件下没有可打标签素材', 'warning');
         return;
     }
+    let selectedIds = [];
+    function syncSelection(form) {
+        selectedIds = [...form.querySelectorAll('.js-asset-batch-choice:checked')]
+            .map((el) => parseInt(el.value || '0', 10))
+            .filter(Boolean);
+        const countEl = form.querySelector('.js-batch-select-count');
+        if (countEl) countEl.textContent = String(selectedIds.length);
+    }
     openModal({
-        title: '批量打标签',
+        title: '批量打标签（先选素材）',
         submitText: '应用标签',
         fields: [
             { key: 'tags', label: '标签', placeholder: '例如 春促, 高转化', required: true },
         ],
+        onOpen: function (ctx) {
+            var block = document.createElement('section');
+            block.className = 'form-group';
+            block.innerHTML = ''
+                + '<label class="form-label">选择素材 <span class="form-required">*</span></label>'
+                + '<div class="subtle">已选 <strong class="js-batch-select-count">0</strong> / ' + candidates.length + '</div>'
+                + '<div class="batch-select-list"></div>'
+                + '<div style="display:flex;gap:8px;margin-top:8px;">'
+                + '<button type="button" class="secondary-button js-batch-check-all">全选</button>'
+                + '<button type="button" class="secondary-button js-batch-check-none">清空</button>'
+                + '</div>';
+            var listHost = block.querySelector('.batch-select-list');
+            candidates.forEach(function (item) {
+                var label = document.createElement('label');
+                label.className = 'batch-select-item';
+                label.innerHTML = '<input class="js-asset-batch-choice" type="checkbox" value="' + esc(String(item.id)) + '"> '
+                    + '<span><strong>' + esc(item.filename || ('素材 #' + item.id)) + '</strong><small>' + esc(item.asset_type || '') + (item.tags ? (' / ' + item.tags) : '') + '</small></span>';
+                listHost.appendChild(label);
+            });
+            ctx.form.insertBefore(block, ctx.form.firstChild);
+            ctx.form.querySelectorAll('.js-asset-batch-choice').forEach(function (choice) {
+                choice.addEventListener('change', function () { syncSelection(ctx.form); });
+            });
+            var checkAllBtn = ctx.form.querySelector('.js-batch-check-all');
+            if (checkAllBtn) {
+                checkAllBtn.addEventListener('click', function () {
+                    ctx.form.querySelectorAll('.js-asset-batch-choice').forEach(function (choice) { choice.checked = true; });
+                    syncSelection(ctx.form);
+                });
+            }
+            var checkNoneBtn = ctx.form.querySelector('.js-batch-check-none');
+            if (checkNoneBtn) {
+                checkNoneBtn.addEventListener('click', function () {
+                    ctx.form.querySelectorAll('.js-asset-batch-choice').forEach(function (choice) { choice.checked = false; });
+                    syncSelection(ctx.form);
+                });
+            }
+        },
         onSubmit: function (data) {
+            if (!selectedIds.length) {
+                throw new Error('请先勾选要打标签的素材');
+            }
             const tags = String(data.tags || '').trim();
-            const jobs = selectedIds.map((assetId) => api.assets.update(assetId, { tags }));
+            const jobs = selectedIds.map((assetId) => api.assets.update(assetId, { tags: tags }));
             return Promise.all(jobs).then(() => {
                 showToast('已更新 ' + selectedIds.length + ' 个素材标签', 'success');
                 if (typeof loadRouteData === 'function') loadRouteData('asset-center');
