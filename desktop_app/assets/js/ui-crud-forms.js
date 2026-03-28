@@ -307,13 +307,11 @@
                           { value: 'text', label: '文本' },
                           { value: 'template', label: '模板' },
                       ] },
-                    { key: 'file_path', label: '本地路径', required: true, placeholder: 'C:/assets/campaign-cover-01.png', value: existing ? existing.file_path : '' },
-                    { key: 'file_size', label: '文件大小(Byte)', type: 'number', min: 0, value: existing ? existing.file_size : 0 },
+                    { key: 'file_path', label: '本地路径', required: true, placeholder: 'C:/assets/campaign-cover-01.png', value: existing ? existing.file_path : '', hint: '文件大小由系统自动识别并入库' },
                     { key: 'account_id', label: '关联账号', type: 'select', value: existing ? String(existing.account_id || '') : '', options: accountOpts },
                     { key: 'tags', label: '标签', placeholder: '封面, 春促, US', value: existing ? existing.tags : '' },
                 ],
                 onSubmit: function (data) {
-                    data.file_size = parseInt(data.file_size, 10) || 0;
                     if (data.account_id === '') data.account_id = null;
                     else data.account_id = parseInt(data.account_id, 10);
 

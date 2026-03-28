@@ -327,6 +327,86 @@
     gap: var(--space-3);
 }
 
+.asset-pack-grid .strip-card,
+.asset-category-column .workbench-sidecard {
+    cursor: pointer;
+    transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.asset-pack-grid .strip-card.is-selected,
+.asset-category-column .workbench-sidecard.is-selected {
+    border-color: color-mix(in srgb, var(--brand-primary) 28%, var(--border-subtle));
+    background: color-mix(in srgb, var(--brand-primary) 8%, var(--surface-secondary));
+}
+
+.asset-current-summary .asset-summary-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-2);
+    margin-top: var(--space-2);
+}
+
+.asset-current-summary .asset-summary-item {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 8px 10px;
+    border-radius: var(--radius-sm);
+    background: color-mix(in srgb, var(--surface-primary) 92%, transparent);
+    border: 1px solid var(--border-subtle);
+}
+
+.asset-current-summary .asset-summary-item span {
+    font-size: 11px;
+    color: var(--text-tertiary);
+}
+
+.asset-current-summary .asset-summary-item strong {
+    font-size: 12px;
+    line-height: 1.4;
+    color: var(--text-primary);
+    word-break: break-word;
+}
+
+.batch-select-list {
+    margin-top: 8px;
+    max-height: 240px;
+    overflow: auto;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+    background: color-mix(in srgb, var(--surface-primary) 90%, transparent);
+}
+
+.batch-select-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 8px 10px;
+    border-bottom: 1px dashed var(--border-subtle);
+    cursor: pointer;
+}
+
+.batch-select-item:last-child {
+    border-bottom: 0;
+}
+
+.batch-select-item input {
+    margin-top: 2px;
+}
+
+.batch-select-item span {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.batch-select-item small {
+    color: var(--text-tertiary);
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    overflow: hidden;
+}
+
 .product-nav-list button,
 .asset-category-item,
 .aicf-node-palette button,

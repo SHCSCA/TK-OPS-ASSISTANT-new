@@ -5,7 +5,7 @@
 ; ────────────────────────────────────────────────
 
 #define MyAppName      "TK-OPS 运营助手"
-#define MyAppVersion   "1.2.1"
+#define MyAppVersion   "1.2.2"
 #define MyAppPublisher "TK-OPS"
 #define MyAppExeName   "TK-OPS.exe"
 #define MyAppURL       "https://github.com/your-org/tk-ops"

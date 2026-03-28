@@ -688,6 +688,12 @@ class Bridge(QObject):
         by_type = self._assets.count_by_type()
         return _ok({"total": total, "byType": by_type})
 
+    @Slot(str, int, result=str)
+    @_safe
+    def getAssetTextPreview(self, file_path: str, max_chars: int = 220) -> str:
+        preview = self._assets.read_text_preview(file_path, max_chars=max_chars)
+        return _ok(preview)
+
     # ── Dashboard aggregate ──
 
     @Slot(result=str)

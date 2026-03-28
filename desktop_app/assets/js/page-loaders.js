@@ -134,17 +134,20 @@
             var assets = payload.assets || [];
             var stats = payload.stats || { total: assets.length, byType: {} };
             var total = stats.total || assets.length;
-            var byType = stats.byType || {};
-            var reviewCount = (byType.text || 0) + (byType.template || 0);
-            var reusable = total ? Math.round(((byType.video || 0) + (byType.image || 0)) / total * 100) : 0;
+            var unboundCount = assets.filter(function (asset) { return !String((asset && asset.account_id) || '').trim(); }).length;
+            var taggedCount = assets.filter(function (asset) {
+                var tags = String((asset && asset.tags) || '').split(/[，,、/\s]+/).filter(Boolean);
+                return tags.length > 0;
+            }).length;
+            var taggedRate = total ? Math.round((taggedCount / total) * 100) : 0;
             _applyRuntimeSummary({
                 eyebrow: '素材提醒',
                 title: total ? ('素材库存 ' + total + ' 项') : '暂无素材库存',
-                copy: '待整理 ' + reviewCount + ' / 图片视频占比 ' + reusable + '%',
-                statusLeft: ['素材总量 ' + total, '待整理素材 ' + reviewCount, '图片/视频占比 ' + reusable + '%'],
+                copy: '未绑定账号 ' + unboundCount + ' / 标签完善率 ' + taggedRate + '%',
+                statusLeft: ['素材总量 ' + total, '未绑定账号 ' + unboundCount, '标签完善率 ' + taggedRate + '%'],
                 statusRight: [
                     { text: total ? '库存已加载' : '等待上传素材', tone: total ? 'success' : 'warning' },
-                    { text: reviewCount ? ('待整理 ' + reviewCount) : '已整理', tone: reviewCount ? 'warning' : 'info' },
+                    { text: taggedCount ? ('已打标签 ' + taggedCount) : '暂无标签', tone: taggedCount ? 'info' : 'warning' },
                 ],
             });
         },

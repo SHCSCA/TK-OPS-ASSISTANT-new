@@ -7,7 +7,7 @@ const uiState = {
     'group-management': { keyword: '', selectedId: null },
     'device-management': { statusFilter: 'all', view: 'card', selectedId: null },
     'task-queue': { statusFilter: 'all' },
-    'asset-center': { category: 'all', keyword: '', selectedId: null },
+    'asset-center': { category: 'all', tab: 'all', keyword: '', groupTag: '', packKey: '', selectedId: null },
     searchPanel: { visible: false, activeIndex: 0, results: [] },
     recentRoutes: [],
     detailPanelForced: null,
@@ -36,5 +36,5 @@ uiState.account = uiState.account || { statusFilter: 'all', view: 'card', sortMo
 uiState['group-management'] = uiState['group-management'] || { keyword: '', selectedId: null };
 uiState['device-management'] = uiState['device-management'] || { statusFilter: 'all', view: 'card', selectedId: null };
 uiState['task-queue'] = uiState['task-queue'] || { statusFilter: 'all' };
-uiState['asset-center'] = uiState['asset-center'] || { category: 'all', keyword: '', selectedId: null };
+uiState['asset-center'] = uiState['asset-center'] || { category: 'all', tab: 'all', keyword: '', groupTag: '', packKey: '', selectedId: null };
 

@@ -4,8 +4,8 @@
 
 VSVersionInfo(
   ffi=FixedFileInfo(
-    filevers=(1, 2, 1, 0),
-    prodvers=(1, 2, 1, 0),
+    filevers=(1, 2, 2, 0),
+    prodvers=(1, 2, 2, 0),
     mask=0x3F,
     flags=0x0,
     OS=0x40004,      # VOS_NT_WINDOWS32
@@ -20,12 +20,12 @@ VSVersionInfo(
         [
           StringStruct("CompanyName",      "TK-OPS"),
           StringStruct("FileDescription",  "TK-OPS 运营助手"),
-          StringStruct("FileVersion",      "1.2.1"),
+          StringStruct("FileVersion",      "1.2.2"),
           StringStruct("InternalName",     "TK-OPS"),
           StringStruct("LegalCopyright",   "Copyright © 2026 TK-OPS"),
           StringStruct("OriginalFilename", "TK-OPS.exe"),
           StringStruct("ProductName",      "TK-OPS Desktop"),
-          StringStruct("ProductVersion",   "1.2.1"),
+          StringStruct("ProductVersion",   "1.2.2"),
         ],
       ),
     ]),

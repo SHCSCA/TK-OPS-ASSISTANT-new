@@ -231,3 +231,11 @@ venv\Scripts\python.exe -m pytest tests/test_crud_interaction_matrix.py tests/te
 ```text
 Split asset-center loader and update runtime contracts
 ```
+
+---
+
+## 2026-03-28 补充进展（素材中心真实化）
+
+- [x] 素材预览补强：视频卡片改为自动循环预览，详情区支持控件播放；文稿/模板接入后端文本预览接口。
+- [x] 指标口径调整：顶部统计从“待审核/复用率”收口为“未绑定账号/标签完善率”，并同步运行时摘要口径。
+- [x] 版本治理检查：版本号提升至 `1.2.2`，并通过 `build.py --sync-version-metadata` 同步 README、安装器、版本资源与 bridge stub。
