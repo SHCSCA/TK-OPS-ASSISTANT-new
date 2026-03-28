@@ -443,10 +443,14 @@ window.addEventListener('DOMContentLoaded', () => {
 
     uiState.shellRuntime.defaultSummary = _routeStaticSummary(currentRoute);
     renderShellRuntimeSummary();
+
+    // Render the first route immediately so startup is not blocked by snapshot calls.
+    const bootRoute = currentRoute;
+    renderRoute(bootRoute);
+
     _loadShellRuntimeSnapshot().then(function (snapshot) {
-        if (snapshot && snapshot.onboarding && snapshot.onboarding.completed) {
-            renderRoute(currentRoute);
-        } else {
+        var onboardingCompleted = Boolean(snapshot && snapshot.onboarding && snapshot.onboarding.completed);
+        if (!onboardingCompleted && currentRoute !== 'setup-wizard') {
             frontendLog('info', '首次运行，跳转初始化向导');
             renderRoute('setup-wizard');
         }

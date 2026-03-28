@@ -107,19 +107,11 @@
             });
         });
 
-        detailHost.querySelectorAll('.js-account-configure-proxy').forEach(function (btn) {
-            btn.addEventListener('click', function (e) {
-                e.stopPropagation();
-                var acc = _findAccountViewModel(accounts, btn.dataset.id);
-                if (acc) _openAccountProxyConfig(acc);
-            });
-        });
-
         detailHost.querySelectorAll('.js-account-rebind-validate').forEach(function (btn) {
             btn.addEventListener('click', function (e) {
                 e.stopPropagation();
                 var acc = _findAccountViewModel(accounts, btn.dataset.id);
-                if (acc) _openAccountProxyConfig(acc, { quickValidate: true });
+                if (acc) _openAccountProxyConfig(acc, { validateAfterSave: true });
             });
         });
     }
@@ -160,7 +152,6 @@
             + '<button class="secondary-button js-account-rebind-validate" data-id="' + account.id + '" type="button">重绑并校验</button>'
             + '<button class="secondary-button js-validate-account-login" data-id="' + account.id + '" type="button">校验登录态</button>'
             + '<button class="secondary-button js-test-account-connection" data-id="' + account.id + '" type="button">检测代理</button>'
-            + '<button class="secondary-button js-account-configure-proxy" data-id="' + account.id + '" type="button">配置代理</button>'
             + '<button class="ghost-button js-edit-account" data-id="' + account.id + '" type="button">编辑账号</button>'
             + '<button class="danger-button js-delete-account" data-id="' + account.id + '" type="button">删除账号</button>'
             + '</div>'
@@ -208,6 +199,26 @@
                 + '<button class="ghost-button js-view-account" data-id="' + (account.id || '') + '" type="button">查看详情与更多操作</button>'
                 + '</div></article>';
         }).join('');
+    }
+
+    function _sortAccountsNewestFirst(accounts) {
+        return (accounts || []).slice().map(function (item, index) {
+            return { item: item, index: index };
+        }).sort(function (left, right) {
+            var leftCreated = Date.parse(left.item && left.item.created_at ? left.item.created_at : '') || 0;
+            var rightCreated = Date.parse(right.item && right.item.created_at ? right.item.created_at : '') || 0;
+            if (leftCreated !== rightCreated) {
+                return rightCreated - leftCreated;
+            }
+            var leftId = parseInt(left.item && left.item.id, 10) || 0;
+            var rightId = parseInt(right.item && right.item.id, 10) || 0;
+            if (leftId !== rightId) {
+                return rightId - leftId;
+            }
+            return left.index - right.index;
+        }).map(function (entry) {
+            return entry.item;
+        });
     }
 
     function _syncAccountControls() {
@@ -461,19 +472,11 @@
             });
         });
 
-        document.querySelectorAll('.js-account-configure-proxy').forEach(function (btn) {
-            btn.addEventListener('click', function (e) {
-                e.stopPropagation();
-                var account = _findAccountViewModel(accounts, btn.dataset.id);
-                if (account) _openAccountProxyConfig(account);
-            });
-        });
-
         document.querySelectorAll('.js-account-rebind-validate').forEach(function (btn) {
             btn.addEventListener('click', function (e) {
                 e.stopPropagation();
                 var account = _findAccountViewModel(accounts, btn.dataset.id);
-                if (account) _openAccountProxyConfig(account, { quickValidate: true });
+                if (account) _openAccountProxyConfig(account, { validateAfterSave: true });
             });
         });
     }
@@ -497,9 +500,9 @@
                 deviceMap[String(device.id)] = device;
             });
 
-            var viewModels = accounts.map(function (account) {
+            var viewModels = _sortAccountsNewestFirst(accounts.map(function (account) {
                 return _buildAccountViewModel(account, deviceMap[String(account.device_id || '')] || null);
-            });
+            }));
             window.__accountPageData = viewModels;
 
             runtimeSummaryHandlers['account']({ accounts: accounts });

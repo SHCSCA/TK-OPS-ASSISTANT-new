@@ -158,7 +158,7 @@ function makeDeviceManagementRoute(config = {}) {
                 <article class="stat-card"><div><div class="subtle">异常环境</div><div class="stat-card__value">--</div></div><div class="stat-card__delta"><span>实时汇总</span><span class="subtle">指纹、代理与绑定状态综合判断</span></div></article>
                 <article class="stat-card"><div><div class="subtle">空闲设备</div><div class="stat-card__value">--</div></div><div class="stat-card__delta"><span>实时汇总</span><span class="subtle">当前无绑定账号的设备</span></div></article>
             </div>
-            <div class="notice-banner" data-device-banner><div><strong>正在加载设备巡检摘要</strong><div>加载后根据真实设备状态、账号绑定与环境问题自动更新。</div></div><div class="toolbar__group"><button class="primary-button" type="button">批量修复</button><button class="ghost-button" type="button">查看详情</button></div></div>
+            <div class="notice-banner" data-device-banner><div><strong>正在加载设备巡检摘要</strong><div>加载后根据真实设备状态、账号绑定与环境问题自动更新。</div></div><div class="toolbar__group"><button class="ghost-button js-device-banner-dismiss" type="button">关闭</button></div></div>
             <div class="device-management-shell">
                 <div class="device-filter-bar">
                     <div class="local-tabs" data-filter-group="device-status">

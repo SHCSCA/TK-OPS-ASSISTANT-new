@@ -349,9 +349,10 @@ select:focus {
 
 .account-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(300px, 300px));
     gap: 16px;
-    align-items: start;
+    justify-content: flex-start;
+    align-items: stretch;
 }
 
 .account-card {
@@ -364,6 +365,28 @@ select:focus {
     border-radius: var(--radius-lg);
     background: color-mix(in srgb, var(--surface-secondary) 96%, transparent);
     box-shadow: var(--shadow-sm);
+}
+
+.account-card[data-status="offline"] {
+    border-color: color-mix(in srgb, var(--status-info) 42%, var(--border-subtle));
+    background: color-mix(in srgb, var(--status-info) 6%, var(--surface-secondary));
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--status-info) 18%, transparent), var(--shadow-sm);
+}
+
+.account-card[data-status="offline"] .status-chip {
+    color: var(--status-info);
+    background: color-mix(in srgb, var(--status-info) 12%, var(--surface-secondary));
+}
+
+.account-card[data-status="exception"] {
+    border-color: color-mix(in srgb, var(--status-error) 42%, var(--border-subtle));
+    background: color-mix(in srgb, var(--status-error) 6%, var(--surface-secondary));
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--status-error) 18%, transparent), var(--shadow-sm);
+}
+
+.account-card[data-status="exception"] .status-chip {
+    color: var(--status-error);
+    background: color-mix(in srgb, var(--status-error) 12%, var(--surface-secondary));
 }
 
 .account-card__head {
@@ -386,6 +409,7 @@ select:focus {
 .account-card__meta {
     display: flex;
     flex-direction: column;
+    flex: 1 1 auto;
     gap: 10px;
     min-width: 0;
 }
@@ -439,6 +463,7 @@ select:focus {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 8px;
+    margin-top: auto;
 }
 
 .account-card__actions > button,
@@ -605,6 +630,10 @@ select:focus {
 }
 
 @media (max-width: 720px) {
+    .account-grid {
+        grid-template-columns: 1fr;
+    }
+
     .account-grid.list-mode .account-card__meta {
         grid-template-columns: 1fr;
     }

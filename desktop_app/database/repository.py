@@ -1,7 +1,8 @@
-"""Generic CRUD repository for TK-OPS models."""
+﻿"""Generic CRUD repository for TK-OPS models."""
 from __future__ import annotations
 
 import datetime as dt
+import threading
 
 from typing import Any, Sequence, Type, TypeVar
 
@@ -34,72 +35,93 @@ class Repository:
     """Thin wrapper around SQLAlchemy Session providing common CRUD ops."""
 
     def __init__(self, session: Session | None = None) -> None:
-        self._session = session or get_session()
+        self._owns_session = session is None
+        self._session_lock = threading.Lock()
+        self._session = session
+        if self._session is not None:
+            self._session.expire_on_commit = True
 
     @property
     def session(self) -> Session:
+        if self._session is not None:
+            return self._session
+        if not self._owns_session:
+            raise RuntimeError("Repository requires an explicit session")
+        with self._session_lock:
+            if self._session is None:
+                self._session = get_session()
+                self._session.expire_on_commit = True
         return self._session
 
-    # ── generic CRUD ──
+    def reset_session(self) -> None:
+        if not self._owns_session:
+            return
+        if self._session is None:
+            return
+        self._session.close()
+        self._session = None
+
+    # 鈹€鈹€ generic CRUD 鈹€鈹€
 
     def get_by_id(self, model: Type[T], pk: Any) -> T | None:
-        return self._session.get(model, pk)
+        return self.session.get(model, pk)
 
     def list_all(self, model: Type[T], *, limit: int = 500) -> Sequence[T]:
-        return self._session.execute(select(model).limit(limit)).scalars().all()
+        return self.session.execute(select(model).limit(limit)).scalars().all()
 
     def count(self, model: Type[T]) -> int:
-        return self._session.execute(select(func.count()).select_from(model)).scalar() or 0
+        return self.session.execute(select(func.count()).select_from(model)).scalar() or 0
 
     def add(self, instance: T) -> T:
-        self._session.add(instance)
-        self._session.commit()
-        self._session.refresh(instance)
+        self.session.add(instance)
+        self.session.commit()
+        self.session.refresh(instance)
         return instance
 
     def update(self, instance: T, **fields: Any) -> T:
         for k, v in fields.items():
             setattr(instance, k, v)
-        self._session.commit()
-        self._session.refresh(instance)
+        self.session.commit()
+        self.session.refresh(instance)
         return instance
 
     def delete(self, instance: T) -> None:
-        self._session.delete(instance)
-        self._session.commit()
+        self.session.delete(instance)
+        self.session.commit()
+        self.session.expire_all()
 
-    # ── specialized queries ──
+    # 鈹€鈹€ specialized queries 鈹€鈹€
 
     def list_accounts(self, *, status: str | None = None) -> Sequence[Account]:
         stmt = select(Account)
         if status:
             stmt = stmt.where(Account.status == status)
-        return self._session.execute(stmt.order_by(Account.id)).scalars().all()
+        return self.session.execute(stmt.order_by(Account.id)).scalars().all()
 
     def list_devices(self, *, status: str | None = None) -> Sequence[Device]:
         stmt = select(Device)
         if status:
             stmt = stmt.where(Device.status == status)
-        return self._session.execute(stmt.order_by(Device.id)).scalars().all()
+        return self.session.execute(stmt.order_by(Device.id)).scalars().all()
 
     def list_tasks(self, *, status: str | None = None) -> Sequence[Task]:
         stmt = select(Task)
         if status:
             stmt = stmt.where(Task.status == status)
-        return self._session.execute(stmt.order_by(Task.created_at.desc())).scalars().all()
+        return self.session.execute(stmt.order_by(Task.created_at.desc())).scalars().all()
 
     def get_active_provider(self) -> AIProvider | None:
         stmt = select(AIProvider).where(AIProvider.is_active == True).limit(1)  # noqa: E712
-        return self._session.execute(stmt).scalars().first()
+        return self.session.execute(stmt).scalars().first()
 
     def list_assets(self, *, asset_type: str | None = None) -> Sequence[Asset]:
         stmt = select(Asset)
         if asset_type:
             stmt = stmt.where(Asset.asset_type == asset_type)
-        return self._session.execute(stmt.order_by(Asset.created_at.desc())).scalars().all()
+        return self.session.execute(stmt.order_by(Asset.created_at.desc())).scalars().all()
 
     def list_groups(self) -> Sequence[Group]:
-        return self._session.execute(select(Group).order_by(Group.id)).scalars().all()
+        return self.session.execute(select(Group).order_by(Group.id)).scalars().all()
 
     def list_analysis_snapshots(
         self, *, page_key: str | None = None
@@ -107,19 +129,19 @@ class Repository:
         stmt = select(AnalysisSnapshot)
         if page_key:
             stmt = stmt.where(AnalysisSnapshot.page_key == page_key)
-        return self._session.execute(
+        return self.session.execute(
             stmt.order_by(AnalysisSnapshot.created_at.desc(), AnalysisSnapshot.id.desc())
         ).scalars().all()
 
     def list_report_runs(self) -> Sequence[ReportRun]:
         stmt = select(ReportRun).order_by(ReportRun.created_at.desc(), ReportRun.id.desc())
-        return self._session.execute(stmt).scalars().all()
+        return self.session.execute(stmt).scalars().all()
 
     def list_workflow_definitions(self) -> Sequence[WorkflowDefinition]:
         stmt = select(WorkflowDefinition).order_by(
             WorkflowDefinition.created_at.desc(), WorkflowDefinition.id.desc()
         )
-        return self._session.execute(stmt).scalars().all()
+        return self.session.execute(stmt).scalars().all()
 
     def list_workflow_runs(
         self, *, workflow_definition_id: int | None = None
@@ -127,7 +149,7 @@ class Repository:
         stmt = select(WorkflowRun)
         if workflow_definition_id is not None:
             stmt = stmt.where(WorkflowRun.workflow_definition_id == workflow_definition_id)
-        return self._session.execute(
+        return self.session.execute(
             stmt.order_by(WorkflowRun.created_at.desc(), WorkflowRun.id.desc())
         ).scalars().all()
 
@@ -135,7 +157,7 @@ class Repository:
         stmt = select(ExperimentProject).order_by(
             ExperimentProject.created_at.desc(), ExperimentProject.id.desc()
         )
-        return self._session.execute(stmt).scalars().all()
+        return self.session.execute(stmt).scalars().all()
 
     def list_experiment_views(
         self, *, experiment_project_id: int | None = None
@@ -143,7 +165,7 @@ class Repository:
         stmt = select(ExperimentView)
         if experiment_project_id is not None:
             stmt = stmt.where(ExperimentView.experiment_project_id == experiment_project_id)
-        return self._session.execute(
+        return self.session.execute(
             stmt.order_by(ExperimentView.created_at.desc(), ExperimentView.id.desc())
         ).scalars().all()
 
@@ -151,52 +173,53 @@ class Repository:
         stmt = select(ActivityLog)
         if category:
             stmt = stmt.where(ActivityLog.category == category)
-        return self._session.execute(
+        return self.session.execute(
             stmt.order_by(ActivityLog.created_at.desc(), ActivityLog.id.desc())
         ).scalars().all()
 
     def list_recent_tasks(self, *, limit: int = 20) -> Sequence[Task]:
         stmt = select(Task).order_by(Task.created_at.desc(), Task.id.desc()).limit(limit)
-        return self._session.execute(stmt).scalars().all()
+        return self.session.execute(stmt).scalars().all()
 
     def list_recent_activity_logs(self, *, limit: int = 20) -> Sequence[ActivityLog]:
         stmt = select(ActivityLog).order_by(ActivityLog.created_at.desc(), ActivityLog.id.desc()).limit(limit)
-        return self._session.execute(stmt).scalars().all()
+        return self.session.execute(stmt).scalars().all()
 
-    # ── app settings ──
+    # 鈹€鈹€ app settings 鈹€鈹€
 
     def get_setting(self, key: str, default: str = "") -> str:
-        row = self._session.get(AppSetting, key)
+        row = self.session.get(AppSetting, key)
         return row.value if row else default
 
     def set_setting(self, key: str, value: str) -> None:
-        row = self._session.get(AppSetting, key)
+        row = self.session.get(AppSetting, key)
         if row:
             row.value = value
         else:
-            self._session.add(AppSetting(key=key, value=value))
-        self._session.commit()
+            self.session.add(AppSetting(key=key, value=value))
+        self.session.commit()
+        self.session.expire_all()
 
     def get_all_settings(self) -> dict[str, str]:
-        rows = self._session.execute(select(AppSetting)).scalars().all()
+        rows = self.session.execute(select(AppSetting)).scalars().all()
         return {r.key: r.value for r in rows}
 
-    # ── aggregate queries (for dashboard) ──
+    # 鈹€鈹€ aggregate queries (for dashboard) 鈹€鈹€
 
     def count_accounts_by_status(self) -> dict[str, int]:
-        rows = self._session.execute(
+        rows = self.session.execute(
             select(Account.status, func.count()).group_by(Account.status)
         ).all()
         return {status: cnt for status, cnt in rows}
 
     def count_tasks_by_status(self) -> dict[str, int]:
-        rows = self._session.execute(
+        rows = self.session.execute(
             select(Task.status, func.count()).group_by(Task.status)
         ).all()
         return {status: cnt for status, cnt in rows}
 
     def count_devices_by_status(self) -> dict[str, int]:
-        rows = self._session.execute(
+        rows = self.session.execute(
             select(Device.status, func.count()).group_by(Device.status)
         ).all()
         return {status: cnt for status, cnt in rows}
@@ -205,19 +228,23 @@ class Repository:
         stmt = select(func.count()).select_from(Task).where(
             and_(Task.created_at >= start, Task.created_at < end)
         )
-        return self._session.execute(stmt).scalar() or 0
+        return self.session.execute(stmt).scalar() or 0
 
     def count_tasks_completed_between(self, start: dt.datetime, end: dt.datetime) -> int:
         stmt = select(func.count()).select_from(Task).where(
             and_(Task.finished_at.is_not(None), Task.finished_at >= start, Task.finished_at < end)
         )
-        return self._session.execute(stmt).scalar() or 0
+        return self.session.execute(stmt).scalar() or 0
 
     def count_tasks_failed_between(self, start: dt.datetime, end: dt.datetime) -> int:
         stmt = select(func.count()).select_from(Task).where(
             and_(Task.status == "failed", Task.created_at >= start, Task.created_at < end)
         )
-        return self._session.execute(stmt).scalar() or 0
+        return self.session.execute(stmt).scalar() or 0
 
     def close(self) -> None:
+        if self._session is None:
+            return
         self._session.close()
+        self._session = None
+

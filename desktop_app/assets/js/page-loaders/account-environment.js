@@ -49,11 +49,33 @@
         return { status: 'healthy', label: '健康', proxyStatus: 'online', proxyLabel: '在线' };
     }
 
+    function _buildAccountProxyDeviceSnapshot(device) {
+        if (!device) {
+            return {
+                proxyIp: '',
+                region: '',
+                previewLabel: '未选择设备',
+                hint: '请先选择设备，代理 IP / 地区 / 设备状态会自动回填。',
+            };
+        }
+
+        var preview = _predictDeviceRuntimeState(device.proxy_ip, device.fingerprint_status);
+        var stateBits = [];
+        if (device.proxy_status) stateBits.push('代理 ' + device.proxy_status);
+        if (device.fingerprint_status) stateBits.push('指纹 ' + device.fingerprint_status);
+        if (device.status) stateBits.push('设备 ' + device.status);
+
+        return {
+            proxyIp: device.proxy_ip || '',
+            region: device.region || '',
+            previewLabel: preview.label,
+            hint: '代理 IP / 地区 / 设备状态均来自设备信息，不支持手动修改。' + (stateBits.length ? '当前状态：' + stateBits.join(' / ') : ''),
+        };
+    }
+
     function _readAccountProxyConfigForm(form) {
         return {
             device_id: form && form.elements.device_id ? form.elements.device_id.value : '',
-            proxy_ip: form && form.elements.proxy_ip ? form.elements.proxy_ip.value : '',
-            region: form && form.elements.region ? form.elements.region.value : 'US',
         };
     }
 
@@ -70,35 +92,25 @@
 
     function _saveAccountProxyBinding(account, data, options) {
         var settings = options || {};
-        var deviceId = parseInt(data.device_id, 10);
+        var deviceId = parseInt(data.device_id, 10) || parseInt(account.device_id || (account.device && account.device.id) || 0, 10);
         if (!deviceId) {
             throw new Error('请先选择设备');
         }
 
-        var proxyIp = String(data.proxy_ip || '').trim();
-        if (!proxyIp) {
-            throw new Error('请填写代理 IP');
-        }
-
         return api.accounts.update(account.id, { device_id: deviceId }).then(function () {
-            return api.devices.update(deviceId, {
-                proxy_ip: proxyIp,
-                region: data.region,
-            });
-        }).then(function () {
             if (!settings.validateAfterSave) {
-                showToast('代理配置已更新，设备状态已自动同步', 'success');
+                showToast('设备绑定已更新，代理信息将由设备自动接管', 'success');
                 _reloadAccountPage();
                 return { saved: true };
             }
             if (!String(account.cookieContentRaw || '').trim()) {
                 _reloadAccountPage();
-                throw new Error('已完成重绑，但当前还没有 Cookie。请先在该设备环境中登录并导入 Cookie，再执行一键校验。');
+                throw new Error('已完成设备绑定，但当前还没有 Cookie。请先在设备环境中登录并导入 Cookie，再执行校验。');
             }
             return api.accounts.testConnection(account.id).then(function (connectionResult) {
                 if (!connectionResult || !connectionResult.ok) {
                     _reloadAccountPage();
-                    throw new Error((connectionResult && connectionResult.message) || '代理检测失败，请先修复代理连通性');
+                    throw new Error((connectionResult && connectionResult.message) || '代理检测失败，请先修复代理连通性。');
                 }
                 return api.accounts.validateLogin(account.id).then(function (loginResult) {
                     _reloadAccountPage();
@@ -342,51 +354,57 @@
 
     function openAccountProxyConfig(account, options) {
         if (!account) return;
-        var config = options || {};
+        var settings = options || {};
+        var validateAfterSave = !!settings.validateAfterSave;
 
         return api.devices.list().then(function (devices) {
             devices = devices || [];
             if (!devices.length) {
-                showToast('当前还没有设备，请先新增设备后再配置代理', 'warning');
+                showToast('当前还没有设备，请先新增设备后再绑定', 'warning');
                 return;
             }
 
-            var deviceOptions = devices.map(function (device) {
+            var currentDevice = _selectedAccountProxyDevice(devices, account.device_id || (account.device && account.device.id));
+            var defaultDeviceId = String((currentDevice && currentDevice.id) || account.device_id || (account.device && account.device.id) || '');
+            var deviceOptions = [{ value: '', label: '保持当前设备' }].concat(devices.map(function (device) {
                 var label = (device.name || device.device_code || '未命名设备')
                     + ' / ' + (device.region || '-')
                     + ' / ' + (device.proxy_ip || '未配置代理');
                 return { value: String(device.id), label: label };
-            });
-            var defaultDeviceId = String((account.device && account.device.id) || account.device_id || devices[0].id || '');
+            }));
 
             openModal({
-                title: (config.quickValidate ? '重绑并校验 / ' : '配置代理 / ') + (account.username || '账号'),
+                title: '重绑并校验 / ' + (account.username || '账号'),
                 width: 560,
-                submitText: config.quickValidate ? '一键重绑并校验' : '保存代理配置',
+                submitText: '重绑并校验',
                 fields: [
                     {
                         key: 'device_id',
-                        label: '选择设备',
+                        label: '选择设备（可选）',
                         type: 'select',
-                        required: true,
+                        required: false,
                         value: defaultDeviceId,
                         options: deviceOptions,
-                        hint: '代理与地区归属于设备。这里绑定账号到目标设备，并同步更新该设备的代理配置。',
+                        hint: validateAfterSave
+                            ? '保存后将自动重绑并校验登录态；如果不更换设备，保持当前选择即可。'
+                            : '设备由系统自动接管，选择后下面的代理 IP / 地区 / 设备状态只读显示。',
                     },
                     {
                         key: 'proxy_ip',
                         label: '代理 IP',
-                        required: true,
-                        value: _selectedAccountProxyDevice(devices, defaultDeviceId) ? (_selectedAccountProxyDevice(devices, defaultDeviceId).proxy_ip || '') : '',
-                        placeholder: '例如 23.88.14.10:8080 或 http://user:pass@23.88.14.10:8080',
+                        required: false,
+                        value: '',
+                        disabled: true,
+                        hint: '由所选设备自动回填，只读。',
                     },
                     {
                         key: 'region',
                         label: '地区',
-                        type: 'select',
-                        required: true,
-                        value: _selectedAccountProxyDevice(devices, defaultDeviceId) ? (_selectedAccountProxyDevice(devices, defaultDeviceId).region || 'US') : 'US',
-                        options: ['US', 'UK', 'DE', 'JP', 'MY', 'SG', 'ID', 'TH', 'VN', 'PH', 'BR', 'MX'],
+                        type: 'text',
+                        required: false,
+                        value: '',
+                        disabled: true,
+                        hint: '由所选设备自动回填，只读。',
                     },
                     {
                         key: 'status_preview',
@@ -394,12 +412,12 @@
                         type: 'text',
                         value: '',
                         disabled: true,
-                        hint: '',
+                        hint: '状态由设备信息自动判断，只读。',
                     },
                 ],
                 onSubmit: function (data) {
                     return _saveAccountProxyBinding(account, data, {
-                        validateAfterSave: !!config.quickValidate,
+                        validateAfterSave: validateAfterSave,
                     });
                 },
                 onOpen: function (ctx) {
@@ -409,93 +427,18 @@
                     var previewField = ctx.form.elements.status_preview;
                     var previewHint = previewField && previewField.parentNode ? previewField.parentNode.querySelector('.form-hint') : null;
 
-                    if (!config.quickValidate) {
-                        var quickBtn = document.createElement('button');
-                        quickBtn.type = 'button';
-                        quickBtn.className = 'primary-button';
-                        quickBtn.textContent = '一键重绑并校验';
-                        ctx.submitButton.className = 'secondary-button modal-submit-btn';
-                        ctx.footer.insertBefore(quickBtn, ctx.cancelButton);
-
-                        if (account.device_id) {
-                            var unbindBtn = document.createElement('button');
-                            unbindBtn.type = 'button';
-                            unbindBtn.className = 'ghost-button';
-                            unbindBtn.textContent = '解除绑定代理';
-                            ctx.footer.insertBefore(unbindBtn, ctx.cancelButton);
-
-                            unbindBtn.addEventListener('click', function () {
-                                confirmModal({
-                                    title: '解除绑定代理',
-                                    message: '确定解除当前账号与设备的代理绑定？设备上的代理配置会保留，但该账号将改为未绑定代理状态。',
-                                    confirmText: '解除绑定',
-                                    tone: 'warning',
-                                }).then(function (ok) {
-                                    if (!ok) return;
-                                    var originalText = unbindBtn.textContent;
-                                    unbindBtn.disabled = true;
-                                    quickBtn.disabled = true;
-                                    ctx.submitButton.disabled = true;
-                                    unbindBtn.textContent = '解绑中...';
-                                    _unbindAccountProxyBinding(account).then(function () {
-                                        ctx.close();
-                                    }).catch(function (err) {
-                                        showToast((err && err.message) || '解除绑定失败', 'error');
-                                    }).finally(function () {
-                                        unbindBtn.disabled = false;
-                                        quickBtn.disabled = false;
-                                        ctx.submitButton.disabled = false;
-                                        unbindBtn.textContent = originalText;
-                                    });
-                                });
-                            });
-                        }
-
-                        quickBtn.addEventListener('click', function () {
-                            var originalText = quickBtn.textContent;
-                            quickBtn.disabled = true;
-                            ctx.submitButton.disabled = true;
-                            quickBtn.textContent = '校验中...';
-                            _saveAccountProxyBinding(account, _readAccountProxyConfigForm(ctx.form), {
-                                validateAfterSave: true,
-                            }).then(function () {
-                                ctx.close();
-                            }).catch(function (err) {
-                                showToast((err && err.message) || '重绑并校验失败', 'error');
-                            }).finally(function () {
-                                quickBtn.disabled = false;
-                                ctx.submitButton.disabled = false;
-                                quickBtn.textContent = originalText;
-                            });
-                        });
-                    }
-
                     function syncDeviceDraft() {
-                        var selected = _selectedAccountProxyDevice(devices, deviceField.value);
-                        if (!selected) return;
-
-                        if (!proxyField.value.trim() || String(selected.id) !== String(account.device_id || '')) {
-                            proxyField.value = selected.proxy_ip || '';
-                        }
-                        regionField.value = selected.region || 'US';
-                        var preview = _predictDeviceRuntimeState(proxyField.value, selected.fingerprint_status);
-                        previewField.value = preview.label;
+                        var selected = _selectedAccountProxyDevice(devices, deviceField.value) || currentDevice;
+                        var snapshot = _buildAccountProxyDeviceSnapshot(selected);
+                        proxyField.value = snapshot.proxyIp;
+                        regionField.value = snapshot.region;
+                        previewField.value = snapshot.previewLabel;
                         if (previewHint) {
-                            previewHint.textContent = '代理状态将自动同步为 ' + preview.proxyLabel + '，设备健康将显示为 ' + preview.label + '。';
-                        }
-                    }
-
-                    function syncProxyDraft() {
-                        var selected = _selectedAccountProxyDevice(devices, deviceField.value);
-                        var preview = _predictDeviceRuntimeState(proxyField.value, selected ? selected.fingerprint_status : 'normal');
-                        previewField.value = preview.label;
-                        if (previewHint) {
-                            previewHint.textContent = '代理状态将自动同步为 ' + preview.proxyLabel + '，设备健康将显示为 ' + preview.label + '。';
+                            previewHint.textContent = snapshot.hint;
                         }
                     }
 
                     deviceField.addEventListener('change', syncDeviceDraft);
-                    proxyField.addEventListener('input', syncProxyDraft);
                     syncDeviceDraft();
                 },
             });

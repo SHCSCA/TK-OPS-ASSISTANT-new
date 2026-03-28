@@ -41,7 +41,7 @@
                     { key: 'device_id', label: '绑定设备', type: 'select',
                         value: existing ? String(existing.device_id || '') : '',
                         options: deviceOptions,
-                        hint: '账号代理来自绑定设备。若要修改代理地址，可先选择设备，再从账号详情点“配置代理”。' },
+                        hint: '账号代理由绑定设备自动接管。设备可选，不选则保留当前绑定；代理 IP / 地区 / 设备状态会随设备信息自动回填。' },
                     { key: 'tags', label: '标签', placeholder: '例如 北美, 直播, 重点', value: existing ? (existing.tags || '') : '',
                         hint: '使用逗号分隔，可直接录入自定义标签。' },
                     { key: 'cookie_status', label: 'Cookie 状态', type: 'select', value: existing ? (existing.cookie_status || existing.cookieStatus || 'unknown') : 'unknown',
@@ -56,11 +56,10 @@
                         value: existing ? (existing.cookie_content || existing.cookieContentRaw || '') : '',
                         placeholder: '可粘贴 Cookie 字符串、JSON 数组，或 Netscape cookies 文本。',
                         hint: '这里保存真实 Cookie 内容；若录入有效 Cookie，建议同时更新状态。' },
-                    { key: 'isolation_enabled', label: '隔离环境', type: 'select', value: existing && ((existing.isolation_enabled === true || String(existing.isolation_enabled).toLowerCase() === 'true') || existing.isolationEnabled === true) ? 'true' : 'false',
-                        options: [
-                            { value: 'true', label: '已启用' },
-                            { value: 'false', label: '未启用' },
-                        ] },
+                    { key: 'isolation_enabled', label: '隔离环境（系统判定）', type: 'text',
+                        value: existing ? (((existing.isolation_enabled === true || String(existing.isolation_enabled).toLowerCase() === 'true') || existing.isolationEnabled === true) ? '已启用' : '未启用') : '保存后由系统自动判定',
+                        disabled: true,
+                        hint: '隔离环境状态由系统根据账号运行状态自动判断，不支持手动修改。' },
                     { key: 'followers', label: '粉丝数', type: 'number', value: existing ? existing.followers : 0, min: 0 },
                     { key: 'notes', label: '备注', type: 'textarea', placeholder: '可选描述',
                         value: existing ? existing.notes : '' },
@@ -68,7 +67,7 @@
                 onSubmit: function (data) {
                     data.followers = parseInt(data.followers, 10) || 0;
                     data.device_id = data.device_id === '' ? null : (parseInt(data.device_id, 10) || null);
-                    data.isolation_enabled = data.isolation_enabled === 'true';
+                    delete data.isolation_enabled;
                     data.tags = (data.tags || '').trim() || null;
                     data.cookie_content = (data.cookie_content || '').trim() || null;
                     data.cookie_updated_at = data.cookie_content ? new Date().toISOString() : null;

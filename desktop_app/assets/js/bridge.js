@@ -143,6 +143,7 @@
             pickLocalFiles: () => ok([]),
             importTextFile: () => ok({ selected: false, path: '', name: '', content: '' }),
             exportTextFile: () => ok({ saved: false, path: '' }),
+            exportNamedTextFile: () => ok({ saved: false, path: '' }),
             getRecentLogs: () => ok({ path: 'C:/TK-OPS-ASSISTANT/logs/app.log', lines: ['[2026-03-19 10:30:00] INFO     desktop_app.app  Application started'], lineCount: 1, errorCount: 0, warningCount: 0, size: 128 }),
             runNetworkDiagnostics: () => ok({ score: 100, checks: [], errorCount: 0, warningCount: 0, generatedAt: '', reportText: '' }),
             // Logging

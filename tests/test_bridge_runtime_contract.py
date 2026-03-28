@@ -125,3 +125,11 @@ def test_bridge_stub_exposes_device_environment_proxy_metadata():
     assert "openDeviceEnvironment:" in text
     assert "browser_proxy" in text
     assert "validation" in text
+
+
+def test_bridge_and_stub_cover_named_text_export():
+    methods = _extract_python_bridge_methods()
+    assert "exportNamedTextFile" in methods
+
+    text = BRIDGE_JS.read_text(encoding="utf-8")
+    assert "exportNamedTextFile:" in text
