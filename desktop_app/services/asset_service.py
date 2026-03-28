@@ -27,6 +27,51 @@ class AssetService:
         except OSError:
             return int(fallback or 0)
 
+    def read_text_preview(
+        self,
+        file_path: str | None,
+        *,
+        max_chars: int = 220,
+        max_bytes: int = 8192,
+    ) -> dict[str, Any]:
+        path_text = str(file_path or "").strip()
+        if not path_text:
+            return {"preview": "", "encoding": "", "reason": "empty_path"}
+
+        path = Path(path_text).expanduser()
+        if not path.exists() or not path.is_file():
+            return {"preview": "", "encoding": "", "reason": "missing_file"}
+
+        if path.suffix.lower() in {".mp4", ".mov", ".avi", ".mkv", ".webm", ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".xlsx", ".xls"}:
+            return {"preview": "", "encoding": "", "reason": "binary_file"}
+
+        raw = b""
+        try:
+            with path.open("rb") as stream:
+                raw = stream.read(max(1024, int(max_bytes or 8192)))
+        except OSError:
+            return {"preview": "", "encoding": "", "reason": "read_failed"}
+
+        encodings = ("utf-8", "utf-8-sig", "gb18030", "latin-1")
+        decoded = ""
+        encoding_used = ""
+        for encoding in encodings:
+            try:
+                decoded = raw.decode(encoding)
+                encoding_used = encoding
+                break
+            except UnicodeDecodeError:
+                continue
+
+        if not decoded:
+            return {"preview": "", "encoding": "", "reason": "decode_failed"}
+
+        text = decoded.replace("\x00", "").replace("\r\n", "\n").replace("\r", "\n").strip()
+        limit = max(40, int(max_chars or 220))
+        if len(text) > limit:
+            text = text[:limit] + "…"
+        return {"preview": text, "encoding": encoding_used, "reason": "ok"}
+
     def create_asset(self, filename: str, **kwargs: Any) -> Asset:
         kwargs = dict(kwargs)
         kwargs["file_size"] = self._detect_file_size(

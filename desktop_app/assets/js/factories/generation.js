@@ -105,8 +105,8 @@ function makeAssetCenterRoute(config = {}) {
         eyebrow: '素材资产库',
         searchTerms: '素材中心 素材分类 素材库 视频 图片 字幕 音频 标签 授权',
         audit: config.audit,
-        sidebarSummary: { eyebrow: '素材提醒', title: '素材库存摘要', copy: '加载后根据真实素材库存、分类分布和待整理情况自动更新。' },
-        statusLeft: ['素材总量', '待整理素材', '图片/视频占比'],
+        sidebarSummary: { eyebrow: '素材提醒', title: '素材库存摘要', copy: '加载后根据真实素材库存、账号归属和标签覆盖情况自动更新。' },
+        statusLeft: ['素材总量', '未绑定账号', '标签完善率'],
         statusRight: [{ text: '实时汇总', tone: 'info' }, { text: '等待加载', tone: 'warning' }],
         hideDetailPanel: false,
         mainHtml: `
@@ -118,8 +118,8 @@ function makeAssetCenterRoute(config = {}) {
             <section class="section-stack asset-center-page">
                 <div class="stat-grid">
                     <article class="stat-card"><div><div class="subtle">素材库存</div><div class="stat-card__value">2,148</div></div><div class="stat-card__delta" style="color:var(--status-success);"><span>+86</span><span class="subtle">近 7 天持续增长</span></div></article>
-                    <article class="stat-card"><div><div class="subtle">待审核</div><div class="stat-card__value">12</div></div><div class="stat-card__delta" style="color:var(--status-warning);"><span>需确认版权</span><span class="subtle">避免直接进入批量生成</span></div></article>
-                    <article class="stat-card"><div><div class="subtle">复用率</div><div class="stat-card__value">63%</div></div><div class="stat-card__delta" style="color:var(--brand-primary);"><span>+4%</span><span class="subtle">高转化素材已形成库</span></div></article>
+                    <article class="stat-card"><div><div class="subtle">未绑定账号</div><div class="stat-card__value">12</div></div><div class="stat-card__delta" style="color:var(--status-warning);"><span>需补充归属</span><span class="subtle">避免后续链路无法追溯</span></div></article>
+                    <article class="stat-card"><div><div class="subtle">标签完善率</div><div class="stat-card__value">63%</div></div><div class="stat-card__delta" style="color:var(--brand-primary);"><span>已打标签素材</span><span class="subtle">便于快速检索与批量复用</span></div></article>
                 </div>
                 <div class="asset-center-shell">
                     <aside class="asset-category-column">

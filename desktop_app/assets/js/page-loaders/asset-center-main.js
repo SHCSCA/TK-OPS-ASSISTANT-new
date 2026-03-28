@@ -43,6 +43,7 @@
         packKey: '',
         selectedId: null,
     };
+    var _textPreviewCache = Object.create(null);
 
     function _toNumber(value) {
         var number = parseInt(value || 0, 10);
@@ -59,6 +60,14 @@
             .split(/[，,、/\s]+/)
             .map(function (item) { return item.trim(); })
             .filter(Boolean);
+    }
+
+    function _normalizePreviewText(value, limit) {
+        var text = String(value || '').replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim();
+        if (!text) return '';
+        var maxChars = _toNumber(limit) || 180;
+        if (text.length > maxChars) text = text.slice(0, maxChars) + '…';
+        return text;
     }
 
     function _toDate(value) {
@@ -181,15 +190,54 @@
         return encodeURI(normalized);
     }
 
-    function _buildCardPreview(asset) {
+    function _buildCardPreview(asset, mode) {
+        mode = mode || 'card';
         var fileUrl = _fileUrl(asset.file_path);
         if (asset.asset_type === 'image' && fileUrl) {
             return '<img class="source-thumb__media js-asset-media" src="' + _esc(fileUrl) + '" alt="' + _esc(asset.filename) + '" loading="lazy">';
         }
         if (asset.asset_type === 'video' && fileUrl) {
-            return '<video class="source-thumb__media js-asset-media" src="' + _esc(fileUrl) + '" preload="metadata" muted></video>';
+            if (mode === 'detail') {
+                return '<video class="source-thumb__media js-asset-media" src="' + _esc(fileUrl) + '" preload="metadata" controls muted playsinline></video>';
+            }
+            return '<video class="source-thumb__media js-asset-media" src="' + _esc(fileUrl) + '" preload="auto" autoplay loop muted playsinline></video>';
+        }
+        if ((asset.asset_type === 'text' || asset.asset_type === 'template') && asset.file_path) {
+            return '<div class="source-thumb__text js-asset-text-preview" data-file-path="' + _esc(asset.file_path) + '" data-fallback="文稿预览不可用">加载文稿预览...</div>';
         }
         return '';
+    }
+
+    function _fetchTextPreview(filePath) {
+        var key = String(filePath || '').trim();
+        if (!key) return Promise.resolve('');
+        if (_textPreviewCache[key]) return Promise.resolve(_textPreviewCache[key]);
+        if (!api || !api.assets || typeof api.assets.previewText !== 'function') {
+            return Promise.resolve('');
+        }
+        return api.assets.previewText(key, 220).then(function (result) {
+            var previewText = _normalizePreviewText(result && result.preview, 220);
+            _textPreviewCache[key] = previewText || '';
+            return _textPreviewCache[key];
+        }).catch(function () {
+            _textPreviewCache[key] = '';
+            return '';
+        });
+    }
+
+    function _hydrateTextPreviews(scopeRoot) {
+        var root = scopeRoot || document;
+        root.querySelectorAll('.js-asset-text-preview').forEach(function (node) {
+            if (node.dataset.bound === '1') return;
+            node.dataset.bound = '1';
+            var filePath = String(node.dataset.filePath || '').trim();
+            var fallback = String(node.dataset.fallback || '文稿预览不可用');
+            _fetchTextPreview(filePath).then(function (text) {
+                if (!node.isConnected || !root.contains(node)) return;
+                node.textContent = text || fallback;
+                node.classList.toggle('is-empty', !text);
+            });
+        });
     }
 
     function _bindMediaFallbacks(scopeRoot) {
@@ -204,8 +252,12 @@
             };
             media.addEventListener('error', markMissing);
             if (media.tagName === 'VIDEO') {
-                media.addEventListener('loadeddata', function () {
-                    media.currentTime = 0;
+                media.addEventListener('loadedmetadata', function () {
+                    var duration = Number(media.duration || 0);
+                    if (!Number.isFinite(duration) || duration <= 0) return;
+                    try {
+                        media.currentTime = Math.min(1, duration * 0.2);
+                    } catch (_) {}
                 });
             }
         });
@@ -213,25 +265,28 @@
 
     function _updateAssetStats(assets, stats) {
         var cards = document.querySelectorAll('#mainHost .stat-grid .stat-card');
-        var byType = _resolveTypeCounts(assets, stats);
         var total = _toNumber(stats.total) || assets.length;
-        var reviewCount = assets.filter(_isNeedsReview).length;
-        var reusable = total ? Math.round(((byType.video || 0) + (byType.image || 0)) / total * 100) : 0;
+        var unboundCount = assets.filter(function (asset) { return !String(asset.account_id || '').trim(); }).length;
+        var taggedCount = assets.filter(function (asset) { return asset.tagList.length > 0; }).length;
+        var taggedRate = total ? Math.round(taggedCount / total * 100) : 0;
         var recentCount = assets.filter(_isRecentUpload).length;
 
         if (cards.length < 3) return;
 
+        cards[0].querySelector('div:first-child .subtle').textContent = '素材库存';
         cards[0].querySelector('.stat-card__value').textContent = _formatNum(total);
         cards[0].querySelector('.stat-card__delta span').textContent = '最近上传 ' + _formatNum(recentCount);
         cards[0].querySelector('.stat-card__delta .subtle').textContent = '真实素材库存总量';
 
-        cards[1].querySelector('.stat-card__value').textContent = _formatNum(reviewCount);
-        cards[1].querySelector('.stat-card__delta span').textContent = '文本+模板';
-        cards[1].querySelector('.stat-card__delta .subtle').textContent = '待整理素材';
+        cards[1].querySelector('div:first-child .subtle').textContent = '未绑定账号';
+        cards[1].querySelector('.stat-card__value').textContent = _formatNum(unboundCount);
+        cards[1].querySelector('.stat-card__delta span').textContent = '需要补充归属';
+        cards[1].querySelector('.stat-card__delta .subtle').textContent = '未关联账号素材';
 
-        cards[2].querySelector('.stat-card__value').textContent = reusable + '%';
-        cards[2].querySelector('.stat-card__delta span').textContent = '图片+视频';
-        cards[2].querySelector('.stat-card__delta .subtle').textContent = '可复用素材占比';
+        cards[2].querySelector('div:first-child .subtle').textContent = '标签完善率';
+        cards[2].querySelector('.stat-card__value').textContent = taggedRate + '%';
+        cards[2].querySelector('.stat-card__delta span').textContent = '已打标签 ' + _formatNum(taggedCount);
+        cards[2].querySelector('.stat-card__delta .subtle').textContent = '标签可检索覆盖率';
     }
 
     function _renderAssetCategories(byType, total, activeCategory) {
@@ -362,7 +417,7 @@
         ].join(' ');
         return '<article class="source-thumb' + (isSelected ? ' is-selected' : '') + '" data-id="' + _esc(asset.id) + '" data-search="' + _esc(searchText) + '">'
             + '<div class="source-thumb__preview ' + _assetPreviewClass(asset.asset_type) + '">'
-            + _buildCardPreview(asset)
+            + _buildCardPreview(asset, 'card')
             + '<span class="source-thumb__preview-label">' + _esc(_assetPreviewLabel(asset.asset_type)) + '</span>'
             + (asset.asset_type === 'video' ? '<span class="source-thumb__dur">' + _humanFileSize(asset.file_size) + '</span>' : '')
             + '</div>'
@@ -396,11 +451,12 @@
 
         if (preview) {
             preview.innerHTML = '<div class="source-thumb__preview ' + _assetPreviewClass(asset.asset_type) + '">'
-                + _buildCardPreview(asset)
+                + _buildCardPreview(asset, 'detail')
                 + '<span class="source-thumb__preview-label">' + _esc(_assetPreviewLabel(asset.asset_type)) + '</span>'
                 + '</div>'
                 + '<div><strong>' + _esc(asset.filename) + '</strong><div class="subtle">' + _esc(asset.file_path || '未记录路径') + '</div></div>';
             _bindMediaFallbacks(preview);
+            _hydrateTextPreviews(preview);
         }
 
         if (detailValues.length >= 3) {
@@ -534,6 +590,7 @@
             return _buildAssetThumb(asset, asset.id === selectedId);
         }).join('');
         _bindMediaFallbacks(grid);
+        _hydrateTextPreviews(grid);
 
         var selected = filtered.find(function (item) { return item.id === selectedId; }) || filtered[0];
         _renderAssetDetail(selected);

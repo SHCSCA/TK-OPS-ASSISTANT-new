@@ -60,6 +60,7 @@
             // Assets
             listAssets: noop, listAssetsByType: noop, createAsset: noopObj, updateAsset: noopObj, deleteAsset: noopObj,
             getAssetStats: () => ok({ total: 0, byType: {} }),
+            getAssetTextPreview: () => ok({ preview: '', encoding: '', reason: 'stub' }),
             // Dashboard
             getDashboardStats: () => ok({
                 accounts: { total: 0, byStatus: {} },
@@ -128,8 +129,8 @@
             // Theme
             setTheme: noopObj, getTheme: () => ok('light'),
             // Version
-            getAppVersion: () => ok({ version: '1.2.1' }),
-            checkForUpdate: () => ok({ hasUpdate: false, current: '1.2.1' }),
+            getAppVersion: () => ok({ version: '1.2.2' }),
+            checkForUpdate: () => ok({ hasUpdate: false, current: '1.2.2' }),
             startDownloadUpdate: () => ok(true),
             getDownloadProgress: () => ok({ state: 'idle', percent: 0, downloaded: 0, total: 0, speed: '', filePath: '', error: '' }),
             applyUpdate: () => ok({ ok: true, action: 'stub' }),

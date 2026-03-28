@@ -275,6 +275,7 @@
             update:   function (id, d)     { return callBackend('updateAsset', id, JSON.stringify(d)); },
             remove:   function (id)        { return callBackend('deleteAsset', id); },
             stats:    function ()          { return callCached('assets:stats', DEFAULT_TTL, 'getAssetStats'); },
+            previewText: function (path, maxChars) { return callBackend('getAssetTextPreview', path || '', Number(maxChars || 220)); },
         },
         // -- Utilities --
         _call: callBackend,
