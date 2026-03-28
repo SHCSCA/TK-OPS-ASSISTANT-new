@@ -172,6 +172,7 @@ function bindTaskFilterTabs() {
 
 /* ─── 功能联动：素材分类筛选 ─── */
 function bindAssetCategoryFilter() {
+    if (currentRoute === 'asset-center') return;
     const mainHost = document.getElementById('mainHost');
     const cats = mainHost.querySelectorAll('.asset-category-item');
     if (!cats.length) return;
@@ -199,6 +200,7 @@ function bindAssetCategoryFilter() {
 
 /* ─── 功能联动：素材点击更新右侧 ─── */
 function bindAssetThumbDetail() {
+    if (currentRoute === 'asset-center') return;
     const mainHost = document.getElementById('mainHost');
     const detailHost = document.getElementById('detailHost');
     const thumbs = mainHost.querySelectorAll('.source-thumb');
@@ -1139,6 +1141,7 @@ function bindConfigNavItems() {
 }
 
 function bindSourceBrowserTabs() {
+    if (currentRoute === 'asset-center') return;
     document.querySelectorAll('.source-browser-tabs span').forEach((tab) => {
         tab.addEventListener('click', () => {
             tab.closest('.source-browser-tabs').querySelectorAll('span').forEach((t) => t.classList.remove('is-selected'));
