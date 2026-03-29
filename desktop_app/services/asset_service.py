@@ -164,6 +164,14 @@ class AssetService:
         player.stop()
         return outcome["reason"]
 
+    def _poster_worker_executable(self) -> str:
+        python_path = Path(sys.executable)
+        if os.name == "nt":
+            pythonw_path = python_path.with_name("pythonw.exe")
+            if pythonw_path.exists():
+                return str(pythonw_path)
+        return str(python_path)
+
     def list_assets(self, *, asset_type: str | None = None) -> Sequence[Asset]:
         return self._repo.list_assets(asset_type=asset_type)
 
@@ -225,7 +233,7 @@ class AssetService:
         cached = self.get_video_poster_cached(str(source_path))
         if cached.get("poster_path"):
             return True
-        python_exe = str(Path(sys.executable))
+        python_exe = self._poster_worker_executable()
         if not python_exe:
             return False
 
@@ -243,6 +251,10 @@ class AssetService:
         }
         if os.name == "nt":
             kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW | subprocess.DETACHED_PROCESS
+            startupinfo = subprocess.STARTUPINFO()
+            startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+            startupinfo.wShowWindow = 0
+            kwargs["startupinfo"] = startupinfo
 
         try:
             subprocess.Popen([python_exe, "-c", code, str(source_path)], **kwargs)

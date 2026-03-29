@@ -706,8 +706,6 @@ class Bridge(QObject):
     @_safe
     def getAssetVideoPoster(self, file_path: str) -> str:
         result = self._assets.get_video_poster_cached(file_path)
-        if not result.get("poster_path"):
-            self._assets.schedule_video_poster_generation(file_path)
         return _ok(result)
 
     @Slot(str, int, result=str)
