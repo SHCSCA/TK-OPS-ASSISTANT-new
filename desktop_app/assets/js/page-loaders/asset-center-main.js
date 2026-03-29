@@ -43,6 +43,7 @@
         selectedId: null,
     };
     var _textPreviewCache = Object.create(null);
+    var _videoPosterPending = Object.create(null);
 
     function _toNumber(value) {
         var number = parseInt(value || 0, 10);
@@ -222,6 +223,39 @@
             + '<text x="24" y="332" font-family="Segoe UI,Arial" font-size="24" fill="#dfe8f2">' + label + '</text>'
             + '</svg>';
         return 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg);
+    }
+
+    function _setVideoPosterOnGrid(assetId, posterPath) {
+        if (!assetId || !posterPath) return;
+        var host = document.querySelector('#mainHost .source-thumb[data-id="' + _esc(assetId) + '"] .source-thumb__preview img.js-asset-media');
+        if (host) host.src = _fileUrl(posterPath);
+    }
+
+    function _requestVideoPoster(asset, state, retryCount) {
+        if (!asset || asset.asset_type !== 'video') return;
+        if (asset.poster_path) return;
+        var key = String(asset.id || '');
+        if (!key || _videoPosterPending[key]) return;
+        if (!api || !api.assets || typeof api.assets.videoPoster !== 'function') return;
+
+        _videoPosterPending[key] = true;
+        api.assets.videoPoster(asset.file_path).then(function (result) {
+            var posterPath = String(result && result.poster_path || '').trim();
+            if (posterPath) {
+                asset.poster_path = posterPath;
+                _setVideoPosterOnGrid(key, posterPath);
+                _videoPosterPending[key] = false;
+                return;
+            }
+            _videoPosterPending[key] = false;
+            if ((retryCount || 0) < 1) {
+                setTimeout(function () {
+                    _requestVideoPoster(asset, state, (retryCount || 0) + 1);
+                }, 1200);
+            }
+        }).catch(function () {
+            _videoPosterPending[key] = false;
+        });
     }
 
     function _fetchTextPreview(filePath) {
@@ -608,6 +642,9 @@
         grid.innerHTML = filtered.slice(0, 24).map(function (asset) {
             return _buildAssetThumb(asset, asset.id === selectedId);
         }).join('');
+        filtered.slice(0, 24).forEach(function (asset) {
+            _requestVideoPoster(asset, state, 0);
+        });
         _bindMediaFallbacks(grid);
         _hydrateTextPreviews(grid);
 
