@@ -12,7 +12,6 @@
         throw new Error('page loader registries not loaded');
     }
 
-    var _wireHeaderPrimary = shared.wireHeaderPrimary;
     var _esc = shared.esc;
     var _formatNum = shared.formatNum;
 
@@ -198,9 +197,9 @@
         }
         if (asset.asset_type === 'video' && fileUrl) {
             if (mode === 'detail') {
-                return '<video class="source-thumb__media js-asset-media" src="' + _esc(fileUrl) + '" preload="metadata" controls muted playsinline></video>';
+                return '<video class="source-thumb__media js-asset-media" src="' + _esc(fileUrl) + '" preload="metadata" controls muted playsinline data-preview-mode="detail"></video>';
             }
-            return '<video class="source-thumb__media js-asset-media" src="' + _esc(fileUrl) + '" preload="auto" autoplay loop muted playsinline></video>';
+            return '<video class="source-thumb__media js-asset-media" src="' + _esc(fileUrl) + '" preload="auto" muted playsinline data-preview-mode="card"></video>';
         }
         if ((asset.asset_type === 'text' || asset.asset_type === 'template') && asset.file_path) {
             return '<div class="source-thumb__text js-asset-text-preview" data-file-path="' + _esc(asset.file_path) + '" data-fallback="文稿预览不可用">加载文稿预览...</div>';
@@ -252,13 +251,63 @@
             };
             media.addEventListener('error', markMissing);
             if (media.tagName === 'VIDEO') {
-                media.addEventListener('loadedmetadata', function () {
+                var mode = String(media.dataset.previewMode || 'card');
+                var settled = false;
+                var seekFirstFrame = function () {
                     var duration = Number(media.duration || 0);
                     if (!Number.isFinite(duration) || duration <= 0) return;
                     try {
-                        media.currentTime = Math.min(1, duration * 0.2);
+                        media.currentTime = 0.001;
                     } catch (_) {}
-                });
+                };
+                var settleVideoFrame = function () {
+                    if (settled) return;
+                    settled = true;
+                    if (mode === 'detail') return;
+                    try {
+                        media.pause();
+                    } catch (_) {}
+                    try {
+                        var width = media.videoWidth || media.clientWidth || 320;
+                        var height = media.videoHeight || media.clientHeight || 180;
+                        var canvas = document.createElement('canvas');
+                        canvas.width = width;
+                        canvas.height = height;
+                        var context = canvas.getContext('2d');
+                        if (context) {
+                            context.drawImage(media, 0, 0, width, height);
+                            var dataUrl = canvas.toDataURL('image/jpeg', 0.82);
+                            if (dataUrl && dataUrl !== 'data:,') {
+                                var image = document.createElement('img');
+                                image.className = media.className;
+                                image.src = dataUrl;
+                                image.alt = '视频首帧预览';
+                                image.loading = 'lazy';
+                                media.replaceWith(image);
+                                return;
+                            }
+                        }
+                    } catch (_) {}
+                };
+                media.addEventListener('loadedmetadata', seekFirstFrame);
+                media.addEventListener('loadeddata', seekFirstFrame);
+                media.addEventListener('seeked', settleVideoFrame);
+                media.addEventListener('canplay', settleVideoFrame);
+                if (mode === 'card') {
+                    try {
+                        var playPromise = media.play();
+                        if (playPromise && typeof playPromise.then === 'function') {
+                            playPromise.then(function () {
+                                try {
+                                    media.pause();
+                                } catch (_) {}
+                                seekFirstFrame();
+                            }).catch(function () {});
+                        }
+                    } catch (_) {
+                        seekFirstFrame();
+                    }
+                }
             }
         });
     }
@@ -680,10 +729,6 @@
     }
 
     loaders['asset-center'] = function () {
-        _wireHeaderPrimary(function () {
-            if (typeof openAssetForm === 'function') openAssetForm();
-        }, '上传素材');
-
         Promise.all([
             api.assets.list().catch(function () { return []; }),
             api.assets.stats().catch(function () { return { total: 0, byType: {} }; }),
