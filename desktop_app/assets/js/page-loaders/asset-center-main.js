@@ -109,6 +109,7 @@
                 filename: row.filename || '未命名素材',
                 asset_type: _normalizeType(row.asset_type),
                 file_path: row.file_path || '',
+                poster_path: row.poster_path || '',
                 file_size: fileSize,
                 tags: row.tags || '',
                 tagList: tags,
@@ -199,7 +200,8 @@
             if (mode === 'detail') {
                 return '<video class="source-thumb__media js-asset-media" src="' + _esc(fileUrl) + '" preload="metadata" controls muted playsinline data-preview-mode="detail"></video>';
             }
-            return '<img class="source-thumb__media js-asset-media" src="' + _esc(_videoFallbackDataUri(asset.filename)) + '" alt="' + _esc(asset.filename) + '" loading="lazy">';
+            var posterUrl = _fileUrl(asset.poster_path);
+            return '<img class="source-thumb__media js-asset-media" src="' + _esc(posterUrl || _videoFallbackDataUri(asset.filename)) + '" alt="' + _esc(asset.filename) + '" loading="lazy">';
         }
         if ((asset.asset_type === 'text' || asset.asset_type === 'template') && asset.file_path) {
             return '<div class="source-thumb__text js-asset-text-preview" data-file-path="' + _esc(asset.file_path) + '" data-fallback="文稿预览不可用">加载文稿预览...</div>';

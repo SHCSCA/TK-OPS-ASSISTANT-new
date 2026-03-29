@@ -2,6 +2,9 @@
 from __future__ import annotations
 
 import hashlib
+import os
+import subprocess
+import sys
 from pathlib import Path
 from urllib.parse import unquote, urlparse
 from typing import Any, Sequence
@@ -56,6 +59,16 @@ class AssetService:
         )
         digest = hashlib.sha1(key.encode("utf-8", errors="ignore")).hexdigest()
         return DATA_DIR / "asset-posters" / f"{digest}.jpg"
+
+    def _video_candidate(self, file_path: str | None) -> tuple[Path | None, str]:
+        source_path = self._normalize_local_path(file_path)
+        if source_path is None:
+            return None, "empty_path"
+        if not source_path.exists() or not source_path.is_file():
+            return None, "missing_file"
+        if source_path.suffix.lower() not in self._VIDEO_EXTENSIONS:
+            return None, "not_video"
+        return source_path, "ok"
 
     def _save_first_video_frame(self, source_path: Path, poster_path: Path, timeout_ms: int = 8000) -> str:
         try:
@@ -167,15 +180,9 @@ class AssetService:
             return int(fallback or 0)
 
     def get_video_poster(self, file_path: str | None) -> dict[str, Any]:
-        source_path = self._normalize_local_path(file_path)
+        source_path, reason = self._video_candidate(file_path)
         if source_path is None:
-            return {"poster_path": "", "reason": "empty_path"}
-
-        if not source_path.exists() or not source_path.is_file():
-            return {"poster_path": "", "reason": "missing_file"}
-
-        if source_path.suffix.lower() not in self._VIDEO_EXTENSIONS:
-            return {"poster_path": "", "reason": "not_video"}
+            return {"poster_path": "", "reason": reason}
 
         try:
             stat_result = source_path.stat()
@@ -197,6 +204,51 @@ class AssetService:
             return {"poster_path": "", "reason": capture_reason}
 
         return {"poster_path": str(poster_path), "reason": "generated"}
+
+    def get_video_poster_cached(self, file_path: str | None) -> dict[str, Any]:
+        source_path, reason = self._video_candidate(file_path)
+        if source_path is None:
+            return {"poster_path": "", "reason": reason}
+        try:
+            stat_result = source_path.stat()
+        except OSError:
+            return {"poster_path": "", "reason": "stat_failed"}
+        poster_path = self._video_poster_path(source_path, stat_result)
+        if poster_path.exists() and poster_path.stat().st_size > 0:
+            return {"poster_path": str(poster_path), "reason": "cached"}
+        return {"poster_path": "", "reason": "missing_cache"}
+
+    def schedule_video_poster_generation(self, file_path: str | None) -> bool:
+        source_path, reason = self._video_candidate(file_path)
+        if source_path is None or reason != "ok":
+            return False
+        cached = self.get_video_poster_cached(str(source_path))
+        if cached.get("poster_path"):
+            return True
+        python_exe = str(Path(sys.executable))
+        if not python_exe:
+            return False
+
+        code = (
+            "import sys;"
+            "from PySide6.QtGui import QGuiApplication;"
+            "from desktop_app.services.asset_service import AssetService;"
+            "app=QGuiApplication(sys.argv);"
+            "AssetService().get_video_poster(sys.argv[1]);"
+        )
+        kwargs: dict[str, Any] = {
+            "stdout": subprocess.DEVNULL,
+            "stderr": subprocess.DEVNULL,
+            "stdin": subprocess.DEVNULL,
+        }
+        if os.name == "nt":
+            kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW | subprocess.DETACHED_PROCESS
+
+        try:
+            subprocess.Popen([python_exe, "-c", code, str(source_path)], **kwargs)
+            return True
+        except Exception:
+            return False
 
     def read_text_preview(
         self,
