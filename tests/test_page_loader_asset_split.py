@@ -26,3 +26,10 @@ def test_asset_center_logic_is_split_from_page_loaders() -> None:
     assert '_renderAssetDetail' in asset_main
     assert '_buildAssetThumb' in asset_main
     assert 'window.__assetCenterPageMain' in asset_main
+
+
+def test_asset_center_grid_does_not_request_video_poster_generation_on_route_load() -> None:
+    asset_main = ASSET_CENTER_MAIN_JS.read_text(encoding="utf-8")
+
+    assert "api.assets.videoPoster(" not in asset_main
+    assert "_requestVideoPoster(" not in asset_main

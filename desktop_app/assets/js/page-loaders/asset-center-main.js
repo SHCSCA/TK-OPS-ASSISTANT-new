@@ -12,7 +12,6 @@
         throw new Error('page loader registries not loaded');
     }
 
-    var _wireHeaderPrimary = shared.wireHeaderPrimary;
     var _esc = shared.esc;
     var _formatNum = shared.formatNum;
 
@@ -110,6 +109,7 @@
                 filename: row.filename || '未命名素材',
                 asset_type: _normalizeType(row.asset_type),
                 file_path: row.file_path || '',
+                poster_path: row.poster_path || '',
                 file_size: fileSize,
                 tags: row.tags || '',
                 tagList: tags,
@@ -198,14 +198,30 @@
         }
         if (asset.asset_type === 'video' && fileUrl) {
             if (mode === 'detail') {
-                return '<video class="source-thumb__media js-asset-media" src="' + _esc(fileUrl) + '" preload="metadata" controls muted playsinline></video>';
+                return '<video class="source-thumb__media js-asset-media" src="' + _esc(fileUrl) + '" preload="metadata" controls muted playsinline data-preview-mode="detail"></video>';
             }
-            return '<video class="source-thumb__media js-asset-media" src="' + _esc(fileUrl) + '" preload="auto" autoplay loop muted playsinline></video>';
+            var posterUrl = _fileUrl(asset.poster_path);
+            return '<img class="source-thumb__media js-asset-media" src="' + _esc(posterUrl || _videoFallbackDataUri(asset.filename)) + '" alt="' + _esc(asset.filename) + '" loading="lazy">';
         }
         if ((asset.asset_type === 'text' || asset.asset_type === 'template') && asset.file_path) {
             return '<div class="source-thumb__text js-asset-text-preview" data-file-path="' + _esc(asset.file_path) + '" data-fallback="文稿预览不可用">加载文稿预览...</div>';
         }
         return '';
+    }
+
+    function _videoFallbackDataUri(filename) {
+        var label = String(filename || 'VIDEO').slice(0, 20).replace(/[<>&"']/g, '');
+        var svg = ''
+            + '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360">'
+            + '<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">'
+            + '<stop offset="0%" stop-color="#30445d"/><stop offset="100%" stop-color="#1d2a3a"/>'
+            + '</linearGradient></defs>'
+            + '<rect width="640" height="360" fill="url(#g)"/>'
+            + '<circle cx="320" cy="180" r="62" fill="rgba(255,255,255,0.16)"/>'
+            + '<polygon points="300,146 300,214 358,180" fill="#ffffff"/>'
+            + '<text x="24" y="332" font-family="Segoe UI,Arial" font-size="24" fill="#dfe8f2">' + label + '</text>'
+            + '</svg>';
+        return 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg);
     }
 
     function _fetchTextPreview(filePath) {
@@ -252,13 +268,16 @@
             };
             media.addEventListener('error', markMissing);
             if (media.tagName === 'VIDEO') {
-                media.addEventListener('loadedmetadata', function () {
-                    var duration = Number(media.duration || 0);
-                    if (!Number.isFinite(duration) || duration <= 0) return;
-                    try {
-                        media.currentTime = Math.min(1, duration * 0.2);
-                    } catch (_) {}
-                });
+                var mode = String(media.dataset.previewMode || 'card');
+                if (mode === 'card') {
+                    media.addEventListener('loadedmetadata', function () {
+                        try { media.currentTime = 0.001; } catch (_) {}
+                    });
+                    var playPromise = media.play();
+                    if (playPromise && typeof playPromise.catch === 'function') {
+                        playPromise.catch(function () {});
+                    }
+                }
             }
         });
     }
@@ -680,10 +699,6 @@
     }
 
     loaders['asset-center'] = function () {
-        _wireHeaderPrimary(function () {
-            if (typeof openAssetForm === 'function') openAssetForm();
-        }, '上传素材');
-
         Promise.all([
             api.assets.list().catch(function () { return []; }),
             api.assets.stats().catch(function () { return { total: 0, byType: {} }; }),

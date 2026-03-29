@@ -2,9 +2,15 @@
 
 TK-OPS 是一个面向 TikTok Shop 运营团队的 Windows 桌面应用。当前版本已经不再停留在纯前端原型阶段，而是以 Python 后端、SQLite 数据库、QWebChannel bridge、桌面 Web Shell 前端的组合方式运行。
 
-当前发布版本：`1.2.2`
+当前发布版本：`1.2.3`
 
 ## 这个版本更新了什么
+
+### 1.2.3 更新说明
+
+- 素材中心稳定性修复：移除路由首屏对视频海报的主动生成请求，进入页面不再因为海报补齐链路而额外拉起 Python 窗口。
+- 视频海报后台任务收口：`getAssetVideoPoster` 改为纯缓存读取；导入和更新素材仍可后台补海报，但 Windows 下优先使用 `pythonw.exe` 并显式隐藏窗口。
+- 发布链路继续统一：以 GitHub Release 为自动更新锚点，版本号同步提升至 `1.2.3`，并统一同步 README、安装器、Windows 版本资源与 bridge stub。
 
 ### 1.2.2 更新说明
 

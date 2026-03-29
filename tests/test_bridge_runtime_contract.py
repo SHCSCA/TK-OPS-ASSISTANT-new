@@ -26,6 +26,7 @@ def test_runtime_bridge_covers_current_primary_pages():
         "listAssets",
         "listAssetsByType",
         "getAssetStats",
+        "getAssetVideoPoster",
         "getAssetTextPreview",
         "getDashboardStats",
         "getAllSettings",
@@ -49,6 +50,7 @@ def test_bridge_stub_covers_current_primary_pages():
         "listAssets:",
         "listAssetsByType:",
         "getAssetStats:",
+        "getAssetVideoPoster:",
         "getAssetTextPreview:",
         "getDashboardStats:",
         "getAllSettings:",
@@ -59,6 +61,14 @@ def test_bridge_stub_covers_current_primary_pages():
     ]
     missing = [method for method in expected if method not in text]
     assert not missing, f"bridge.js stub missing methods: {missing}"
+
+
+def test_asset_api_exposes_video_poster_and_text_preview_methods():
+    text = (ROOT / "desktop_app" / "assets" / "js" / "data.js").read_text(encoding="utf-8")
+    assert "videoPoster: function (path)" in text
+    assert "return callBackend('getAssetVideoPoster', path || '');" in text
+    assert "previewText: function (path, maxChars)" in text
+    assert "return callBackend('getAssetTextPreview', path || '', Number(maxChars || 220));" in text
 
 
 def test_page_loaders_expose_page_audit_registry():

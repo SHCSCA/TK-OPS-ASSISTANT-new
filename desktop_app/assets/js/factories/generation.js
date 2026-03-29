@@ -113,7 +113,6 @@ function makeAssetCenterRoute(config = {}) {
             <div class="breadcrumbs"><span>creator</span><span>/</span><span>素材中心</span></div>
             <div class="page-header">
                 <div><div class="eyebrow">内容素材中台</div><h1>素材中心</h1><p>统一查看素材库存、素材分类、授权状态和复用建议，主区直接展示素材，不再只剩说明卡片。</p></div>
-                <div class="header-actions"><button class="secondary-button" type="button">批量打标签</button><button class="primary-button" type="button">上传素材</button></div>
             </div>
             <section class="section-stack asset-center-page">
                 <div class="stat-grid">
@@ -147,7 +146,10 @@ function makeAssetCenterRoute(config = {}) {
                         <section class="panel source-browser-shell asset-library-panel">
                             <div class="source-browser-head">
                                 <div><strong>素材浏览器</strong><div class="subtle">可以直接看到素材缩略图、类型和状态。</div></div>
-                                <button class="secondary-button" type="button">导入素材</button>
+                                <div class="source-browser-head__actions">
+                                    <button class="secondary-button" type="button">批量打标签</button>
+                                    <button class="secondary-button" type="button">导入素材</button>
+                                </div>
                             </div>
                             <div class="asset-library-toolbar">
                                 <div class="form-field asset-search-field"><label>搜索素材</label><input type="text" value="高转化 封面 / 节日 B-roll / 德语字幕"></div>

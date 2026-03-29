@@ -644,12 +644,24 @@ class Bridge(QObject):
     @Slot(result=str)
     @_safe
     def listAssets(self) -> str:
-        return _ok([_to_dict(a) for a in self._assets.list_assets()])
+        rows: list[dict[str, Any]] = []
+        for asset in self._assets.list_assets():
+            payload = _to_dict(asset)
+            cached = self._assets.get_video_poster_cached(payload.get("file_path"))
+            payload["poster_path"] = cached.get("poster_path", "")
+            rows.append(payload)
+        return _ok(rows)
 
     @Slot(str, result=str)
     @_safe
     def listAssetsByType(self, asset_type: str) -> str:
-        return _ok([_to_dict(a) for a in self._assets.list_assets(asset_type=asset_type)])
+        rows: list[dict[str, Any]] = []
+        for asset in self._assets.list_assets(asset_type=asset_type):
+            payload = _to_dict(asset)
+            cached = self._assets.get_video_poster_cached(payload.get("file_path"))
+            payload["poster_path"] = cached.get("poster_path", "")
+            rows.append(payload)
+        return _ok(rows)
 
     @Slot(str, result=str)
     @_safe
@@ -659,6 +671,7 @@ class Bridge(QObject):
         if not filename:
             return _err("文件名不能为空")
         asset = self._assets.create_asset(filename, **data)
+        self._assets.schedule_video_poster_generation(asset.file_path)
         self._emit_change("asset", "created", asset.id)
         return _ok(_to_dict(asset))
 
@@ -669,6 +682,7 @@ class Bridge(QObject):
         asset = self._assets.update_asset(pk, **fields)
         if asset is None:
             return _err("素材不存在")
+        self._assets.schedule_video_poster_generation(asset.file_path)
         self._emit_change("asset", "updated", pk)
         return _ok(_to_dict(asset))
 
@@ -687,6 +701,12 @@ class Bridge(QObject):
         total = self._repo.count(Asset)
         by_type = self._assets.count_by_type()
         return _ok({"total": total, "byType": by_type})
+
+    @Slot(str, result=str)
+    @_safe
+    def getAssetVideoPoster(self, file_path: str) -> str:
+        result = self._assets.get_video_poster_cached(file_path)
+        return _ok(result)
 
     @Slot(str, int, result=str)
     @_safe

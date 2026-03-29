@@ -294,6 +294,12 @@
     gap: 12px;
 }
 
+.source-browser-head__actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
 .source-browser-tabs {
     display: flex;
     gap: 8px;

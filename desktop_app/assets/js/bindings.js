@@ -1087,7 +1087,6 @@ function _bindRouteButtonPresets() {
             '查看详情': (btn) => typeof window.__focusDeviceDetail === 'function' ? window.__focusDeviceDetail(_selectedDeviceId(btn)) : showToast('详情正在加载', 'warning'),
         },
         'asset-center': {
-            '上传素材': () => _pickFilesAndImportAssets(currentRoute),
             '导入素材': () => _pickFilesAndImportAssets(currentRoute),
             '新建素材': () => typeof openAssetForm === 'function' ? openAssetForm() : null,
             '批量打标签': () => _openAssetTagBatchModal(),
