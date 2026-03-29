@@ -688,6 +688,12 @@ class Bridge(QObject):
         by_type = self._assets.count_by_type()
         return _ok({"total": total, "byType": by_type})
 
+    @Slot(str, result=str)
+    @_safe
+    def getAssetVideoPoster(self, file_path: str) -> str:
+        result = self._assets.get_video_poster(file_path)
+        return _ok(result)
+
     @Slot(str, int, result=str)
     @_safe
     def getAssetTextPreview(self, file_path: str, max_chars: int = 220) -> str:

@@ -43,6 +43,7 @@
         selectedId: null,
     };
     var _textPreviewCache = Object.create(null);
+    var _videoPosterCache = Object.create(null);
 
     function _toNumber(value) {
         var number = parseInt(value || 0, 10);
@@ -197,14 +198,54 @@
         }
         if (asset.asset_type === 'video' && fileUrl) {
             if (mode === 'detail') {
-                return '<video class="source-thumb__media js-asset-media" src="' + _esc(fileUrl) + '" preload="metadata" controls muted playsinline data-preview-mode="detail"></video>';
+                return '<video class="source-thumb__media js-asset-media js-asset-video" src="' + _esc(fileUrl) + '" preload="metadata" controls muted playsinline data-preview-mode="detail" data-video-path="' + _esc(asset.file_path || '') + '"></video>';
             }
-            return '<video class="source-thumb__media js-asset-media" src="' + _esc(fileUrl) + '" preload="auto" muted playsinline data-preview-mode="card"></video>';
+            return '<video class="source-thumb__media js-asset-media js-asset-video" src="' + _esc(fileUrl) + '" preload="auto" autoplay loop muted playsinline data-preview-mode="card" data-video-path="' + _esc(asset.file_path || '') + '"></video>';
         }
         if ((asset.asset_type === 'text' || asset.asset_type === 'template') && asset.file_path) {
             return '<div class="source-thumb__text js-asset-text-preview" data-file-path="' + _esc(asset.file_path) + '" data-fallback="文稿预览不可用">加载文稿预览...</div>';
         }
         return '';
+    }
+
+    function _fetchVideoPoster(filePath) {
+        var key = String(filePath || '').trim();
+        if (!key) return Promise.resolve('');
+        if (_videoPosterCache[key]) return Promise.resolve(_videoPosterCache[key]);
+        if (!api || !api.assets || typeof api.assets.videoPoster !== 'function') {
+            return Promise.resolve('');
+        }
+        return api.assets.videoPoster(key).then(function (result) {
+            var posterPath = String(result && result.poster_path || '').trim();
+            var posterUrl = posterPath ? _fileUrl(posterPath) : '';
+            _videoPosterCache[key] = posterUrl;
+            return posterUrl;
+        }).catch(function () {
+            _videoPosterCache[key] = '';
+            return '';
+        });
+    }
+
+    function _hydrateVideoPosters(scopeRoot) {
+        var root = scopeRoot || document;
+        root.querySelectorAll('.js-asset-video').forEach(function (video) {
+            if (video.dataset.posterBound === '1') return;
+            video.dataset.posterBound = '1';
+            var filePath = String(video.dataset.videoPath || '').trim();
+            _fetchVideoPoster(filePath).then(function (posterUrl) {
+                if (!posterUrl || !video.isConnected || !root.contains(video)) return;
+                video.poster = posterUrl;
+                video.dataset.posterUrl = posterUrl;
+                var mode = String(video.dataset.previewMode || 'card');
+                if (mode === 'card') {
+                    try { video.currentTime = 0.001; } catch (_) {}
+                    var playPromise = video.play();
+                    if (playPromise && typeof playPromise.catch === 'function') {
+                        playPromise.catch(function () {});
+                    }
+                }
+            });
+        });
     }
 
     function _fetchTextPreview(filePath) {
@@ -246,66 +287,29 @@
             media.dataset.fallbackBound = '1';
             var markMissing = function () {
                 var host = media.closest('.source-thumb__preview');
+                var posterUrl = String(media.dataset.posterUrl || media.poster || '').trim();
+                if (posterUrl) {
+                    var image = document.createElement('img');
+                    image.className = media.className.replace('js-asset-video', '').trim();
+                    image.src = posterUrl;
+                    image.alt = '视频首帧预览';
+                    image.loading = 'lazy';
+                    media.replaceWith(image);
+                    return;
+                }
                 if (host) host.classList.add('is-media-missing');
                 media.remove();
             };
             media.addEventListener('error', markMissing);
             if (media.tagName === 'VIDEO') {
                 var mode = String(media.dataset.previewMode || 'card');
-                var settled = false;
-                var seekFirstFrame = function () {
-                    var duration = Number(media.duration || 0);
-                    if (!Number.isFinite(duration) || duration <= 0) return;
-                    try {
-                        media.currentTime = 0.001;
-                    } catch (_) {}
-                };
-                var settleVideoFrame = function () {
-                    if (settled) return;
-                    settled = true;
-                    if (mode === 'detail') return;
-                    try {
-                        media.pause();
-                    } catch (_) {}
-                    try {
-                        var width = media.videoWidth || media.clientWidth || 320;
-                        var height = media.videoHeight || media.clientHeight || 180;
-                        var canvas = document.createElement('canvas');
-                        canvas.width = width;
-                        canvas.height = height;
-                        var context = canvas.getContext('2d');
-                        if (context) {
-                            context.drawImage(media, 0, 0, width, height);
-                            var dataUrl = canvas.toDataURL('image/jpeg', 0.82);
-                            if (dataUrl && dataUrl !== 'data:,') {
-                                var image = document.createElement('img');
-                                image.className = media.className;
-                                image.src = dataUrl;
-                                image.alt = '视频首帧预览';
-                                image.loading = 'lazy';
-                                media.replaceWith(image);
-                                return;
-                            }
-                        }
-                    } catch (_) {}
-                };
-                media.addEventListener('loadedmetadata', seekFirstFrame);
-                media.addEventListener('loadeddata', seekFirstFrame);
-                media.addEventListener('seeked', settleVideoFrame);
-                media.addEventListener('canplay', settleVideoFrame);
                 if (mode === 'card') {
-                    try {
-                        var playPromise = media.play();
-                        if (playPromise && typeof playPromise.then === 'function') {
-                            playPromise.then(function () {
-                                try {
-                                    media.pause();
-                                } catch (_) {}
-                                seekFirstFrame();
-                            }).catch(function () {});
-                        }
-                    } catch (_) {
-                        seekFirstFrame();
+                    media.addEventListener('loadedmetadata', function () {
+                        try { media.currentTime = 0.001; } catch (_) {}
+                    });
+                    var playPromise = media.play();
+                    if (playPromise && typeof playPromise.catch === 'function') {
+                        playPromise.catch(function () {});
                     }
                 }
             }
@@ -504,6 +508,7 @@
                 + '<span class="source-thumb__preview-label">' + _esc(_assetPreviewLabel(asset.asset_type)) + '</span>'
                 + '</div>'
                 + '<div><strong>' + _esc(asset.filename) + '</strong><div class="subtle">' + _esc(asset.file_path || '未记录路径') + '</div></div>';
+            _hydrateVideoPosters(preview);
             _bindMediaFallbacks(preview);
             _hydrateTextPreviews(preview);
         }
@@ -638,6 +643,7 @@
         grid.innerHTML = filtered.slice(0, 24).map(function (asset) {
             return _buildAssetThumb(asset, asset.id === selectedId);
         }).join('');
+        _hydrateVideoPosters(grid);
         _bindMediaFallbacks(grid);
         _hydrateTextPreviews(grid);
 

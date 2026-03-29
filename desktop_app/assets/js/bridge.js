@@ -60,6 +60,7 @@
             // Assets
             listAssets: noop, listAssetsByType: noop, createAsset: noopObj, updateAsset: noopObj, deleteAsset: noopObj,
             getAssetStats: () => ok({ total: 0, byType: {} }),
+            getAssetVideoPoster: () => ok({ poster_path: '', reason: 'stub' }),
             getAssetTextPreview: () => ok({ preview: '', encoding: '', reason: 'stub' }),
             // Dashboard
             getDashboardStats: () => ok({
