@@ -43,7 +43,6 @@
         selectedId: null,
     };
     var _textPreviewCache = Object.create(null);
-    var _videoPosterCache = Object.create(null);
 
     function _toNumber(value) {
         var number = parseInt(value || 0, 10);
@@ -198,9 +197,9 @@
         }
         if (asset.asset_type === 'video' && fileUrl) {
             if (mode === 'detail') {
-                return '<video class="source-thumb__media js-asset-media js-asset-video" src="' + _esc(fileUrl) + '" preload="metadata" controls muted playsinline data-preview-mode="detail" data-video-path="' + _esc(asset.file_path || '') + '"></video>';
+                return '<video class="source-thumb__media js-asset-media" src="' + _esc(fileUrl) + '" preload="metadata" controls muted playsinline data-preview-mode="detail"></video>';
             }
-            return '<video class="source-thumb__media js-asset-media js-asset-video" src="' + _esc(fileUrl) + '" preload="auto" autoplay loop muted playsinline data-preview-mode="card" data-video-path="' + _esc(asset.file_path || '') + '"></video>';
+            return '<img class="source-thumb__media js-asset-media" src="' + _esc(_videoFallbackDataUri(asset.filename)) + '" alt="' + _esc(asset.filename) + '" loading="lazy">';
         }
         if ((asset.asset_type === 'text' || asset.asset_type === 'template') && asset.file_path) {
             return '<div class="source-thumb__text js-asset-text-preview" data-file-path="' + _esc(asset.file_path) + '" data-fallback="文稿预览不可用">加载文稿预览...</div>';
@@ -208,44 +207,19 @@
         return '';
     }
 
-    function _fetchVideoPoster(filePath) {
-        var key = String(filePath || '').trim();
-        if (!key) return Promise.resolve('');
-        if (_videoPosterCache[key]) return Promise.resolve(_videoPosterCache[key]);
-        if (!api || !api.assets || typeof api.assets.videoPoster !== 'function') {
-            return Promise.resolve('');
-        }
-        return api.assets.videoPoster(key).then(function (result) {
-            var posterPath = String(result && result.poster_path || '').trim();
-            var posterUrl = posterPath ? _fileUrl(posterPath) : '';
-            _videoPosterCache[key] = posterUrl;
-            return posterUrl;
-        }).catch(function () {
-            _videoPosterCache[key] = '';
-            return '';
-        });
-    }
-
-    function _hydrateVideoPosters(scopeRoot) {
-        var root = scopeRoot || document;
-        root.querySelectorAll('.js-asset-video').forEach(function (video) {
-            if (video.dataset.posterBound === '1') return;
-            video.dataset.posterBound = '1';
-            var filePath = String(video.dataset.videoPath || '').trim();
-            _fetchVideoPoster(filePath).then(function (posterUrl) {
-                if (!posterUrl || !video.isConnected || !root.contains(video)) return;
-                video.poster = posterUrl;
-                video.dataset.posterUrl = posterUrl;
-                var mode = String(video.dataset.previewMode || 'card');
-                if (mode === 'card') {
-                    try { video.currentTime = 0.001; } catch (_) {}
-                    var playPromise = video.play();
-                    if (playPromise && typeof playPromise.catch === 'function') {
-                        playPromise.catch(function () {});
-                    }
-                }
-            });
-        });
+    function _videoFallbackDataUri(filename) {
+        var label = String(filename || 'VIDEO').slice(0, 20).replace(/[<>&"']/g, '');
+        var svg = ''
+            + '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360">'
+            + '<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">'
+            + '<stop offset="0%" stop-color="#30445d"/><stop offset="100%" stop-color="#1d2a3a"/>'
+            + '</linearGradient></defs>'
+            + '<rect width="640" height="360" fill="url(#g)"/>'
+            + '<circle cx="320" cy="180" r="62" fill="rgba(255,255,255,0.16)"/>'
+            + '<polygon points="300,146 300,214 358,180" fill="#ffffff"/>'
+            + '<text x="24" y="332" font-family="Segoe UI,Arial" font-size="24" fill="#dfe8f2">' + label + '</text>'
+            + '</svg>';
+        return 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg);
     }
 
     function _fetchTextPreview(filePath) {
@@ -287,16 +261,6 @@
             media.dataset.fallbackBound = '1';
             var markMissing = function () {
                 var host = media.closest('.source-thumb__preview');
-                var posterUrl = String(media.dataset.posterUrl || media.poster || '').trim();
-                if (posterUrl) {
-                    var image = document.createElement('img');
-                    image.className = media.className.replace('js-asset-video', '').trim();
-                    image.src = posterUrl;
-                    image.alt = '视频首帧预览';
-                    image.loading = 'lazy';
-                    media.replaceWith(image);
-                    return;
-                }
                 if (host) host.classList.add('is-media-missing');
                 media.remove();
             };
@@ -508,7 +472,6 @@
                 + '<span class="source-thumb__preview-label">' + _esc(_assetPreviewLabel(asset.asset_type)) + '</span>'
                 + '</div>'
                 + '<div><strong>' + _esc(asset.filename) + '</strong><div class="subtle">' + _esc(asset.file_path || '未记录路径') + '</div></div>';
-            _hydrateVideoPosters(preview);
             _bindMediaFallbacks(preview);
             _hydrateTextPreviews(preview);
         }
@@ -643,7 +606,6 @@
         grid.innerHTML = filtered.slice(0, 24).map(function (asset) {
             return _buildAssetThumb(asset, asset.id === selectedId);
         }).join('');
-        _hydrateVideoPosters(grid);
         _bindMediaFallbacks(grid);
         _hydrateTextPreviews(grid);
 
