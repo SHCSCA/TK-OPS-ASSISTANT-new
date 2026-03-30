@@ -19,6 +19,8 @@ README_PATH = ROOT / "README.md"
 INSTALLER_PATH = ROOT / "installer.iss"
 FILE_VERSION_INFO_PATH = ROOT / "file_version_info.txt"
 BRIDGE_JS_PATH = ROOT / "desktop_app" / "assets" / "js" / "bridge.js"
+FFMPEG_BINARIES = ("ffmpeg.exe", "ffprobe.exe")
+FFMPEG_DLL_GLOB = "*.dll"
 
 
 @dataclass(frozen=True)
@@ -26,6 +28,39 @@ class VersionReplacement:
     pattern: str
     replacement: str
     label: str
+
+
+def _find_ffmpeg_install_dir() -> Path | None:
+    for binary_name in FFMPEG_BINARIES:
+        binary_path = shutil.which(binary_name)
+        if binary_path:
+            return Path(binary_path).resolve().parent
+    return None
+
+
+def ensure_ffmpeg_bundle(root: Path = ROOT) -> Path:
+    bundle_dir = root / "tools" / "ffmpeg" / "win64"
+    ffmpeg_path = bundle_dir / "ffmpeg.exe"
+    ffprobe_path = bundle_dir / "ffprobe.exe"
+    if ffmpeg_path.is_file() and ffprobe_path.is_file():
+        return bundle_dir
+
+    install_dir = _find_ffmpeg_install_dir()
+    if install_dir is None:
+        raise RuntimeError(
+            "未找到 FFmpeg 安装目录。请先安装 ffmpeg/ffprobe，或手动放入 tools/ffmpeg/win64。"
+        )
+
+    bundle_dir.mkdir(parents=True, exist_ok=True)
+    for binary_name in FFMPEG_BINARIES:
+        source = install_dir / binary_name
+        if not source.is_file():
+            raise RuntimeError(f"缺少 FFmpeg 组件: {source}")
+        shutil.copy2(source, bundle_dir / binary_name)
+
+    for dll_path in install_dir.glob(FFMPEG_DLL_GLOB):
+        shutil.copy2(dll_path, bundle_dir / dll_path.name)
+    return bundle_dir
 
 
 def _load_app_version(root: Path = ROOT) -> str:
@@ -173,12 +208,15 @@ def clean() -> None:
 def build(extra_args: list[str]) -> None:
     version = _load_app_version()
     ensure_version_metadata_consistent(version)
+    ffmpeg_bundle_dir = ensure_ffmpeg_bundle()
 
     if not ICO_PATH.exists():
         if LEGACY_ICO_PATH.exists():
             print(f"[!] tkops.ico not found, fallback to legacy icon: {LEGACY_ICO_PATH}")
         else:
             generate_ico()
+
+    print(f"[OK] FFmpeg bundle ready: {ffmpeg_bundle_dir}")
 
     cmd = [
         sys.executable,

@@ -12,6 +12,7 @@ ASSETS = ROOT / "desktop_app" / "assets"
 MIGRATIONS = ROOT / "desktop_app" / "database" / "migrations"
 PROTOTYPE_ASSETS = ROOT / "prototype" / "assets"
 APP_ICO = ROOT / "tkops.ico"
+FFMPEG_TOOLS = ROOT / "tools" / "ffmpeg" / "win64"
 
 a = Analysis(
     [str(ROOT / "desktop_app" / "main.py")],
@@ -26,6 +27,8 @@ a = Analysis(
         (str(MIGRATIONS), "desktop_app/database/migrations"),
         # Alembic 配置
         (str(ROOT / "alembic.ini"), "."),
+        # FFmpeg runtime
+        (str(FFMPEG_TOOLS), "tools/ffmpeg/win64"),
     ],
     hiddenimports=[
         # Qt 子模块（部分平台可能未被自动检测）
