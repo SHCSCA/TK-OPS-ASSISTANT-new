@@ -75,7 +75,6 @@ from desktop_app.database.models import Asset
 from desktop_app.database.repository import Repository
 
 repo = Repository()
-asset_a = repo.add(Asset(filename='a.mp4', asset_type='video', file_path='C:/tmp/a.mp4'))
 asset_b = repo.add(Asset(filename='b.mp4', asset_type='video', file_path='C:/tmp/b.mp4'))
 project = repo.create_video_project(name='Sort Test')
 sequence = repo.create_video_sequence(project.id, name='Main Sequence')
@@ -94,21 +93,14 @@ second = repo.append_video_clip(
     source_in_ms=0,
     source_out_ms=1000,
 )
-repo.append_video_clip(
-    sequence.id,
-    asset_a.id,
-    track_type='video',
-    track_index=0,
-    start_ms=2000,
-    source_in_ms=0,
-    source_out_ms=1000,
-)
 repo.reorder_video_clips(sequence.id, [second.id, first.id])
 clips = repo.list_video_clips(sequence.id)
 print(json.dumps({
+    'second_id': second.id,
+    'first_id': first.id,
     'ordered_ids': [clip.id for clip in clips],
 }, ensure_ascii=False))
 """
     )
 
-    assert len(result["ordered_ids"]) == 2
+    assert result["ordered_ids"] == [result["second_id"], result["first_id"]]
