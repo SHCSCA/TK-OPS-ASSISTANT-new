@@ -16,6 +16,7 @@ UI_CRUD_FORMS_JS = ROOT / "desktop_app" / "assets" / "js" / "ui-crud-forms.js"
 SEARCH_JS = ROOT / "desktop_app" / "assets" / "js" / "search.js"
 STATE_JS = ROOT / "desktop_app" / "assets" / "js" / "state.js"
 BINDINGS_JS = ROOT / "desktop_app" / "assets" / "js" / "bindings.js"
+VIDEO_EDITOR_BINDINGS_JS = ROOT / "desktop_app" / "assets" / "js" / "bindings" / "video-editor-bindings.js"
 DATA_JS = ROOT / "desktop_app" / "assets" / "js" / "data.js"
 COMPONENTS_CSS = ROOT / "desktop_app" / "assets" / "css" / "components.css"
 
@@ -49,7 +50,19 @@ def _device_management_loader_runtime_text() -> str:
 
 
 def aggregate_binding_text() -> str:
-    return BINDINGS_JS.read_text(encoding="utf-8")
+    parts = [BINDINGS_JS.read_text(encoding="utf-8")]
+    if VIDEO_EDITOR_BINDINGS_JS.exists():
+        parts.append(VIDEO_EDITOR_BINDINGS_JS.read_text(encoding="utf-8"))
+    return "\n".join(parts)
+
+
+def _video_editor_binding_text() -> str:
+    if VIDEO_EDITOR_BINDINGS_JS.exists():
+        return VIDEO_EDITOR_BINDINGS_JS.read_text(encoding="utf-8")
+    text = BINDINGS_JS.read_text(encoding="utf-8")
+    start = text.index("            '发起终版导出': () =>")
+    end = text.index("            '运行批次': () =>", start)
+    return text[start:end]
 
 
 CRUD_ROUTE_EXPECTATIONS = {
@@ -219,7 +232,7 @@ def test_remaining_crud_buttons_no_longer_route_to_placeholder_flows() -> None:
 
 
 def test_video_editor_actions_are_not_plain_toasts() -> None:
-    text = aggregate_binding_text()
+    text = _video_editor_binding_text()
     assert "发起终版导出" in text
     assert "_createQuickTask('终版导出'" not in text
     assert "showToast('已切换到剪辑序列选择模式'" not in text

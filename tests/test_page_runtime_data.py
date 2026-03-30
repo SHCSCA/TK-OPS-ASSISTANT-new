@@ -6,6 +6,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 ROUTES_JS = ROOT / "desktop_app" / "assets" / "js" / "routes.js"
 PAGE_LOADERS_JS = ROOT / "desktop_app" / "assets" / "js" / "page-loaders.js"
+VIDEO_EDITOR_MAIN_JS = ROOT / "desktop_app" / "assets" / "js" / "page-loaders" / "video-editor-main.js"
 TASK_QUEUE_MAIN_JS = ROOT / "desktop_app" / "assets" / "js" / "page-loaders" / "task-queue-main.js"
 TASK_OPS_MAIN_JS = ROOT / "desktop_app" / "assets" / "js" / "page-loaders" / "task-ops-main.js"
 ASSET_CENTER_MAIN_JS = ROOT / "desktop_app" / "assets" / "js" / "page-loaders" / "asset-center-main.js"
@@ -95,7 +96,10 @@ def test_runtime_summary_handlers_reference_real_data_sources() -> None:
 
 
 def aggregate_page_loader_text() -> str:
-    return PAGE_LOADERS_JS.read_text(encoding="utf-8")
+    parts = [PAGE_LOADERS_JS.read_text(encoding="utf-8")]
+    if VIDEO_EDITOR_MAIN_JS.exists():
+        parts.append(VIDEO_EDITOR_MAIN_JS.read_text(encoding="utf-8"))
+    return "\n".join(parts)
 
 
 def test_video_editor_runtime_uses_project_sequence_clip_language() -> None:
