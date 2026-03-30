@@ -48,6 +48,10 @@ def _device_management_loader_runtime_text() -> str:
     )
 
 
+def aggregate_binding_text() -> str:
+    return BINDINGS_JS.read_text(encoding="utf-8")
+
+
 CRUD_ROUTE_EXPECTATIONS = {
     "account": ["create", "edit", "delete", "filter", "detail", "batch", "task"],
     "device-management": ["create", "edit", "delete", "filter", "detail", "batch"],
@@ -189,7 +193,7 @@ def test_filterable_crud_pages_have_route_state_and_apply_handlers() -> None:
 
 
 def test_remaining_crud_buttons_no_longer_route_to_placeholder_flows() -> None:
-    text = BINDINGS_JS.read_text(encoding="utf-8")
+    text = aggregate_binding_text()
 
     required_handlers = [
         "'批量开始': () => _batchStartSelectedTasks()",
@@ -212,6 +216,13 @@ def test_remaining_crud_buttons_no_longer_route_to_placeholder_flows() -> None:
     ]
     for marker in placeholder_flows:
         assert marker not in text, marker
+
+
+def test_video_editor_actions_are_not_plain_toasts() -> None:
+    text = aggregate_binding_text()
+    assert "发起终版导出" in text
+    assert "_createQuickTask('终版导出'" not in text
+    assert "showToast('已切换到剪辑序列选择模式'" not in text
 
 
 def test_asset_mutations_invalidate_asset_runtime_caches() -> None:

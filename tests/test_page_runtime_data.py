@@ -94,6 +94,17 @@ def test_runtime_summary_handlers_reference_real_data_sources() -> None:
         assert source in text, source
 
 
+def aggregate_page_loader_text() -> str:
+    return PAGE_LOADERS_JS.read_text(encoding="utf-8")
+
+
+def test_video_editor_runtime_uses_project_sequence_clip_language() -> None:
+    text = aggregate_page_loader_text()
+    assert "listVideoProjects" in text
+    assert "appendAssetsToSequence" in text
+    assert "createVideoExport" in text
+
+
 def test_task_queue_loader_split_remains_registered_in_shell_chain() -> None:
     shell_text = (ROOT / "desktop_app" / "assets" / "app_shell.html").read_text(encoding="utf-8")
     task_text = TASK_QUEUE_MAIN_JS.read_text(encoding="utf-8")
