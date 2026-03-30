@@ -278,6 +278,60 @@
             videoPoster: function (path)   { return callBackend('getAssetVideoPoster', path || ''); },
             previewText: function (path, maxChars) { return callBackend('getAssetTextPreview', path || '', Number(maxChars || 220)); },
         },
+        // -- Video Editor --
+        videoProjects: {
+            list:   function ()         { return callCached('videoProjects:list', DEFAULT_TTL, 'listVideoProjects'); },
+            create: function (data)     { return callBackend('createVideoProject', JSON.stringify(data || {})); },
+        },
+        videoSequences: {
+            list: function (projectId)  {
+                return callCached(
+                    'videoSequences:list:' + String(projectId || ''),
+                    DEFAULT_TTL,
+                    'listVideoSequences',
+                    Number(projectId || 0)
+                );
+            },
+        },
+        videoClips: {
+            list: function (sequenceId) {
+                return callCached(
+                    'videoClips:list:' + String(sequenceId || ''),
+                    DEFAULT_TTL,
+                    'listVideoClips',
+                    Number(sequenceId || 0)
+                );
+            },
+            update: function (id, data) {
+                return callBackend('updateVideoClip', Number(id || 0), JSON.stringify(data || {}));
+            },
+            appendAssets: function (sequenceId, data) {
+                return callBackend('appendAssetsToSequence', Number(sequenceId || 0), JSON.stringify(data || {}));
+            },
+        },
+        videoSubtitles: {
+            create: function (data) {
+                return callBackend('createVideoSubtitle', JSON.stringify(data || {}));
+            },
+        },
+        videoExports: {
+            create: function (data) {
+                return callBackend('createVideoExport', JSON.stringify(data || {}));
+            },
+        },
+        videoSnapshots: {
+            list: function (projectId) {
+                return callCached(
+                    'videoSnapshots:list:' + String(projectId || ''),
+                    DEFAULT_TTL,
+                    'listVideoSnapshots',
+                    Number(projectId || 0)
+                );
+            },
+            restore: function (snapshotId) {
+                return callBackend('restoreVideoSnapshot', Number(snapshotId || 0));
+            },
+        },
         // -- Utilities --
         _call: callBackend,
         _callCached: callCached,
@@ -320,6 +374,13 @@
                     } else if (entity === 'activity_log') {
                         _cacheInvalidate('activity:');
                         _cacheInvalidate('notifications:');
+                    } else if (String(entity || '').indexOf('video-') === 0) {
+                        _cacheInvalidate('videoProjects:');
+                        _cacheInvalidate('videoSequences:');
+                        _cacheInvalidate('videoClips:');
+                        _cacheInvalidate('videoSubtitles:');
+                        _cacheInvalidate('videoExports:');
+                        _cacheInvalidate('videoSnapshots:');
                     }
                     // 触发自定义事件，页面可监听
                     document.dispatchEvent(new CustomEvent('data:changed', { detail: ev }));

@@ -62,6 +62,19 @@
             getAssetStats: () => ok({ total: 0, byType: {} }),
             getAssetVideoPoster: () => ok({ poster_path: '', reason: 'stub' }),
             getAssetTextPreview: () => ok({ preview: '', encoding: '', reason: 'stub' }),
+            // Video Editor
+            listVideoProjects: noop,
+            createVideoProject: noopObj,
+            listVideoSequences: noop,
+            appendAssetsToSequence: noop,
+            listVideoClips: noop,
+            updateVideoClip: noopObj,
+            listVideoSubtitles: noop,
+            createVideoSnapshot: noopObj,
+            createVideoSubtitle: noopObj,
+            createVideoExport: noopObj,
+            listVideoSnapshots: noop,
+            restoreVideoSnapshot: noopObj,
             // Dashboard
             getDashboardStats: () => ok({
                 accounts: { total: 0, byStatus: {} },
