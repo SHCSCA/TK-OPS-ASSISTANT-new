@@ -27,7 +27,7 @@ def _run_isolated_script(script: str) -> dict[str, object]:
 
 
 def test_append_assets_to_sequence_creates_real_clips() -> None:
-    _run_isolated_script(
+    result = _run_isolated_script(
         """
 import json
 from desktop_app.database.models import Asset
@@ -48,10 +48,14 @@ print(json.dumps({
 }, ensure_ascii=False))
 """
     )
+    assert result["project_id"] is not None
+    assert result["sequence_project_id"] == result["project_id"]
+    assert result["clip_count"] == 1
+    assert result["first_clip_asset_id"] is not None
 
 
 def test_update_clip_range_rejects_invalid_ranges() -> None:
-    _run_isolated_script(
+    result = _run_isolated_script(
         """
 import json
 from desktop_app.database.models import Asset
@@ -75,10 +79,11 @@ else:
     raise AssertionError('expected ValueError')
 """
     )
+    assert "裁切区间" in result["error"]
 
 
 def test_validate_export_blocks_missing_source_file() -> None:
-    _run_isolated_script(
+    result = _run_isolated_script(
         """
 import json
 from desktop_app.database.models import Asset
@@ -95,3 +100,6 @@ result = service.validate_export(project.id, sequence.id)
 print(json.dumps(result, ensure_ascii=False))
 """
     )
+    assert result["ok"] is False
+    assert result["errors"]
+    assert "素材源文件不存在" in result["errors"][0]
