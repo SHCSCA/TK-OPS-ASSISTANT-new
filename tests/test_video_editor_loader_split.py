@@ -8,6 +8,8 @@ APP_SHELL = ROOT / "desktop_app" / "assets" / "app_shell.html"
 ROUTES = ROOT / "desktop_app" / "assets" / "js" / "routes.js"
 PAGE_LOADERS = ROOT / "desktop_app" / "assets" / "js" / "page-loaders.js"
 VIDEO_EDITOR_MAIN = ROOT / "desktop_app" / "assets" / "js" / "page-loaders" / "video-editor-main.js"
+VISUAL_EDITOR_MAIN = ROOT / "desktop_app" / "assets" / "js" / "page-loaders" / "visual-editor-main.js"
+VISUAL_EDITOR_MAIN = ROOT / "desktop_app" / "assets" / "js" / "page-loaders" / "visual-editor-main.js"
 
 
 def _slice_between(text: str, start_marker: str, end_marker: str) -> str:
@@ -41,6 +43,26 @@ def _video_editor_loader_text() -> str:
     )
 
 
+def _visual_editor_loader_text() -> str:
+    if VISUAL_EDITOR_MAIN.exists():
+        return VISUAL_EDITOR_MAIN.read_text(encoding="utf-8")
+    return _slice_between(
+        PAGE_LOADERS.read_text(encoding="utf-8"),
+        "    loaders['visual-editor'] = function () {",
+        "    loaders['ai-content-factory'] = function () {",
+    )
+
+
+def _visual_editor_loader_text() -> str:
+    if VISUAL_EDITOR_MAIN.exists():
+        return VISUAL_EDITOR_MAIN.read_text(encoding="utf-8")
+    return _slice_between(
+        PAGE_LOADERS.read_text(encoding="utf-8"),
+        "    loaders['visual-editor'] = function () {",
+        "    loaders['ai-content-factory'] = function () {",
+    )
+
+
 def test_video_editor_route_no_longer_hides_sidebar_and_detail_panel() -> None:
     text = _video_editor_route_block()
     assert "'video-editor': makeVideoEditorRoute()," in text
@@ -53,6 +75,7 @@ def test_video_editor_loader_is_moved_to_dedicated_module() -> None:
     root = PAGE_LOADERS.read_text(encoding="utf-8")
     module = VIDEO_EDITOR_MAIN.read_text(encoding="utf-8") if VIDEO_EDITOR_MAIN.exists() else ""
     assert './js/page-loaders/video-editor-main.js' in html
+    assert './js/page-loaders/visual-editor-main.js' in html
     assert VIDEO_EDITOR_MAIN.exists()
     assert "loaders['video-editor'] = function () {" not in root
     assert "loaders['video-editor'] = function () {" in module
@@ -72,3 +95,53 @@ def test_content_factory_keeps_only_aggregate_editor_entrypoints() -> None:
     text = (ROOT / "desktop_app" / "assets" / "js" / "factories" / "content.js").read_text(encoding="utf-8")
     assert "if (config.workbenchType === 'video-editor')" not in text
     assert "if (config.workbenchType === 'visual-editor')" not in text
+
+
+def test_page_loaders_root_keeps_only_shared_loader_shells() -> None:
+    text = PAGE_LOADERS.read_text(encoding="utf-8")
+    assert "loaders['video-editor'] = function () {" not in text
+    assert "loaders['visual-editor'] = function () {" not in text
+    assert 'moved to page-loaders/video-editor-main.js' in text
+    assert 'moved to page-loaders/visual-editor-main.js' in text
+
+
+def test_video_editor_loader_moves_preview_binding_into_module() -> None:
+    text = _video_editor_loader_text()
+    assert "loaders['video-editor'] = function () {" in text
+    assert "_bindAssetThumbs(assets)" not in text
+    assert "source-thumb-grid" in text
+    assert "addEventListener('click'" in text
+
+
+def test_visual_editor_loader_updates_summary_strip_and_cards() -> None:
+    text = _visual_editor_loader_text()
+    assert "loaders['visual-editor'] = function () {" in text
+    assert ".stat-grid .stat-card" not in text
+    assert "workbench-summary-chip" in text
+    assert "workbench-side-list" in text
+    assert "workbench-strip-grid" in text
+
+
+def test_page_loaders_root_keeps_only_shared_loader_shells() -> None:
+    text = PAGE_LOADERS.read_text(encoding="utf-8")
+    assert "loaders['video-editor'] = function () {" not in text
+    assert "loaders['visual-editor'] = function () {" not in text
+    assert 'moved to page-loaders/video-editor-main.js' in text
+    assert 'moved to page-loaders/visual-editor-main.js' in text
+
+
+def test_video_editor_loader_moves_preview_binding_into_module() -> None:
+    text = _video_editor_loader_text()
+    assert "loaders['video-editor'] = function () {" in text
+    assert "_bindAssetThumbs(assets)" not in text
+    assert "source-thumb-grid" in text
+    assert "addEventListener('click'" in text
+
+
+def test_visual_editor_loader_updates_summary_strip_and_cards() -> None:
+    text = _visual_editor_loader_text()
+    assert "loaders['visual-editor'] = function () {" in text
+    assert ".stat-grid .stat-card" not in text
+    assert "workbench-summary-chip" in text
+    assert "workbench-side-list" in text
+    assert "workbench-strip-grid" in text

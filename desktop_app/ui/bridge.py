@@ -29,7 +29,9 @@ from desktop_app.database.models import (
     Task,
     VideoClip,
     VideoExport,
+    VideoSequence,
     VideoSnapshot,
+    VideoSubtitle,
 )
 from desktop_app.database.repository import Repository
 from desktop_app.logging_config import LOG_FILE
@@ -730,6 +732,32 @@ class Bridge(QObject):
         rows = [_to_dict(sequence) for sequence in self._repo.list_video_sequences(int(project_id))]
         return _ok(rows)
 
+    @Slot(str, result=str)
+    @_safe
+    def createVideoSequence(self, payload: str) -> str:
+        data = json.loads(payload or "{}")
+        project_id = data.get("project_id")
+        name = str(data.get("name") or "").strip()
+        if project_id in (None, ""):
+            return _err("项目ID不能为空")
+        if not name:
+            return _err("序列名称不能为空")
+        sequence = self._repo.create_video_sequence(int(project_id), name=name)
+        self._emit_change("video-sequence", "created", sequence.id)
+        self._emit_change("video-project", "updated", int(project_id))
+        return _ok(_to_dict(sequence))
+
+    @Slot(int, int, result=str)
+    @_safe
+    def setActiveVideoSequence(self, project_id: int, sequence_id: int) -> str:
+        sequence = self._repo.get_by_id(VideoSequence, int(sequence_id))
+        if sequence is None or int(sequence.project_id) != int(project_id):
+            return _err("序列不存在")
+        self._repo.set_active_video_sequence(int(project_id), int(sequence_id))
+        self._emit_change("video-sequence", "updated", int(sequence_id))
+        self._emit_change("video-project", "updated", int(project_id))
+        return _ok(_to_dict(self._repo.get_by_id(VideoSequence, int(sequence_id)) or sequence))
+
     @Slot(int, str, result=str)
     @_safe
     def appendAssetsToSequence(self, sequence_id: int, payload: str) -> str:
@@ -789,6 +817,18 @@ class Bridge(QObject):
         self._emit_change("video-sequence", "updated", updated.sequence_id)
         return _ok(_to_dict(updated))
 
+    @Slot(int, result=str)
+    @_safe
+    def deleteVideoClip(self, clip_id: int) -> str:
+        clip = self._repo.get_by_id(VideoClip, int(clip_id))
+        if clip is None:
+            return _err("片段不存在")
+        sequence_id = int(clip.sequence_id)
+        self._video_editing.delete_clip(int(clip_id))
+        self._emit_change("video-clip", "deleted", int(clip_id))
+        self._emit_change("video-sequence", "updated", sequence_id)
+        return _ok({"deleted": int(clip_id)})
+
     @Slot(str, result=str)
     @_safe
     def createVideoSubtitle(self, payload: str) -> str:
@@ -816,6 +856,38 @@ class Bridge(QObject):
         self._emit_change("video-subtitle", "created", subtitle.id)
         self._emit_change("video-sequence", "updated", subtitle.sequence_id)
         return _ok(_to_dict(subtitle))
+
+    @Slot(int, str, result=str)
+    @_safe
+    def updateVideoSubtitle(self, subtitle_id: int, payload: str) -> str:
+        subtitle = self._repo.get_by_id(VideoSubtitle, int(subtitle_id))
+        if subtitle is None:
+            return _err("字幕不存在")
+        data = json.loads(payload or "{}")
+        if "text" in data:
+            data["text"] = str(data.get("text") or "").strip()
+            if not data["text"]:
+                return _err("字幕内容不能为空")
+        if "start_ms" in data:
+            data["start_ms"] = int(data["start_ms"])
+        if "end_ms" in data:
+            data["end_ms"] = int(data["end_ms"])
+        updated = self._video_editing.update_subtitle(int(subtitle_id), **data)
+        self._emit_change("video-subtitle", "updated", updated.id)
+        self._emit_change("video-sequence", "updated", updated.sequence_id)
+        return _ok(_to_dict(updated))
+
+    @Slot(int, result=str)
+    @_safe
+    def deleteVideoSubtitle(self, subtitle_id: int) -> str:
+        subtitle = self._repo.get_by_id(VideoSubtitle, int(subtitle_id))
+        if subtitle is None:
+            return _err("字幕不存在")
+        sequence_id = int(subtitle.sequence_id)
+        self._video_editing.delete_subtitle(int(subtitle_id))
+        self._emit_change("video-subtitle", "deleted", int(subtitle_id))
+        self._emit_change("video-sequence", "updated", sequence_id)
+        return _ok({"deleted": int(subtitle_id)})
 
     @Slot(str, result=str)
     @_safe
@@ -858,6 +930,15 @@ class Bridge(QObject):
         )
         rows = [_to_dict(item) for item in self._repo.session.execute(stmt).scalars().all()]
         return _ok(rows)
+
+    @Slot(int, result=str)
+    @_safe
+    def runVideoExport(self, export_id: int) -> str:
+        export = self._video_exports.run_export(int(export_id))
+        self._emit_change("video-export", "updated", export.id)
+        if export.sequence_id:
+            self._emit_change("video-sequence", "updated", int(export.sequence_id))
+        return _ok(_to_dict(export))
 
     @Slot(int, result=str)
     @_safe

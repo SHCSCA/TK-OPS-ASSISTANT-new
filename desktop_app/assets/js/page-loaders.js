@@ -967,6 +967,11 @@
         taskStatusTone: _taskStatusTone,
         taskTypeLabel: _taskTypeLabel,
         taskTime: _taskTime,
+        applyRuntimeSummary: _applyRuntimeSummary,
+        renderWorkbenchSummary: _renderWorkbenchSummary,
+        renderWorkbenchSideCards: _renderWorkbenchSideCards,
+        renderStripCards: _renderStripCards,
+        applyAiHandoffHint: _applyAiHandoffHint,
 
         // Shared labels and formatting helpers.
         accountPlatformLabel: _accountPlatformLabel,
@@ -2175,27 +2180,7 @@
 
     // Task ops route loaders moved to page-loaders/task-ops-main.js.
 
-    loaders['video-editor'] = function () {
-        Promise.all([
-            api.assets.list().catch(function () { return []; }),
-            api.tasks.list().catch(function () { return []; }),
-        ]).then(function (results) {
-            var assets = results[0] || [];
-            var tasks = results[1] || [];
-            _renderWorkbenchSummary([
-                { label: '当前序列', value: '素材 ' + assets.length + ' 条', note: '已接入真实素材库与时间线候选。' },
-                { label: '未解决阻塞', value: String(tasks.filter(function (task) { return _normalizeTaskStatus(task.status) === 'failed'; }).length) + ' 个', note: '异常任务会阻塞导出与批处理。' },
-                { label: '导出队列', value: String(tasks.filter(function (task) { return _normalizeTaskStatus(task.status) === 'running'; }).length) + ' 个排队', note: '运行中任务已映射为导出或处理队列。' },
-            ]);
-            _renderVideoEditorAssets(assets);
-            _renderWorkbenchSideCards(tasks, '#mainHost .workbench-side-list');
-            _renderStripCards(tasks, '#mainHost .video-queue-list');
-            _applyAiHandoffHint('video-editor', '#mainHost .video-queue-list');
-            if (typeof bindRouteInteractions === 'function') bindRouteInteractions();
-        }).catch(function (e) {
-            console.warn('[page-loaders] video-editor load failed:', e);
-        });
-    };
+    // Video editor loader moved to page-loaders/video-editor-main.js.
 
     loaders['creative-workshop'] = function () {
         Promise.all([
@@ -2225,26 +2210,7 @@
         });
     };
 
-    loaders['visual-editor'] = function () {
-        Promise.all([
-            api.assets.list().catch(function () { return []; }),
-            api.tasks.list().catch(function () { return []; }),
-        ]).then(function (results) {
-            var assets = results[0] || [];
-            var tasks = results[1] || [];
-            var cards = document.querySelectorAll('#mainHost .stat-grid .stat-card');
-            if (cards.length >= 3) {
-                cards[0].querySelector('.stat-card__value').textContent = assets.length ? '1080×1920' : '待配置';
-                cards[1].querySelector('.stat-card__value').textContent = String(Math.max(1, assets.length));
-                cards[2].querySelector('.stat-card__value').textContent = String(tasks.filter(function (task) { return _normalizeTaskStatus(task.status) === 'running'; }).length);
-            }
-            _renderWorkbenchSideCards(tasks, '#mainHost .workbench-side-list');
-            _renderStripCards(assets, '#mainHost .workbench-strip-grid', 'asset');
-            if (typeof bindRouteInteractions === 'function') bindRouteInteractions();
-        }).catch(function (e) {
-            console.warn('[page-loaders] visual-editor load failed:', e);
-        });
-    };
+    // Visual editor loader moved to page-loaders/visual-editor-main.js.
 
     loaders['ai-content-factory'] = function () {
         Promise.all([
@@ -2362,41 +2328,6 @@
             if (strong) strong.textContent = item.value;
             if (small) small.textContent = item.note;
         });
-    }
-
-    function _renderVideoEditorAssets(assets) {
-        var counts = { video: 0, image: 0, subtitle: 0, audio: 0 };
-        assets.forEach(function (asset) {
-            var type = String(asset.asset_type || '').toLowerCase();
-            if (type === 'video') counts.video += 1;
-            else if (type === 'image' || type === 'template') counts.image += 1;
-            else if (type === 'text') counts.subtitle += 1;
-            else if (type === 'audio') counts.audio += 1;
-        });
-        var tabs = document.querySelectorAll('#mainHost .source-browser-tabs span');
-        var labels = [
-            ['视频', counts.video],
-            ['图片', counts.image],
-            ['字幕', counts.subtitle],
-            ['音频', counts.audio],
-        ];
-        tabs.forEach(function (tab, index) {
-            if (labels[index]) tab.innerHTML = labels[index][0] + ' <em>' + labels[index][1] + '</em>';
-        });
-        var grid = document.querySelector('#mainHost .source-thumb-grid');
-        if (grid) {
-            grid.innerHTML = assets.slice(0, 8).map(function (asset, index) {
-                return _buildAssetThumb({
-                    id: asset.id,
-                    asset_type: asset.asset_type === 'text' ? 'subtitle' : asset.asset_type,
-                    filename: asset.filename,
-                    file_size: asset.file_size,
-                    tags: asset.tags,
-                }, index === 0);
-            }).join('');
-            _bindAssetThumbs(assets);
-        }
-        if (assets[0]) _renderAssetDetail(assets[0]);
     }
 
     function _renderWorkbenchSideCards(items, selector) {
@@ -4216,7 +4147,12 @@
     }
 
     // ── dataChanged 事件 → 自动刷新当前页 ──
-    document.addEventListener('data:changed', function () {
+    document.addEventListener('data:changed', function (event) {
+        var detail = event && event.detail ? event.detail : {};
+        if (typeof currentRoute !== 'undefined' && currentRoute === 'video-editor' && window.__videoEditorPageMain && typeof window.__videoEditorPageMain.handleDataChanged === 'function') {
+            window.__videoEditorPageMain.handleDataChanged(detail);
+            return;
+        }
         if (typeof currentRoute !== 'undefined' && loaders[currentRoute]) {
             loaders[currentRoute]();
         }

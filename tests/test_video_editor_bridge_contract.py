@@ -20,11 +20,20 @@ def test_video_editor_bridge_methods_exist() -> None:
         "listVideoProjects",
         "createVideoProject",
         "listVideoSequences",
+        "createVideoSequence",
+        "setActiveVideoSequence",
         "appendAssetsToSequence",
         "listVideoClips",
         "updateVideoClip",
+        "deleteVideoClip",
+        "listVideoSubtitles",
         "createVideoSubtitle",
+        "updateVideoSubtitle",
+        "deleteVideoSubtitle",
         "createVideoExport",
+        "listVideoExports",
+        "runVideoExport",
+        "createVideoSnapshot",
         "listVideoSnapshots",
         "restoreVideoSnapshot",
     }
@@ -44,3 +53,16 @@ def test_video_editor_data_api_groups_exist() -> None:
     }
     missing = {group for group in expected if f"{group}:" not in text}
     assert not missing, f"data.js missing video editor API groups: {sorted(missing)}"
+
+    required_methods = [
+        "create: function (data) {\n                return callBackend('createVideoSequence'",
+        "setActive: function (projectId, sequenceId) {",
+        "remove: function (id) {\n                return callBackend('deleteVideoClip'",
+        "list: function (sequenceId) {\n                return callCached(\n                    'videoSubtitles:list:'",
+        "update: function (id, data) {\n                return callBackend('updateVideoSubtitle'",
+        "list: function (projectId) {\n                return callCached(\n                    'videoExports:list:'",
+        "run: function (id) {\n                return callBackend('runVideoExport'",
+        "create: function (data) {\n                return callBackend('createVideoSnapshot'",
+    ]
+    for marker in required_methods:
+        assert marker in text, marker

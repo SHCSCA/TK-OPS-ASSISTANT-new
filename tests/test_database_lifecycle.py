@@ -123,3 +123,44 @@ print(json.dumps({
 
     assert result["exists_after_init"] is False
     assert result["exists_after_first_query"] is True
+
+
+def test_init_db_recovers_from_precreated_video_tables_before_head_revision() -> None:
+    result = _run_isolated_script(
+        """
+import json
+import sqlite3
+from desktop_app.database import DB_PATH, init_db
+
+conn = sqlite3.connect(DB_PATH)
+try:
+    conn.execute("CREATE TABLE alembic_version (version_num VARCHAR(32) NOT NULL)")
+    conn.execute("INSERT INTO alembic_version(version_num) VALUES ('91c9d4b7e2aa')")
+    conn.execute("CREATE TABLE assets (id INTEGER PRIMARY KEY AUTOINCREMENT)")
+    conn.execute("CREATE TABLE video_projects (id INTEGER PRIMARY KEY AUTOINCREMENT, name VARCHAR(160) NOT NULL)")
+    conn.commit()
+finally:
+    conn.close()
+
+init_db()
+
+conn = sqlite3.connect(DB_PATH)
+try:
+    revision = conn.execute("SELECT version_num FROM alembic_version").fetchone()[0]
+    tables = {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+finally:
+    conn.close()
+
+print(json.dumps({
+    'revision': revision,
+    'has_video_projects': 'video_projects' in tables,
+    'has_video_sequences': 'video_sequences' in tables,
+    'has_video_exports': 'video_exports' in tables,
+}, ensure_ascii=False))
+"""
+    )
+
+    assert result["revision"] == "3c7a6f5e9d21"
+    assert result["has_video_projects"] is True
+    assert result["has_video_sequences"] is True
+    assert result["has_video_exports"] is True

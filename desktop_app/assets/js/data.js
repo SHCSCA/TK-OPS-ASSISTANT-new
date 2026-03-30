@@ -292,6 +292,12 @@
                     Number(projectId || 0)
                 );
             },
+            create: function (data) {
+                return callBackend('createVideoSequence', JSON.stringify(data || {}));
+            },
+            setActive: function (projectId, sequenceId) {
+                return callBackend('setActiveVideoSequence', Number(projectId || 0), Number(sequenceId || 0));
+            },
         },
         videoClips: {
             list: function (sequenceId) {
@@ -308,15 +314,43 @@
             appendAssets: function (sequenceId, data) {
                 return callBackend('appendAssetsToSequence', Number(sequenceId || 0), JSON.stringify(data || {}));
             },
+            remove: function (id) {
+                return callBackend('deleteVideoClip', Number(id || 0));
+            },
         },
         videoSubtitles: {
+            list: function (sequenceId) {
+                return callCached(
+                    'videoSubtitles:list:' + String(sequenceId || ''),
+                    DEFAULT_TTL,
+                    'listVideoSubtitles',
+                    Number(sequenceId || 0)
+                );
+            },
             create: function (data) {
                 return callBackend('createVideoSubtitle', JSON.stringify(data || {}));
             },
+            update: function (id, data) {
+                return callBackend('updateVideoSubtitle', Number(id || 0), JSON.stringify(data || {}));
+            },
+            remove: function (id) {
+                return callBackend('deleteVideoSubtitle', Number(id || 0));
+            },
         },
         videoExports: {
+            list: function (projectId) {
+                return callCached(
+                    'videoExports:list:' + String(projectId || ''),
+                    DEFAULT_TTL,
+                    'listVideoExports',
+                    Number(projectId || 0)
+                );
+            },
             create: function (data) {
                 return callBackend('createVideoExport', JSON.stringify(data || {}));
+            },
+            run: function (id) {
+                return callBackend('runVideoExport', Number(id || 0));
             },
         },
         videoSnapshots: {
@@ -327,6 +361,9 @@
                     'listVideoSnapshots',
                     Number(projectId || 0)
                 );
+            },
+            create: function (data) {
+                return callBackend('createVideoSnapshot', JSON.stringify(data || {}));
             },
             restore: function (snapshotId) {
                 return callBackend('restoreVideoSnapshot', Number(snapshotId || 0));
