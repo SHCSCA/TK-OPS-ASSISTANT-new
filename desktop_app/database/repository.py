@@ -24,6 +24,12 @@ from desktop_app.database.models import (
     Group,
     ReportRun,
     Task,
+    VideoClip,
+    VideoProject,
+    VideoSequence,
+    VideoSnapshot,
+    VideoSubtitle,
+    VideoExport,
     WorkflowDefinition,
     WorkflowRun,
 )
@@ -122,6 +128,155 @@ class Repository:
 
     def list_groups(self) -> Sequence[Group]:
         return self.session.execute(select(Group).order_by(Group.id)).scalars().all()
+
+    def create_video_project(self, *, name: str, **fields: Any) -> VideoProject:
+        payload = dict(fields)
+        payload.setdefault("status", "draft")
+        payload.setdefault("canvas_ratio", "9:16")
+        payload.setdefault("width", 1080)
+        payload.setdefault("height", 1920)
+        return self.add(VideoProject(name=name, **payload))
+
+    def list_video_projects(self) -> Sequence[VideoProject]:
+        stmt = select(VideoProject).order_by(VideoProject.updated_at.desc(), VideoProject.id.desc())
+        return self.session.execute(stmt).scalars().all()
+
+    def get_video_project(self, pk: int) -> VideoProject | None:
+        return self.get_by_id(VideoProject, pk)
+
+    def create_video_sequence(self, project_id: int, *, name: str, **fields: Any) -> VideoSequence:
+        payload = dict(fields)
+        existing = self.list_video_sequences(project_id)
+        payload.setdefault("duration_ms", 0)
+        payload.setdefault("sort_order", len(existing))
+        payload.setdefault("is_active", not existing)
+        sequence = self.add(VideoSequence(project_id=project_id, name=name, **payload))
+        if bool(getattr(sequence, "is_active", False)):
+            self.set_active_video_sequence(project_id, sequence.id)
+            refreshed = self.get_by_id(VideoSequence, sequence.id)
+            return refreshed or sequence
+        return sequence
+
+    def list_video_sequences(self, project_id: int) -> Sequence[VideoSequence]:
+        stmt = (
+            select(VideoSequence)
+            .where(VideoSequence.project_id == project_id)
+            .order_by(VideoSequence.sort_order.asc(), VideoSequence.id.asc())
+        )
+        return self.session.execute(stmt).scalars().all()
+
+    def set_active_video_sequence(self, project_id: int, sequence_id: int) -> None:
+        sequences = list(self.list_video_sequences(project_id))
+        changed = False
+        for sequence in sequences:
+            should_be_active = int(sequence.id) == int(sequence_id)
+            if bool(sequence.is_active) != should_be_active:
+                sequence.is_active = should_be_active
+                changed = True
+        if changed:
+            self.session.commit()
+            self.session.expire_all()
+
+    def append_video_clip(self, sequence_id: int, asset_id: int, **fields: Any) -> VideoClip:
+        payload = dict(fields)
+        source_in_ms = int(payload.pop("source_in_ms", 0) or 0)
+        raw_source_out = payload.pop("source_out_ms", None)
+        raw_duration = payload.pop("duration_ms", None)
+        duration_ms = int(raw_duration if raw_duration is not None else 0)
+        if raw_source_out is not None:
+            source_out_ms = int(raw_source_out)
+            if raw_duration is None:
+                duration_ms = max(0, source_out_ms - source_in_ms)
+        else:
+            source_out_ms = source_in_ms + max(0, duration_ms)
+        payload.setdefault("track_type", "video")
+        payload.setdefault("track_index", 0)
+        payload.setdefault("start_ms", 0)
+        payload.setdefault("sort_order", self._next_video_clip_sort_order(sequence_id))
+        payload.setdefault("transform_json", "{}")
+        payload["source_in_ms"] = source_in_ms
+        payload["source_out_ms"] = source_out_ms
+        payload["duration_ms"] = max(0, duration_ms)
+        clip = self.add(VideoClip(sequence_id=sequence_id, asset_id=asset_id, **payload))
+        self._refresh_video_sequence_duration(sequence_id)
+        refreshed = self.get_by_id(VideoClip, clip.id)
+        return refreshed or clip
+
+    def create_video_clip_placeholder(
+        self,
+        sequence_id: int,
+        *,
+        track_type: str,
+        track_index: int,
+        duration_ms: int,
+    ) -> VideoClip:
+        clip = self.add(
+            VideoClip(
+                sequence_id=sequence_id,
+                asset_id=None,
+                track_type=track_type,
+                track_index=track_index,
+                start_ms=0,
+                source_in_ms=0,
+                source_out_ms=max(0, int(duration_ms)),
+                duration_ms=max(0, int(duration_ms)),
+                sort_order=self._next_video_clip_sort_order(sequence_id),
+                transform_json="{}",
+            )
+        )
+        self._refresh_video_sequence_duration(sequence_id)
+        refreshed = self.get_by_id(VideoClip, clip.id)
+        return refreshed or clip
+
+    def list_video_clips(self, sequence_id: int) -> Sequence[VideoClip]:
+        stmt = (
+            select(VideoClip)
+            .where(VideoClip.sequence_id == sequence_id)
+            .order_by(VideoClip.sort_order.asc(), VideoClip.id.asc())
+        )
+        return self.session.execute(stmt).scalars().all()
+
+    def reorder_video_clips(self, sequence_id: int, ordered_ids: list[int]) -> Sequence[VideoClip]:
+        order_map = {int(clip_id): index for index, clip_id in enumerate(ordered_ids)}
+        clips = list(self.list_video_clips(sequence_id))
+        base_index = len(order_map)
+        for offset, clip in enumerate(clips):
+            clip.sort_order = order_map.get(int(clip.id), base_index + offset)
+        self.session.commit()
+        self.session.expire_all()
+        return self.list_video_clips(sequence_id)
+
+    def create_video_subtitle(
+        self,
+        sequence_id: int,
+        *,
+        start_ms: int,
+        end_ms: int,
+        text: str,
+        **fields: Any,
+    ) -> VideoSubtitle:
+        payload = dict(fields)
+        payload.setdefault("style_json", "{}")
+        payload.setdefault("sort_order", self._next_video_subtitle_sort_order(sequence_id))
+        subtitle = self.add(
+            VideoSubtitle(
+                sequence_id=sequence_id,
+                start_ms=int(start_ms),
+                end_ms=int(end_ms),
+                text=text,
+                **payload,
+            )
+        )
+        refreshed = self.get_by_id(VideoSubtitle, subtitle.id)
+        return refreshed or subtitle
+
+    def list_video_subtitles(self, sequence_id: int) -> Sequence[VideoSubtitle]:
+        stmt = (
+            select(VideoSubtitle)
+            .where(VideoSubtitle.sequence_id == sequence_id)
+            .order_by(VideoSubtitle.sort_order.asc(), VideoSubtitle.id.asc())
+        )
+        return self.session.execute(stmt).scalars().all()
 
     def list_analysis_snapshots(
         self, *, page_key: str | None = None
@@ -241,6 +396,28 @@ class Repository:
             and_(Task.status == "failed", Task.created_at >= start, Task.created_at < end)
         )
         return self.session.execute(stmt).scalar() or 0
+
+    def _next_video_clip_sort_order(self, sequence_id: int) -> int:
+        stmt = select(func.max(VideoClip.sort_order)).where(VideoClip.sequence_id == sequence_id)
+        current = self.session.execute(stmt).scalar()
+        return int(current or 0) + 1 if current is not None else 0
+
+    def _next_video_subtitle_sort_order(self, sequence_id: int) -> int:
+        stmt = select(func.max(VideoSubtitle.sort_order)).where(VideoSubtitle.sequence_id == sequence_id)
+        current = self.session.execute(stmt).scalar()
+        return int(current or 0) + 1 if current is not None else 0
+
+    def _refresh_video_sequence_duration(self, sequence_id: int) -> None:
+        sequence = self.get_by_id(VideoSequence, sequence_id)
+        if sequence is None:
+            return
+        clips = list(self.list_video_clips(sequence_id))
+        duration_ms = 0
+        for clip in clips:
+            duration_ms = max(duration_ms, int(clip.start_ms or 0) + int(clip.duration_ms or 0))
+        sequence.duration_ms = duration_ms
+        self.session.commit()
+        self.session.refresh(sequence)
 
     def close(self) -> None:
         if self._session is None:
