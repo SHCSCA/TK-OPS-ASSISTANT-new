@@ -2,10 +2,13 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
 from pathlib import Path
+
+import pytest
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -24,6 +27,34 @@ def _run_isolated_script(script: str) -> dict[str, object]:
             encoding="utf-8",
         )
     return json.loads(output.strip().splitlines()[-1])
+
+
+def _write_sample_video(target_path: Path) -> None:
+    ffmpeg = shutil.which("ffmpeg")
+    if not ffmpeg:
+        pytest.skip("ffmpeg not available in PATH")
+    subprocess.check_call(
+        [
+            ffmpeg,
+            "-y",
+            "-f",
+            "lavfi",
+            "-i",
+            "color=c=black:s=320x240:d=1",
+            "-f",
+            "lavfi",
+            "-i",
+            "anullsrc=r=44100:cl=stereo",
+            "-shortest",
+            "-c:v",
+            "libx264",
+            "-pix_fmt",
+            "yuv420p",
+            "-c:a",
+            "aac",
+            str(target_path),
+        ]
+    )
 
 
 def test_resolve_ffmpeg_binaries_prefers_bundled_tools(tmp_path: Path) -> None:
@@ -71,6 +102,8 @@ print(json.dumps(result, ensure_ascii=False))
 
 
 def test_minimal_export_writes_output_file() -> None:
+    sample_source = Path(tempfile.mkdtemp()) / "demo.mp4"
+    _write_sample_video(sample_source)
     script = """
 import json
 import os
@@ -83,7 +116,7 @@ repo = Repository()
 media_dir = Path(os.environ['TK_OPS_DATA_DIR']) / 'media'
 media_dir.mkdir(parents=True, exist_ok=True)
 source_path = media_dir / 'demo.mp4'
-source_path.write_bytes(b'fake-video')
+source_path.write_bytes(Path(r'__SOURCE_PATH__').read_bytes())
 asset = repo.add(Asset(filename='demo.mp4', asset_type='video', file_path=str(source_path)))
 service = VideoExportService(repo)
 project, sequence = service.create_project_with_sequence('Minimal Export')
@@ -95,6 +128,7 @@ print(json.dumps({
     'output_path_exists': Path(completed.output_path).exists(),
 }, ensure_ascii=False))
 """
+    script = script.replace("__SOURCE_PATH__", str(sample_source))
 
     result = _run_isolated_script(script)
     assert result["status"] == "completed"
