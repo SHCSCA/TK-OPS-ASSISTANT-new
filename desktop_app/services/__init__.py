@@ -1,1 +1,5 @@
-"""Service layer – business logic on top of Repository."""
+"""Service layer exports."""
+
+from desktop_app.services.video_editing_service import VideoEditingService
+
+__all__ = ["VideoEditingService"]
