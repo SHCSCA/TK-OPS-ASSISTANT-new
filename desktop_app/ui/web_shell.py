@@ -6,6 +6,7 @@ from pathlib import Path
 from PySide6.QtCore import QByteArray, QSettings, Qt, QUrl
 from PySide6.QtGui import QAction, QIcon
 from PySide6.QtWebChannel import QWebChannel
+from PySide6.QtWebEngineCore import QWebEngineSettings
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWidgets import QApplication, QMainWindow, QMenu, QSystemTrayIcon
 
@@ -44,6 +45,10 @@ class WebShellWindow(QMainWindow):
 
         self._view = QWebEngineView()
         self._view.setContextMenuPolicy(Qt.ContextMenuPolicy.NoContextMenu)
+        web_settings = self._view.settings()
+        web_settings.setAttribute(QWebEngineSettings.WebAttribute.LocalContentCanAccessFileUrls, True)
+        web_settings.setAttribute(QWebEngineSettings.WebAttribute.LocalContentCanAccessRemoteUrls, True)
+        web_settings.setAttribute(QWebEngineSettings.WebAttribute.PlaybackRequiresUserGesture, False)
 
         # QWebChannel bridge
         self._bridge = Bridge(self)

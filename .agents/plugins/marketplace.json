@@ -1,0 +1,20 @@
+{
+  "name": "tk-ops-local",
+  "interface": {
+    "displayName": "TK-OPS 本地插件"
+  },
+  "plugins": [
+    {
+      "name": "superpowers",
+      "source": {
+        "source": "local",
+        "path": "./plugins/superpowers"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}

@@ -8,6 +8,7 @@ const uiState = {
     'device-management': { statusFilter: 'all', view: 'card', selectedId: null },
     'task-queue': { statusFilter: 'all' },
     'asset-center': { category: 'all', tab: 'all', keyword: '', groupTag: '', packKey: '', selectedId: null },
+    'video-editor': { assetType: 'video', selectedAssetId: null, selectedClipId: null, selectedSubtitleId: null, inspectorTab: 'properties', projectId: null, sequenceId: null },
     searchPanel: { visible: false, activeIndex: 0, results: [] },
     recentRoutes: [],
     detailPanelForced: null,
@@ -37,4 +38,5 @@ uiState['group-management'] = uiState['group-management'] || { keyword: '', sele
 uiState['device-management'] = uiState['device-management'] || { statusFilter: 'all', view: 'card', selectedId: null };
 uiState['task-queue'] = uiState['task-queue'] || { statusFilter: 'all' };
 uiState['asset-center'] = uiState['asset-center'] || { category: 'all', tab: 'all', keyword: '', groupTag: '', packKey: '', selectedId: null };
+uiState['video-editor'] = uiState['video-editor'] || { assetType: 'video', selectedAssetId: null, selectedClipId: null, selectedSubtitleId: null, inspectorTab: 'properties', projectId: null, sequenceId: null };
 

@@ -200,7 +200,7 @@ function bindAssetCategoryFilter() {
 
 /* ─── 功能联动：素材点击更新右侧 ─── */
 function bindAssetThumbDetail() {
-    if (currentRoute === 'asset-center') return;
+    if (currentRoute === 'asset-center' || currentRoute === 'video-editor') return;
     const mainHost = document.getElementById('mainHost');
     const detailHost = document.getElementById('detailHost');
     const thumbs = mainHost.querySelectorAll('.source-thumb');
@@ -365,13 +365,13 @@ function _guessAssetTypeByName(filename) {
 function _pickFilesAndImportAssets(routeKey) {
     if (!api || !api.utils || typeof api.utils.pickFiles !== 'function') {
         showToast('当前版本不支持文件选择', 'warning');
-        return;
+        return Promise.resolve([]);
     }
-    api.utils.pickFiles().then((files) => {
+    return api.utils.pickFiles().then((files) => {
         const list = (files || []).filter(Boolean);
         if (!list.length) {
             showToast('未选择文件', 'warning');
-            return;
+            return [];
         }
         const jobs = list.map((filePath) => {
             const parts = String(filePath).split(/[\\/]/);
@@ -395,9 +395,11 @@ function _pickFilesAndImportAssets(routeKey) {
         return Promise.all(jobs).then((results) => {
             const successCount = results.filter(Boolean).length;
             showToast('已导入 ' + successCount + ' 个文件', successCount ? 'success' : 'warning');
+            return results;
         });
     }).catch((err) => {
         showToast('导入失败: ' + ((err && err.message) || '未知错误'), 'error');
+        return [];
     });
 }
 
@@ -916,8 +918,20 @@ function _bindRouteButtonPresets() {
             '试看导出': () => _createQuickTask('试看导出', 'publish', '来源页面：' + currentRoute, '试看导出任务已创建'),
             '添加批注': () => showToast('批注模式已开启', 'info'),
             '导入素材': () => _pickFilesAndImportAssets(currentRoute),
-            '发起终版导出': () => _createQuickTask('终版导出', 'publish', '来源页面：视频剪辑', '终版导出任务已创建'),
-            '切换剪辑序列': () => showToast('已切换到剪辑序列选择模式', 'info'),
+            '发起终版导出': () => {
+                if (window.api && window.api.videoProjects && window.api.videoProjects.createVideoExport) {
+                    window.api.videoProjects.createVideoExport({ source: currentRoute })
+                        .then(() => showToast('终版导出已加入队列', 'success'))
+                        .catch((err) => showToast('导出失败：' + (err.message || err), 'error'));
+                } else {
+                    _createQuickTask('终版导出（降级）', 'publish', '来源页面：视频剪辑', '终版导出任务已创建');
+                }
+            },
+            '切换剪辑序列': () => {
+                var grid = document.querySelector('#mainHost .source-thumb-grid');
+                if (grid) grid.classList.toggle('is-sequence-select-mode');
+                showToast('剪辑序列选择模式已切换', 'info');
+            },
             '画布': (btn) => {
                 _setExclusiveButtonState(btn);
                 showToast('已切换到画布工具', 'info');
@@ -1180,6 +1194,12 @@ function bindRouteInteractions() {
     _bindRouteButtonPresets();
     _bindSelectableButtonGroups();
     _bindFallbackActionButtons();
+    if (currentRoute === 'video-editor' && typeof window._videoEditorBindings === 'function') {
+        window._videoEditorBindings();
+    }
+    if (currentRoute === 'visual-editor' && typeof window._visualEditorBindings === 'function') {
+        window._visualEditorBindings();
+    }
     applyCurrentRouteState();
     renderSearchPanel();
 }
@@ -1198,7 +1218,7 @@ function bindConfigNavItems() {
 }
 
 function bindSourceBrowserTabs() {
-    if (currentRoute === 'asset-center') return;
+    if (currentRoute === 'asset-center' || currentRoute === 'video-editor') return;
     document.querySelectorAll('.source-browser-tabs span').forEach((tab) => {
         tab.addEventListener('click', () => {
             tab.closest('.source-browser-tabs').querySelectorAll('span').forEach((t) => t.classList.remove('is-selected'));

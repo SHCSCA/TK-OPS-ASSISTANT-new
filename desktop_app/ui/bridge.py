@@ -26,6 +26,9 @@ from desktop_app.database.models import (
     Device,
     Group,
     Task,
+    VideoClip,
+    VideoSequence,
+    VideoSubtitle,
 )
 from desktop_app.database.repository import Repository
 from desktop_app.logging_config import LOG_FILE
@@ -42,6 +45,8 @@ from desktop_app.services.report_service import ReportService
 from desktop_app.services.task_service import TaskService
 from desktop_app.services.updater_service import UpdaterService
 from desktop_app.services.usage_tracker import UsageTracker
+from desktop_app.services.video_editing_service import VideoEditingService
+from desktop_app.services.video_monitor_service import VideoMonitorService
 from desktop_app.services.workflow_service import WorkflowService
 
 log = logging.getLogger(__name__)
@@ -170,6 +175,8 @@ class Bridge(QObject):
         self._ai = AIService(self._repo)
         self._analytics = AnalyticsService(self._repo)
         self._assets = AssetService(self._repo)
+        self._video_editing = VideoEditingService(self._repo)
+        self._video_monitor = VideoMonitorService()
         self._dev_seed = DevSeedService(self._repo)
         self._reports = ReportService(self._repo)
         self._workflows = WorkflowService(self._repo)
@@ -184,6 +191,96 @@ class Bridge(QObject):
         self.dataChanged.emit(
             json.dumps({"entity": entity, "action": action, "id": pk}, ensure_ascii=False)
         )
+
+    def _resolve_video_context(
+        self, *, project_id: int | None = None, sequence_id: int | None = None
+    ) -> tuple[Any, Any]:
+        project = None
+        sequence = None
+
+        if sequence_id is not None:
+            sequence = self._repo.get_by_id(VideoSequence, int(sequence_id))
+            if sequence is None:
+                raise ValueError("剪辑序列不存在")
+            project = self._video_editing.get_project(sequence.project_id)
+        elif project_id is not None:
+            project = self._video_editing.get_project(int(project_id))
+
+        if project is None:
+            projects = list(self._video_editing.list_projects())
+            project = projects[0] if projects else None
+
+        if project is None:
+            project, sequence = self._video_editing.create_project_with_sequence("视频剪辑工作区", "主序列")
+            return project, sequence
+
+        sequences = list(self._video_editing.list_sequences(project.id))
+        if sequence is None and project.active_sequence_id:
+            sequence = next((item for item in sequences if item.id == project.active_sequence_id), None)
+        if sequence is None:
+            sequence = sequences[0] if sequences else None
+        if sequence is None:
+            sequence = self._video_editing.create_sequence(project.id, "主序列")
+        if project.active_sequence_id != sequence.id:
+            project = self._repo.set_active_video_sequence(project.id, sequence.id) or project
+        return project, sequence
+
+    def _serialize_video_asset(self, asset: Any) -> dict[str, Any]:
+        payload = _to_dict(asset)
+        cached = self._assets.get_video_poster_cached(payload.get("file_path"))
+        payload["poster_path"] = cached.get("poster_path", "")
+        return payload
+
+    def _serialize_video_clip(self, clip: Any) -> dict[str, Any]:
+        payload = _to_dict(clip)
+        asset = self._repo.get_by_id(Asset, clip.asset_id) if getattr(clip, "asset_id", None) else None
+        if asset is not None:
+            payload["asset_filename"] = asset.filename
+            payload["asset_type"] = asset.asset_type
+            payload["asset_file_path"] = asset.file_path
+        else:
+            payload["asset_filename"] = ""
+            payload["asset_type"] = ""
+            payload["asset_file_path"] = ""
+        return payload
+
+    def _serialize_video_project(self, project: Any) -> dict[str, Any]:
+        sequences = list(self._video_editing.list_sequences(project.id))
+        active_sequence = None
+        if project.active_sequence_id:
+            active_sequence = next((item for item in sequences if item.id == project.active_sequence_id), None)
+        if active_sequence is None and sequences:
+            active_sequence = sequences[0]
+
+        payload = _to_dict(project)
+        payload["sequences"] = []
+        payload["active_sequence_clips"] = []
+        payload["active_sequence_assets"] = []
+        payload["active_sequence_subtitles"] = []
+        payload["export_validation"] = {"ok": False, "errors": ["当前还没有可导出的活动序列"]}
+
+        for sequence in sequences:
+            self._video_editing.normalize_sequence_clip_assets(sequence.id)
+            clips = list(self._video_editing.list_clips(sequence.id))
+            assets = [self._serialize_video_asset(asset) for asset in self._video_editing.list_sequence_assets(sequence.id)]
+            subtitles = list(self._video_editing.list_subtitles(sequence.id))
+            sequence_payload = _to_dict(sequence)
+            sequence_payload["clip_count"] = len(clips)
+            sequence_payload["clips"] = [self._serialize_video_clip(clip) for clip in clips]
+            sequence_payload["asset_count"] = len(assets)
+            sequence_payload["assets"] = assets
+            sequence_payload["subtitles"] = [_to_dict(item) for item in subtitles]
+            payload["sequences"].append(sequence_payload)
+            if active_sequence is not None and sequence.id == active_sequence.id:
+                payload["active_sequence_clips"] = [self._serialize_video_clip(clip) for clip in clips]
+                payload["active_sequence_assets"] = assets
+                payload["active_sequence_subtitles"] = [_to_dict(item) for item in subtitles]
+                payload["export_validation"] = self._video_editing.validate_export(project.id, sequence.id)
+
+        exports = list(self._video_editing.list_exports(project.id))
+        payload["exports"] = [_to_dict(item) for item in exports]
+        payload["export_count"] = len(exports)
+        return payload
 
     # ── Account slots ──
 
@@ -713,6 +810,283 @@ class Bridge(QObject):
     def getAssetTextPreview(self, file_path: str, max_chars: int = 220) -> str:
         preview = self._assets.read_text_preview(file_path, max_chars=max_chars)
         return _ok(preview)
+
+    @Slot(result=str)
+    @_safe
+    def listVideoProjects(self) -> str:
+        projects = list(self._video_editing.list_projects())
+        if not projects:
+            self._resolve_video_context()
+            projects = list(self._video_editing.list_projects())
+        return _ok([self._serialize_video_project(project) for project in projects])
+
+    @Slot(str, result=str)
+    @_safe
+    def appendAssetsToSequence(self, payload: str) -> str:
+        data = json.loads(payload or "{}")
+        raw_asset_ids = data.get("asset_ids") or []
+        asset_ids = [int(asset_id) for asset_id in raw_asset_ids if str(asset_id).strip()]
+        if not asset_ids:
+            return _err("请先选择至少一个素材")
+
+        project, sequence = self._resolve_video_context(
+            project_id=int(data["project_id"]) if data.get("project_id") not in (None, "") else None,
+            sequence_id=int(data["sequence_id"]) if data.get("sequence_id") not in (None, "") else None,
+        )
+        assets = self._video_editing.append_assets_to_sequence(sequence.id, asset_ids)
+        self._emit_change("video_project", "updated", project.id)
+        return _ok({
+            "project_id": project.id,
+            "sequence_id": sequence.id,
+            "asset_ids": [item.asset_id for item in assets],
+            "clip_ids": [],
+            "count": len(assets),
+        })
+
+    @Slot(str, result=str)
+    @_safe
+    def addAssetsToTimeline(self, payload: str) -> str:
+        data = json.loads(payload or "{}")
+        raw_asset_ids = data.get("asset_ids") or []
+        asset_ids = [int(asset_id) for asset_id in raw_asset_ids if str(asset_id).strip()]
+        if not asset_ids:
+            return _err("请先选择至少一个素材")
+
+        project, sequence = self._resolve_video_context(
+            project_id=int(data["project_id"]) if data.get("project_id") not in (None, "") else None,
+            sequence_id=int(data["sequence_id"]) if data.get("sequence_id") not in (None, "") else None,
+        )
+        clips = self._video_editing.add_assets_to_timeline(
+            sequence.id,
+            asset_ids,
+            track_type=data.get("track_type"),
+            track_index=int(data.get("track_index") or 0),
+        )
+        self._emit_change("video_project", "updated", project.id)
+        return _ok({
+            "project_id": project.id,
+            "sequence_id": sequence.id,
+            "clip_ids": [clip.id for clip in clips],
+            "count": len(clips),
+        })
+
+    @Slot(str, result=str)
+    @_safe
+    def reorderVideoClips(self, payload: str) -> str:
+        data = json.loads(payload or "{}")
+        ordered_ids = [int(clip_id) for clip_id in (data.get("clip_ids") or []) if str(clip_id).strip()]
+        if not ordered_ids:
+            return _err("请先提供时间轴片段顺序")
+
+        project, sequence = self._resolve_video_context(
+            project_id=int(data["project_id"]) if data.get("project_id") not in (None, "") else None,
+            sequence_id=int(data["sequence_id"]) if data.get("sequence_id") not in (None, "") else None,
+        )
+        self._video_editing.reorder_clips(sequence.id, ordered_ids)
+        self._emit_change("video_project", "updated", project.id)
+        return _ok({
+            "project_id": project.id,
+            "sequence_id": sequence.id,
+            "count": len(ordered_ids),
+        })
+
+    @Slot(str, result=str)
+    @_safe
+    def trimVideoClip(self, payload: str) -> str:
+        data = json.loads(payload or "{}")
+        clip_id = int(data.get("clip_id") or 0)
+        if not clip_id:
+            return _err("请先选择时间轴片段")
+        clip = self._video_editing.update_clip_range(
+            clip_id,
+            source_in_ms=int(data.get("source_in_ms") or 0),
+            source_out_ms=int(data.get("source_out_ms") or 0),
+        )
+        sequence = self._repo.get_by_id(VideoSequence, clip.sequence_id)
+        project = self._video_editing.get_project(sequence.project_id) if sequence is not None else None
+        if project is not None:
+            self._emit_change("video_project", "updated", project.id)
+        return _ok(_to_dict(clip))
+
+    @Slot(str, result=str)
+    @_safe
+    def deleteVideoClip(self, payload: str) -> str:
+        data = json.loads(payload or "{}")
+        clip_id = int(data.get("clip_id") or 0)
+        if not clip_id:
+            return _err("请先选择时间轴片段")
+        clip = self._repo.get_by_id(VideoClip, clip_id)
+        if clip is None:
+            return _err("时间轴片段不存在")
+        sequence = self._repo.get_by_id(VideoSequence, clip.sequence_id)
+        project = self._video_editing.get_project(sequence.project_id) if sequence is not None else None
+        deleted = self._video_editing.delete_clip(clip_id)
+        if not deleted:
+            return _err("时间轴片段不存在")
+        if project is not None:
+            self._emit_change("video_project", "updated", project.id)
+        return _ok({"deleted": True, "clip_id": clip_id})
+
+    @Slot(str, result=str)
+    @_safe
+    def updateVideoClipAudio(self, payload: str) -> str:
+        data = json.loads(payload or "{}")
+        clip_id = int(data.get("clip_id") or 0)
+        if not clip_id:
+            return _err("请先选择 A1 音频片段")
+
+        raw_volume = data.get("volume")
+        volume = None if raw_volume in (None, "") else float(raw_volume)
+        muted = _parse_bool(data.get("muted"))
+        clip = self._video_editing.update_audio_clip(
+            clip_id,
+            volume=volume,
+            muted=muted,
+        )
+        sequence = self._repo.get_by_id(VideoSequence, clip.sequence_id)
+        project = self._video_editing.get_project(sequence.project_id) if sequence is not None else None
+        if project is not None:
+            self._emit_change("video_project", "updated", project.id)
+        return _ok(_to_dict(clip))
+
+    @Slot(str, result=str)
+    @_safe
+    def createVideoSubtitle(self, payload: str) -> str:
+        data = json.loads(payload or "{}")
+        project, sequence = self._resolve_video_context(
+            project_id=int(data["project_id"]) if data.get("project_id") not in (None, "") else None,
+            sequence_id=int(data["sequence_id"]) if data.get("sequence_id") not in (None, "") else None,
+        )
+        subtitle = self._video_editing.create_subtitle(
+            sequence.id,
+            start_ms=int(data.get("start_ms") or 0),
+            end_ms=int(data.get("end_ms") or 0),
+            text=str(data.get("text") or ""),
+        )
+        self._emit_change("video_project", "updated", project.id)
+        return _ok(_to_dict(subtitle))
+
+    @Slot(str, result=str)
+    @_safe
+    def updateVideoSubtitle(self, payload: str) -> str:
+        data = json.loads(payload or "{}")
+        subtitle_id = int(data.get("subtitle_id") or 0)
+        if not subtitle_id:
+            return _err("请先选择字幕段")
+        subtitle = self._video_editing.update_subtitle(
+            subtitle_id,
+            start_ms=int(data.get("start_ms") or 0),
+            end_ms=int(data.get("end_ms") or 0),
+            text=str(data.get("text") or ""),
+        )
+        sequence = self._repo.get_by_id(VideoSequence, subtitle.sequence_id)
+        project = self._video_editing.get_project(sequence.project_id) if sequence is not None else None
+        if project is not None:
+            self._emit_change("video_project", "updated", project.id)
+        return _ok(_to_dict(subtitle))
+
+    @Slot(str, result=str)
+    @_safe
+    def deleteVideoSubtitle(self, payload: str) -> str:
+        data = json.loads(payload or "{}")
+        subtitle_id = int(data.get("subtitle_id") or 0)
+        if not subtitle_id:
+            return _err("请先选择字幕段")
+        subtitle = self._repo.get_by_id(VideoSubtitle, subtitle_id)
+        if subtitle is None:
+            return _err("字幕段不存在")
+        sequence = self._repo.get_by_id(VideoSequence, subtitle.sequence_id)
+        project = self._video_editing.get_project(sequence.project_id) if sequence is not None else None
+        deleted = self._video_editing.delete_subtitle(subtitle_id)
+        if not deleted:
+            return _err("字幕段不存在")
+        if project is not None:
+            self._emit_change("video_project", "updated", project.id)
+        return _ok({"deleted": subtitle_id})
+
+    @Slot(str, result=str)
+    @_safe
+    def prepareVideoMonitor(self, payload: str) -> str:
+        data = json.loads(payload or "{}")
+        state = self._video_monitor.prepare(
+            data.get("file_path"),
+            start_ms=int(data.get("start_ms") or 0),
+            end_ms=int(data.get("end_ms") or 0),
+            autoplay=bool(data.get("autoplay")),
+        )
+        return _ok(state)
+
+    @Slot(result=str)
+    @_safe
+    def getVideoMonitorState(self) -> str:
+        return _ok(self._video_monitor.state())
+
+    @Slot(result=str)
+    @_safe
+    def playVideoMonitor(self) -> str:
+        return _ok(self._video_monitor.play())
+
+    @Slot(result=str)
+    @_safe
+    def pauseVideoMonitor(self) -> str:
+        return _ok(self._video_monitor.pause())
+
+    @Slot(result=str)
+    @_safe
+    def stopVideoMonitor(self) -> str:
+        return _ok(self._video_monitor.stop())
+
+    @Slot(int, result=str)
+    @_safe
+    def seekVideoMonitor(self, position_ms: int) -> str:
+        return _ok(self._video_monitor.seek(position_ms))
+
+    @Slot(int, result=str)
+    @_safe
+    def stepVideoMonitor(self, delta_ms: int) -> str:
+        return _ok(self._video_monitor.step(delta_ms))
+
+    @Slot(str, result=str)
+    @_safe
+    def removeAssetsFromSequence(self, payload: str) -> str:
+        data = json.loads(payload or "{}")
+        raw_asset_ids = data.get("asset_ids") or []
+        asset_ids = [int(asset_id) for asset_id in raw_asset_ids if str(asset_id).strip()]
+        if not asset_ids:
+            return _err("请先选择至少一个素材")
+
+        project, sequence = self._resolve_video_context(
+            project_id=int(data["project_id"]) if data.get("project_id") not in (None, "") else None,
+            sequence_id=int(data["sequence_id"]) if data.get("sequence_id") not in (None, "") else None,
+        )
+        removed = self._video_editing.remove_assets_from_sequence(sequence.id, asset_ids)
+        self._emit_change("video_project", "updated", project.id)
+        return _ok({
+            "project_id": project.id,
+            "sequence_id": sequence.id,
+            "removed": removed,
+        })
+
+    @Slot(str, result=str)
+    @_safe
+    def createVideoExport(self, payload: str) -> str:
+        data = json.loads(payload or "{}")
+        project, sequence = self._resolve_video_context(
+            project_id=int(data["project_id"]) if data.get("project_id") not in (None, "") else None,
+            sequence_id=int(data["sequence_id"]) if data.get("sequence_id") not in (None, "") else None,
+        )
+        validation = self._video_editing.validate_export(project.id, sequence.id)
+        if not validation.get("ok"):
+            errors = validation.get("errors") or ["当前序列暂不可导出"]
+            return _err("；".join(str(item) for item in errors if str(item).strip()) or "当前序列暂不可导出")
+        export = self._video_editing.create_export_record(
+            project_id=project.id,
+            sequence_id=sequence.id,
+            preset=str(data.get("preset") or "mp4_1080p"),
+            output_path=data.get("output_path"),
+        )
+        self._emit_change("video_project", "updated", project.id)
+        return _ok(_to_dict(export))
 
     # ── Dashboard aggregate ──
 

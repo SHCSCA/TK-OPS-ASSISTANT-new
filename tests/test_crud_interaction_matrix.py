@@ -6,6 +6,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 ROUTES_JS = ROOT / "desktop_app" / "assets" / "js" / "routes.js"
 PAGE_LOADERS_JS = ROOT / "desktop_app" / "assets" / "js" / "page-loaders.js"
+VIDEO_EDITOR_BINDINGS_JS = ROOT / "desktop_app" / "assets" / "js" / "bindings" / "video-editor-bindings.js"
 ACCOUNT_ENV_JS = ROOT / "desktop_app" / "assets" / "js" / "page-loaders" / "account-environment.js"
 ACCOUNT_MAIN_JS = ROOT / "desktop_app" / "assets" / "js" / "page-loaders" / "account-main.js"
 TASK_QUEUE_MAIN_JS = ROOT / "desktop_app" / "assets" / "js" / "page-loaders" / "task-queue-main.js"
@@ -18,6 +19,7 @@ STATE_JS = ROOT / "desktop_app" / "assets" / "js" / "state.js"
 BINDINGS_JS = ROOT / "desktop_app" / "assets" / "js" / "bindings.js"
 DATA_JS = ROOT / "desktop_app" / "assets" / "js" / "data.js"
 COMPONENTS_CSS = ROOT / "desktop_app" / "assets" / "css" / "components.css"
+BINDINGS_JS = ROOT / "desktop_app" / "assets" / "js" / "bindings.js"
 
 
 def _account_loader_runtime_text() -> str:
@@ -46,6 +48,10 @@ def _device_management_loader_runtime_text() -> str:
         + "\n"
         + DEVICE_MANAGEMENT_MAIN_JS.read_text(encoding="utf-8")
     )
+
+
+def aggregate_binding_text() -> str:
+    return BINDINGS_JS.read_text(encoding="utf-8")
 
 
 CRUD_ROUTE_EXPECTATIONS = {
@@ -189,7 +195,7 @@ def test_filterable_crud_pages_have_route_state_and_apply_handlers() -> None:
 
 
 def test_remaining_crud_buttons_no_longer_route_to_placeholder_flows() -> None:
-    text = BINDINGS_JS.read_text(encoding="utf-8")
+    text = aggregate_binding_text()
 
     required_handlers = [
         "'批量开始': () => _batchStartSelectedTasks()",
@@ -212,6 +218,48 @@ def test_remaining_crud_buttons_no_longer_route_to_placeholder_flows() -> None:
     ]
     for marker in placeholder_flows:
         assert marker not in text, marker
+
+
+def test_video_editor_actions_are_not_plain_toasts() -> None:
+    root_text = aggregate_binding_text()
+    video_text = VIDEO_EDITOR_BINDINGS_JS.read_text(encoding="utf-8")
+    factory_text = (ROOT / "desktop_app" / "assets" / "js" / "factories" / "video-editor.js").read_text(encoding="utf-8")
+    assert "发起终版导出" in factory_text
+    assert "_createQuickTask('终版导出'" not in video_text
+    assert "showToast('已切换到剪辑序列选择模式'" not in root_text
+    assert "终版导出已加入队列" not in video_text
+
+
+def test_video_editor_uses_dedicated_asset_library_bindings() -> None:
+    root_text = BINDINGS_JS.read_text(encoding="utf-8")
+    video_text = VIDEO_EDITOR_BINDINGS_JS.read_text(encoding="utf-8")
+
+    assert "window._videoEditorBindings" in video_text
+    assert "openModal({" in video_text
+    assert "appendAssetsToSequence" in video_text
+    assert "addAssetsToTimeline" in video_text
+    assert "trimVideoClip" in video_text
+    assert "deleteSelectedClip" in video_text
+    assert "updateVideoClipAudio" in video_text
+    assert "createVideoSubtitle" in video_text
+    assert "updateVideoSubtitle" in video_text
+    assert "deleteVideoSubtitle" in video_text
+    assert "_validateSubtitlePayload" in video_text
+    assert "字幕结束时间必须晚于开始时间" in video_text
+    assert "api.assets.remove(" not in video_text
+    assert "window._editorShared.buildAssetThumb" in video_text
+    assert "js-video-import-asset-center" in video_text
+    assert "js-video-import-external-assets" in video_text
+    assert "js-video-delete-selected-clip" in video_text
+    assert "js-video-toggle-playback" in video_text
+    assert "js-video-monitor-surface" in video_text
+    assert "js-video-trim-selected-clip" in video_text
+    assert "js-video-add-subtitle" in video_text
+    assert "js-video-edit-audio" in video_text
+    assert "js-video-asset-preview-panel" not in video_text
+    assert "js-video-append-selected-asset" not in video_text
+    assert "if (currentRoute === 'asset-center' || currentRoute === 'video-editor') return;" in root_text
+    assert "if (currentRoute === 'video-editor' && typeof window._videoEditorBindings === 'function')" in root_text
 
 
 def test_asset_mutations_invalidate_asset_runtime_caches() -> None:

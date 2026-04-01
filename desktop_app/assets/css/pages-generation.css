@@ -407,6 +407,35 @@
     overflow: hidden;
 }
 
+.batch-select-item--media {
+    align-items: stretch;
+}
+
+.batch-select-item__body {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    width: 100%;
+}
+
+.batch-select-item__body .source-thumb {
+    width: 100%;
+}
+
+.video-asset-picker__layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+    margin-top: 8px;
+}
+
+.video-asset-picker__preview {
+    padding: 10px;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+    background: color-mix(in srgb, var(--surface-primary) 92%, transparent);
+}
+
 .product-nav-list button,
 .asset-category-item,
 .aicf-node-palette button,

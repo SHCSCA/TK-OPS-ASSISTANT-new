@@ -278,6 +278,27 @@
             videoPoster: function (path)   { return callBackend('getAssetVideoPoster', path || ''); },
             previewText: function (path, maxChars) { return callBackend('getAssetTextPreview', path || '', Number(maxChars || 220)); },
         },
+        videoProjects: {
+            listVideoProjects: function () { return callCached('videoProjects:list', DEFAULT_TTL, 'listVideoProjects'); },
+            appendAssetsToSequence: function (data) { return callBackend('appendAssetsToSequence', JSON.stringify(data || {})); },
+            addAssetsToTimeline: function (data) { return callBackend('addAssetsToTimeline', JSON.stringify(data || {})); },
+            reorderVideoClips: function (data) { return callBackend('reorderVideoClips', JSON.stringify(data || {})); },
+            trimVideoClip: function (data) { return callBackend('trimVideoClip', JSON.stringify(data || {})); },
+            deleteVideoClip: function (data) { return callBackend('deleteVideoClip', JSON.stringify(data || {})); },
+            updateVideoClipAudio: function (data) { return callBackend('updateVideoClipAudio', JSON.stringify(data || {})); },
+            createVideoSubtitle: function (data) { return callBackend('createVideoSubtitle', JSON.stringify(data || {})); },
+            updateVideoSubtitle: function (data) { return callBackend('updateVideoSubtitle', JSON.stringify(data || {})); },
+            deleteVideoSubtitle: function (data) { return callBackend('deleteVideoSubtitle', JSON.stringify(data || {})); },
+            removeAssetsFromSequence: function (data) { return callBackend('removeAssetsFromSequence', JSON.stringify(data || {})); },
+            createVideoExport: function (data) { return callBackend('createVideoExport', JSON.stringify(data || {})); },
+            prepareVideoMonitor: function (data) { return callBackend('prepareVideoMonitor', JSON.stringify(data || {})); },
+            getVideoMonitorState: function () { return callBackend('getVideoMonitorState'); },
+            playVideoMonitor: function () { return callBackend('playVideoMonitor'); },
+            pauseVideoMonitor: function () { return callBackend('pauseVideoMonitor'); },
+            stopVideoMonitor: function () { return callBackend('stopVideoMonitor'); },
+            seekVideoMonitor: function (positionMs) { return callBackend('seekVideoMonitor', Number(positionMs || 0)); },
+            stepVideoMonitor: function (deltaMs) { return callBackend('stepVideoMonitor', Number(deltaMs || 0)); },
+        },
         // -- Utilities --
         _call: callBackend,
         _callCached: callCached,
@@ -307,6 +328,9 @@
                         _cacheInvalidate('assets:');
                         _cacheInvalidate('dashboard:');
                         _cacheInvalidate('analytics:');
+                        _cacheInvalidate('videoProjects:');
+                    } else if (entity === 'video_project') {
+                        _cacheInvalidate('videoProjects:');
                     } else if (entity === 'analysis_snapshot') {
                         _cacheInvalidate('analytics:');
                     } else if (entity === 'report_run') {

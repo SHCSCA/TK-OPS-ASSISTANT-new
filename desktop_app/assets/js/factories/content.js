@@ -1,4 +1,4 @@
-function makeContentWorkbenchRoute(config) {
+﻿function makeContentWorkbenchRoute(config) {
     const metrics = config.metrics || [];
     const summaryChips = config.summaryChips || [];
     const inlineSummary = config.inlineSummary === true;
@@ -57,131 +57,8 @@ function makeContentWorkbenchRoute(config) {
     let bottomHtml = '';
     let outerBottomHtml = '';
 
-    if (config.workbenchType === 'video-editor') {
-        centerHtml = `
-            <section class="workbench-canvas workbench-canvas--video video-editing-studio">
-                <div class="video-studio-topbar">
-                    <div>
-                        <strong>精剪工作区</strong>
-                        <div class="subtle">素材库、节目监视器、时间线和剪辑控制集中在此</div>
-                    </div>
-                    <div class="toolbar-strip__group"><button class="secondary-button" type="button">试看导出</button><button class="secondary-button" type="button">添加批注</button></div>
-                </div>
-                <div class="video-monitor-grid" data-search="视频剪辑 素材预览 节目监视器 播放器">
-                    <section class="source-browser-shell">`
-
-        // Keep the source browser, preview, mini-preview all the same
-        // but move transport + timeline out to bottomHtml
-        centerHtml += `
-                        <div class="source-browser-head">
-                            <div><strong>素材库</strong><div class="subtle">双击素材加入时间线，单击预览缩略图</div></div>
-                            <button class="secondary-button" type="button">导入素材</button>
-                        </div>
-                        <div class="source-browser-tabs">
-                            <span class="is-selected" data-type="video">视频 <em>6</em></span>
-                            <span data-type="image">图片 <em>8</em></span>
-                            <span data-type="subtitle">字幕 <em>3</em></span>
-                            <span data-type="audio">音频 <em>2</em></span>
-                        </div>
-                        <div class="source-thumb-grid" data-search="素材缩略图 视频 图片 字幕 音频">
-                            <div class="source-thumb is-selected" data-kind="video">
-                                <div class="source-thumb__preview source-thumb__preview--video"><span class="source-thumb__dur">00:18</span></div>
-                                <div class="source-thumb__name">节日 B-roll_03</div>
-                                <div class="source-thumb__tag"><span class="pill info">产品特写</span></div>
-                            </div>
-                            <div class="source-thumb" data-kind="video">
-                                <div class="source-thumb__preview source-thumb__preview--video"><span class="source-thumb__dur">00:32</span></div>
-                                <div class="source-thumb__name">开箱展示 A</div>
-                                <div class="source-thumb__tag"><span class="pill success">高转化</span></div>
-                            </div>
-                            <div class="source-thumb" data-kind="video">
-                                <div class="source-thumb__preview source-thumb__preview--video"><span class="source-thumb__dur">00:09</span></div>
-                                <div class="source-thumb__name">使用场景 02</div>
-                                <div class="source-thumb__tag"><span class="pill warning">待调色</span></div>
-                            </div>
-                            <div class="source-thumb" data-kind="video">
-                                <div class="source-thumb__preview source-thumb__preview--video"><span class="source-thumb__dur">00:14</span></div>
-                                <div class="source-thumb__name">仓库发货流程</div>
-                                <div class="source-thumb__tag"><span class="pill info">B-roll</span></div>
-                            </div>
-                            <div class="source-thumb" data-kind="image">
-                                <div class="source-thumb__preview source-thumb__preview--image"></div>
-                                <div class="source-thumb__name">春季封面 01</div>
-                                <div class="source-thumb__tag"><span class="pill success">已授权</span></div>
-                            </div>
-                            <div class="source-thumb" data-kind="image">
-                                <div class="source-thumb__preview source-thumb__preview--image"></div>
-                                <div class="source-thumb__name">产品白底图</div>
-                                <div class="source-thumb__tag"><span class="pill info">PNG</span></div>
-                            </div>
-                            <div class="source-thumb" data-kind="subtitle">
-                                <div class="source-thumb__preview source-thumb__preview--subtitle"><span>SRT</span></div>
-                                <div class="source-thumb__name">核心卖点字幕</div>
-                                <div class="source-thumb__tag"><span class="pill warning">待校对</span></div>
-                            </div>
-                            <div class="source-thumb" data-kind="audio">
-                                <div class="source-thumb__preview source-thumb__preview--audio"><span>♪</span></div>
-                                <div class="source-thumb__name">背景音乐 轻快版</div>
-                                <div class="source-thumb__tag"><span class="pill success">02:15</span></div>
-                            </div>
-                        </div>
-                        <div class="source-mini-preview">
-                            <div class="source-mini-preview__thumb source-mini-preview__thumb--video"></div>
-                            <div class="source-mini-preview__info">
-                                <strong>节日 B-roll_03</strong>
-                                <div class="subtle">00:18 · 1080×1920 · 产品特写</div>
-                                <div class="source-mini-preview__meta">
-                                    <span>入点 00:02</span><span>出点 00:11</span><span class="pill warning">待授权</span>
-                                </div>
-                            </div>
-                        </div>
-                    </section>
-                    <section class="video-preview-shell">
-                        <div class="video-preview-head">
-                            <div>
-                                <strong>节目监视器</strong>
-                                <div class="subtle">序列: 视频混剪 #18，当前定位第 2 段转场与结尾 CTA</div>
-                            </div>
-                            <div class="video-preview-tools"><span class="pill info">1080P</span><span class="pill success">自动保存</span></div>
-                        </div>
-                        <div class="canvas-stage canvas-stage--landscape video-preview-stage">
-                            <div class="canvas-chip">00:15 / 01:30</div>
-                            <div class="video-preview-markers"><span>片头钩子</span><span>卖点强化</span><span>结尾 CTA</span></div>
-                            <div class="video-surface video-surface--editor">
-                                <div class="play-button">播放</div>
-                            </div>
-                        </div>
-                    </section>
-                </div>
-            </section>
-        `;
-        bottomHtml = '';
-        outerBottomHtml = `
-            <div class="transport-bar">
-                <div class="transport-controls"><button class="secondary-button" type="button">回到开头</button><button class="secondary-button" type="button">逐帧</button><button class="secondary-button" type="button">设入点</button><button class="secondary-button" type="button">设出点</button></div>
-                <div class="transport-meta"><span>缩放 125%</span><span>吸附 开</span><span>波形 已展开</span></div>
-            </div>
-            <div class="timeline-board video-timeline-board">
-                <div class="timeline-ruler"><span>00:00</span><span>00:15</span><span>00:30</span><span>00:45</span><span>01:00</span><span>01:15</span><span>01:30</span></div>
-                <div class="timeline-track"><span>V1 主轨</span><div class="timeline-lane"><div class="timeline-block timeline-block--primary">开场钩子 00:00-00:12</div><div class="timeline-block">主片段 00:12-00:45</div><div class="timeline-block">结尾 CTA 01:05-01:30</div></div></div>
-                <div class="timeline-track"><span>V2 补镜</span><div class="timeline-lane"><div class="timeline-block">产品特写 00:18-00:28</div><div class="timeline-block">使用场景 00:46-01:05</div></div></div>
-                <div class="timeline-track"><span>T1 字幕</span><div class="timeline-lane"><div class="timeline-block timeline-block--accent">核心卖点字幕</div><div class="timeline-block timeline-block--accent">收尾 CTA</div></div></div>
-                <div class="timeline-track"><span>A1 音频</span><div class="timeline-lane"><div class="timeline-wave">背景音乐与口播波形预览</div></div></div>
-            </div>
-        `;
-        sideHtml = `
-            <section class="panel video-inspector-panel">
-                <div class="panel__header"><div><strong>检查器</strong><div class="subtle">剪辑现场需要处理的素材、字幕和导出事项</div></div></div>
-                <div class="video-inspector-tabs"><span class="is-selected">属性</span><span>字幕</span><span>导出</span></div>
-                <div class="workbench-side-list">${sideCardsHtml}</div>
-                <div class="video-queue-block">
-                    <div class="video-queue-block__head"><strong>待办队列</strong><span class="subtle">从上到下按阻塞优先级处理</span></div>
-                    <div class="video-queue-list">${bottomCardsHtml}</div>
-                </div>
-            </section>
-        `;
-        bottomHtml = '';
-    } else if (config.workbenchType === 'creative-workshop') {
+    // video-editor workbenchType 分支已移至 factories/video-editor.js
+if (config.workbenchType === 'creative-workshop') {
         centerHtml = `
             <section class="workbench-canvas workbench-canvas--creative">
                 <div class="toolbar-strip">

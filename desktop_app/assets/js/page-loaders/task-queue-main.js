@@ -172,7 +172,7 @@
             _bindBatchBar('.js-batch-task', function (ids) {
                 return _batchDelete(ids, api.tasks.remove, '任务', 'task-queue');
             });
-            ensurePagination(tbody.closest('.table-card, .panel'), '共 ' + tasks.length + ' 条任务，当前第 1 页');
+            // 分页功能预留占位，待 ensurePagination 实现后启用
         }).catch(function (error) {
             console.warn('[page-loaders] task-queue load failed:', error);
         });

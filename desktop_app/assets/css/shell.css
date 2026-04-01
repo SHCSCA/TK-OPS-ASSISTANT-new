@@ -640,18 +640,6 @@ h1 {
     height: 100vh;
 }
 
-.app-shell.route-video-editor {
-    grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
-    grid-template-areas:
-        "title title"
-        "sidebar main"
-        "status status";
-}
-
-.app-shell.route-video-editor.sidebar-collapsed {
-    grid-template-columns: var(--sidebar-collapsed-width) minmax(0, 1fr);
-}
-
 .title-bar,
 .sidebar,
 .main,

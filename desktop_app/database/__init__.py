@@ -68,7 +68,7 @@ def _set_sqlite_pragma(dbapi_conn, connection_record):
     cursor.close()
 
 
-_SESSION_FACTORY = sessionmaker(bind=engine, class_=Session, expire_on_commit=True)
+_SESSION_FACTORY = sessionmaker(bind=engine, class_=Session, expire_on_commit=False)
 
 
 def _alembic_cfg() -> AlembicConfig:

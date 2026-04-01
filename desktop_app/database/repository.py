@@ -24,6 +24,13 @@ from desktop_app.database.models import (
     Group,
     ReportRun,
     Task,
+    VideoClip,
+    VideoExport,
+    VideoProject,
+    VideoSequence,
+    VideoSequenceAsset,
+    VideoSnapshot,
+    VideoSubtitle,
     WorkflowDefinition,
     WorkflowRun,
 )
@@ -39,7 +46,7 @@ class Repository:
         self._session_lock = threading.Lock()
         self._session = session
         if self._session is not None:
-            self._session.expire_on_commit = True
+            self._session.expire_on_commit = False
 
     @property
     def session(self) -> Session:
@@ -50,7 +57,7 @@ class Repository:
         with self._session_lock:
             if self._session is None:
                 self._session = get_session()
-                self._session.expire_on_commit = True
+                self._session.expire_on_commit = False
         return self._session
 
     def reset_session(self) -> None:
@@ -242,9 +249,252 @@ class Repository:
         )
         return self.session.execute(stmt).scalar() or 0
 
+
+    # ── video editor CRUD ─────────────────────────────────────────────
+
+    def create_video_project(self, *, name: str, **fields: Any) -> VideoProject:
+        obj = VideoProject(name=name, **fields)
+        self.session.add(obj)
+        self.session.commit()
+        self.session.refresh(obj)
+        return obj
+
+    def list_video_projects(self) -> Sequence[VideoProject]:
+        stmt = select(VideoProject).order_by(VideoProject.created_at.desc(), VideoProject.id.desc())
+        return self.session.execute(stmt).scalars().all()
+
+    def get_video_project(self, pk: int) -> VideoProject | None:
+        return self.session.get(VideoProject, pk)
+
+    def create_video_sequence(self, project_id: int, *, name: str, **fields: Any) -> VideoSequence:
+        obj = VideoSequence(project_id=project_id, name=name, **fields)
+        self.session.add(obj)
+        self.session.commit()
+        self.session.refresh(obj)
+        return obj
+
+    def list_video_sequences(self, project_id: int) -> Sequence[VideoSequence]:
+        stmt = (
+            select(VideoSequence)
+            .where(VideoSequence.project_id == project_id)
+            .order_by(VideoSequence.id)
+        )
+        return self.session.execute(stmt).scalars().all()
+
+    def set_active_video_sequence(self, project_id: int, sequence_id: int) -> VideoProject | None:
+        project = self.session.get(VideoProject, project_id)
+        if project is None:
+            return None
+        project.active_sequence_id = sequence_id
+        self.session.commit()
+        self.session.refresh(project)
+        return project
+
+    def add_video_sequence_asset(
+        self,
+        sequence_id: int,
+        asset_id: int,
+        *,
+        sort_order: int | None = None,
+    ) -> VideoSequenceAsset:
+        existing = self.session.execute(
+            select(VideoSequenceAsset)
+            .where(VideoSequenceAsset.sequence_id == sequence_id)
+            .where(VideoSequenceAsset.asset_id == asset_id)
+            .limit(1)
+        ).scalars().first()
+        if existing is not None:
+            return existing
+
+        if sort_order is None:
+            sort_order = self.session.execute(
+                select(func.count()).select_from(VideoSequenceAsset).where(VideoSequenceAsset.sequence_id == sequence_id)
+            ).scalar() or 0
+
+        obj = VideoSequenceAsset(
+            sequence_id=sequence_id,
+            asset_id=asset_id,
+            sort_order=sort_order,
+        )
+        self.session.add(obj)
+        self.session.commit()
+        self.session.refresh(obj)
+        return obj
+
+    def list_video_sequence_assets(self, sequence_id: int) -> Sequence[VideoSequenceAsset]:
+        stmt = (
+            select(VideoSequenceAsset)
+            .where(VideoSequenceAsset.sequence_id == sequence_id)
+            .order_by(VideoSequenceAsset.sort_order, VideoSequenceAsset.id)
+        )
+        return self.session.execute(stmt).scalars().all()
+
+    def append_video_clip(
+        self,
+        sequence_id: int,
+        asset_id: int,
+        *,
+        track_type: str = "video",
+        track_index: int = 0,
+        start_ms: int = 0,
+        source_in_ms: int = 0,
+        source_out_ms: int = 0,
+        **fields: Any,
+    ) -> VideoClip:
+        existing = self.session.execute(
+            select(func.count()).select_from(VideoClip).where(VideoClip.sequence_id == sequence_id)
+        ).scalar() or 0
+        duration_ms = source_out_ms - source_in_ms
+        obj = VideoClip(
+            sequence_id=sequence_id,
+            asset_id=asset_id,
+            track_type=track_type,
+            track_index=track_index,
+            sort_order=existing,
+            start_ms=start_ms,
+            source_in_ms=source_in_ms,
+            source_out_ms=source_out_ms,
+            duration_ms=duration_ms,
+            **fields,
+        )
+        self.session.add(obj)
+        self.session.commit()
+        self.session.refresh(obj)
+        return obj
+
+    def create_video_clip_placeholder(
+        self,
+        sequence_id: int,
+        *,
+        track_type: str = "video",
+        track_index: int = 0,
+        duration_ms: int = 0,
+    ) -> VideoClip:
+        existing = self.session.execute(
+            select(func.count()).select_from(VideoClip).where(VideoClip.sequence_id == sequence_id)
+        ).scalar() or 0
+        obj = VideoClip(
+            sequence_id=sequence_id,
+            asset_id=None,
+            track_type=track_type,
+            track_index=track_index,
+            sort_order=existing,
+            duration_ms=duration_ms,
+        )
+        self.session.add(obj)
+        self.session.commit()
+        self.session.refresh(obj)
+        return obj
+
+    def list_video_clips(self, sequence_id: int) -> Sequence[VideoClip]:
+        stmt = (
+            select(VideoClip)
+            .where(VideoClip.sequence_id == sequence_id)
+            .order_by(VideoClip.sort_order, VideoClip.id)
+        )
+        return self.session.execute(stmt).scalars().all()
+
+    def reorder_video_clips(self, sequence_id: int, ordered_ids: list[int]) -> None:
+        clips = {
+            c.id: c
+            for c in self.session.execute(
+                select(VideoClip).where(VideoClip.sequence_id == sequence_id)
+            ).scalars().all()
+        }
+        for idx, clip_id in enumerate(ordered_ids):
+            if clip_id in clips:
+                clips[clip_id].sort_order = idx
+        self.session.commit()
+
+    def delete_video_clip(self, clip_id: int) -> bool:
+        clip = self.session.get(VideoClip, clip_id)
+        if clip is None:
+            return False
+        self.session.delete(clip)
+        self.session.commit()
+        return True
+
+    def create_video_subtitle(
+        self,
+        sequence_id: int,
+        *,
+        start_ms: int,
+        end_ms: int,
+        text: str,
+        **fields: Any,
+    ) -> VideoSubtitle:
+        obj = VideoSubtitle(
+            sequence_id=sequence_id,
+            start_ms=start_ms,
+            end_ms=end_ms,
+            text=text,
+            **fields,
+        )
+        self.session.add(obj)
+        self.session.commit()
+        self.session.refresh(obj)
+        return obj
+
+    def list_video_subtitles(self, sequence_id: int) -> Sequence[VideoSubtitle]:
+        stmt = (
+            select(VideoSubtitle)
+            .where(VideoSubtitle.sequence_id == sequence_id)
+            .order_by(VideoSubtitle.start_ms)
+        )
+        return self.session.execute(stmt).scalars().all()
+
+    def create_video_export(
+        self,
+        *,
+        project_id: int,
+        sequence_id: int | None = None,
+        preset: str = "mp4_1080p",
+        output_path: str | None = None,
+        **fields: Any,
+    ) -> VideoExport:
+        obj = VideoExport(
+            project_id=project_id,
+            sequence_id=sequence_id,
+            preset=preset,
+            output_path=output_path,
+            **fields,
+        )
+        self.session.add(obj)
+        self.session.commit()
+        self.session.refresh(obj)
+        return obj
+
+    def list_video_exports(self, project_id: int) -> Sequence[VideoExport]:
+        stmt = (
+            select(VideoExport)
+            .where(VideoExport.project_id == project_id)
+            .order_by(VideoExport.created_at.desc())
+        )
+        return self.session.execute(stmt).scalars().all()
+
+    def create_video_snapshot(
+        self,
+        project_id: int,
+        *,
+        title: str,
+        payload_json: str = "{}",
+    ) -> VideoSnapshot:
+        obj = VideoSnapshot(project_id=project_id, title=title, payload_json=payload_json)
+        self.session.add(obj)
+        self.session.commit()
+        self.session.refresh(obj)
+        return obj
+
+    def list_video_snapshots(self, project_id: int) -> Sequence[VideoSnapshot]:
+        stmt = (
+            select(VideoSnapshot)
+            .where(VideoSnapshot.project_id == project_id)
+            .order_by(VideoSnapshot.created_at.desc())
+        )
+        return self.session.execute(stmt).scalars().all()
+
     def close(self) -> None:
         if self._session is None:
             return
         self._session.close()
         self._session = None
-

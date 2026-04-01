@@ -18,6 +18,7 @@
 - 桥接：Python `Bridge(QObject)` <-> JS `window.backend`/`window.api`。
 
 关键路径：
+
 - 启动：`desktop_app/main.py` -> `desktop_app/app.py` -> `desktop_app/ui/web_shell.py`
 - 桥：`desktop_app/ui/bridge.py` + `desktop_app/assets/js/bridge.js`
 - 前端数据层：`desktop_app/assets/js/data.js`（统一调用、缓存与失效）
@@ -154,6 +155,7 @@ python build.py --ico-only
   - 适用于表单、引导、错误处理、关键流程体验优化。
 
 注意：`胶水开发` Agent 的工作流程已调整——已移除“验证集成 / 本地验证”步骤，当前工作流程为 1-4 步（分析需求、查找依赖、验证可用性、编写胶水）。详细内容见 `.github/agents/胶水开发.agent.md`。
+
 ## 12) 常见陷阱
 
 - 不要把 `window.bridge` 当调用入口；当前真实入口是 `window.backend`，业务封装入口是 `window.api`。
@@ -169,3 +171,13 @@ python build.py --ico-only
 - 异常路径可见、可恢复、可追踪（日志 + UI 反馈）。
 - 相关测试通过，至少含 1 条单测级验证。
 - 文案、交互、样式与全局视觉语言一致。
+
+## 14) Superpowers 工作流规则
+
+- 当前仓库内，所有非简单工程任务强制先走 superpowers 工作流。
+- 固定顺序：先生成 `docs/superpowers/plans/YYYY-MM-DD-topic.md`，经你审批通过后，再生成 `docs/superpowers/specs/YYYY-MM-DD-topic-design.md`，最后才进入实现。
+- 非简单工程任务默认包括：多文件改动、架构调整、前后端契约变更、模块拆分、主链路功能改造、测试体系重构。
+- 可不强制走完整流程的范围仅限：纯问答、只读分析、单文件低风险小修、纯文案微调。
+- 所有大改必须分阶段推进。plan 中必须明确阶段目标、文件地图、验证方式、边界与回退点；未经批准不得跳过 plan 直接写 spec 或直接编码。
+- 当实现范围明显超出已批准的 plan / spec 时，必须先回到文档更新，再继续开发，禁止边做边漂移。
+- 若本仓库已有可复用的 superpowers 样板，优先沿用既有结构与命名，不额外发明第二套模板。

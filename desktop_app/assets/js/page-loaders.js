@@ -2175,27 +2175,7 @@
 
     // Task ops route loaders moved to page-loaders/task-ops-main.js.
 
-    loaders['video-editor'] = function () {
-        Promise.all([
-            api.assets.list().catch(function () { return []; }),
-            api.tasks.list().catch(function () { return []; }),
-        ]).then(function (results) {
-            var assets = results[0] || [];
-            var tasks = results[1] || [];
-            _renderWorkbenchSummary([
-                { label: '当前序列', value: '素材 ' + assets.length + ' 条', note: '已接入真实素材库与时间线候选。' },
-                { label: '未解决阻塞', value: String(tasks.filter(function (task) { return _normalizeTaskStatus(task.status) === 'failed'; }).length) + ' 个', note: '异常任务会阻塞导出与批处理。' },
-                { label: '导出队列', value: String(tasks.filter(function (task) { return _normalizeTaskStatus(task.status) === 'running'; }).length) + ' 个排队', note: '运行中任务已映射为导出或处理队列。' },
-            ]);
-            _renderVideoEditorAssets(assets);
-            _renderWorkbenchSideCards(tasks, '#mainHost .workbench-side-list');
-            _renderStripCards(tasks, '#mainHost .video-queue-list');
-            _applyAiHandoffHint('video-editor', '#mainHost .video-queue-list');
-            if (typeof bindRouteInteractions === 'function') bindRouteInteractions();
-        }).catch(function (e) {
-            console.warn('[page-loaders] video-editor load failed:', e);
-        });
-    };
+    // video-editor loader 已移至 page-loaders/video-editor-main.js
 
     loaders['creative-workshop'] = function () {
         Promise.all([
@@ -2225,26 +2205,8 @@
         });
     };
 
-    loaders['visual-editor'] = function () {
-        Promise.all([
-            api.assets.list().catch(function () { return []; }),
-            api.tasks.list().catch(function () { return []; }),
-        ]).then(function (results) {
-            var assets = results[0] || [];
-            var tasks = results[1] || [];
-            var cards = document.querySelectorAll('#mainHost .stat-grid .stat-card');
-            if (cards.length >= 3) {
-                cards[0].querySelector('.stat-card__value').textContent = assets.length ? '1080×1920' : '待配置';
-                cards[1].querySelector('.stat-card__value').textContent = String(Math.max(1, assets.length));
-                cards[2].querySelector('.stat-card__value').textContent = String(tasks.filter(function (task) { return _normalizeTaskStatus(task.status) === 'running'; }).length);
-            }
-            _renderWorkbenchSideCards(tasks, '#mainHost .workbench-side-list');
-            _renderStripCards(assets, '#mainHost .workbench-strip-grid', 'asset');
-            if (typeof bindRouteInteractions === 'function') bindRouteInteractions();
-        }).catch(function (e) {
-            console.warn('[page-loaders] visual-editor load failed:', e);
-        });
-    };
+    // visual-editor loader 已移至 page-loaders/visual-editor-main.js
+
 
     loaders['ai-content-factory'] = function () {
         Promise.all([
@@ -2394,7 +2356,7 @@
                     tags: asset.tags,
                 }, index === 0);
             }).join('');
-            _bindAssetThumbs(assets);
+            // _bindAssetThumbs 已移至 editor-shared.js，由 video-editor-main.js 调用
         }
         if (assets[0]) _renderAssetDetail(assets[0]);
     }

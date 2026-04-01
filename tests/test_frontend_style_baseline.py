@@ -134,3 +134,20 @@ def test_shell_css_contains_status_bar_layout_for_richer_runtime_chips() -> None
 
     for selector in required_selectors:
         assert selector in shell_css
+
+
+def test_video_timeline_styles_follow_theme_tokens() -> None:
+    css = (ROOT / "desktop_app" / "assets" / "css" / "pages-content.css").read_text(encoding="utf-8")
+    assert ".video-timeline-board" in css
+    assert ".timeline-toolbar" in css
+    assert ".timeline-board-surface" in css
+    assert ".timeline-playhead" in css
+    assert ".source-thumb--compact" in css
+    assert ".video-monitor-stage" in css
+    assert ".video-editor-project-meta" in css
+    assert ".video-monitor-surface__status" in css
+    assert ".timeline-toolbar__chip--focus" in css
+    assert ".timeline-track__hint" in css
+    assert "var(--surface-sunken)" in css
+    assert "var(--surface-primary)" in css
+    assert "var(--text-secondary)" in css

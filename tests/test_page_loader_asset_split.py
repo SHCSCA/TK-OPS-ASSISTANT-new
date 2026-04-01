@@ -33,3 +33,10 @@ def test_asset_center_grid_does_not_request_video_poster_generation_on_route_loa
 
     assert "api.assets.videoPoster(" not in asset_main
     assert "_requestVideoPoster(" not in asset_main
+
+
+def test_asset_center_keeps_richer_asset_thumb_markup() -> None:
+    asset_main = ASSET_CENTER_MAIN_JS.read_text(encoding="utf-8")
+
+    assert "source-thumb__tag" in asset_main
+    assert "asset.file_path || '未记录路径'" in asset_main
