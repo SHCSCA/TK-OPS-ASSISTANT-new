@@ -1,38 +1,53 @@
-/* ── page-loaders/visual-editor-main.js ─ 视觉编辑器页面加载器 ──
-   从 page-loaders.js 主文件拆出，注册到全局 loaders 表。
-   依赖：page-loaders.js（提供 loaders 对象与共享工具函数）
-         page-loaders/editor-shared.js（buildAssetThumb / bindAssetThumbs）
-   ──────────────────────────────────────────────────────── */
 (function () {
     'use strict';
 
-    if (typeof window._pageLoaders === 'undefined') {
-        console.warn('[visual-editor-main] _pageLoaders not ready, deferring');
-        return;
+    var shared = window.__pageLoaderShared;
+    var loaders = window._pageLoaders;
+    if (!shared || !loaders) {
+        throw new Error('visual editor page loader dependencies not loaded');
     }
 
-    window._pageLoaders['visual-editor'] = function () {
+    var _renderWorkbenchSummary = shared.renderWorkbenchSummary;
+    var _renderWorkbenchSideCards = shared.renderWorkbenchSideCards;
+    var _renderStripCards = shared.renderStripCards;
+
+    function _designCanvasLabel(assets) {
+        var cover = (assets || []).find(function (asset) {
+            var type = String(asset.asset_type || '').toLowerCase();
+            return type === 'image' || type === 'template';
+        });
+        if (!cover) return '待配置画布';
+        if (cover.width && cover.height) return String(cover.width) + '×' + String(cover.height);
+        return '1080×1920';
+    }
+
+    loaders['visual-editor'] = function () {
         Promise.all([
-            window.api.assets.list().catch(function () { return []; }),
-            window.api.tasks.list().catch(function () { return []; }),
+            api.assets.list().catch(function () { return []; }),
+            api.tasks.list().catch(function () { return []; }),
         ]).then(function (results) {
             var assets = results[0] || [];
-            var tasks  = results[1] || [];
-
-            var cards = document.querySelectorAll('#mainHost .stat-grid .stat-card');
-            if (cards.length >= 3) {
-                cards[0].querySelector('.stat-card__value').textContent = assets.length ? '1080\u00d71920' : '\u5f85\u914d\u7f6e';
-                cards[1].querySelector('.stat-card__value').textContent = String(Math.max(1, assets.length));
-                cards[2].querySelector('.stat-card__value').textContent = String(tasks.filter(function (t) { return (t.status || '').toLowerCase() === 'running'; }).length);
-            }
-
-            if (typeof _renderWorkbenchSideCards === 'function') _renderWorkbenchSideCards(tasks, '#mainHost .workbench-side-list');
-            if (typeof _renderStripCards === 'function')         _renderStripCards(assets, '#mainHost .workbench-strip-grid', 'asset');
-
+            var tasks = results[1] || [];
+            document.querySelectorAll('#mainHost .workbench-summary-chip');
+            var reviewCount = assets.filter(function (asset) {
+                return String(asset.tags || '').indexOf('审核') >= 0;
+            }).length;
+            var exporting = tasks.filter(function (task) {
+                return String(task.status || '').toLowerCase() === 'running';
+            }).length;
+            _renderWorkbenchSummary([
+                { label: '当前画布', value: _designCanvasLabel(assets), note: assets.length ? '已根据真实素材画布回填' : '导入封面素材后自动更新' },
+                { label: '待审稿', value: String(reviewCount || Math.max(0, assets.length - 1)) + ' 张', note: '优先检查配色、字号与模板一致性' },
+                { label: '导出队列', value: String(exporting) + ' 个', note: '正在使用真实任务状态回填导出排队' },
+            ]);
+            _renderWorkbenchSideCards(tasks, '#mainHost .workbench-side-list');
+            _renderStripCards(assets, '#mainHost .workbench-strip-grid', 'asset');
             if (typeof bindRouteInteractions === 'function') bindRouteInteractions();
-        }).catch(function (e) {
-            console.warn('[page-loaders] visual-editor load failed:', e);
+        }).catch(function (error) {
+            console.warn('[page-loaders] visual-editor load failed:', error);
+            if (typeof showToast === 'function') {
+                showToast('视觉编辑页加载失败: ' + ((error && error.message) || '未知错误'), 'error');
+            }
         });
     };
-
-}());
+})();

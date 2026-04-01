@@ -278,26 +278,96 @@
             videoPoster: function (path)   { return callBackend('getAssetVideoPoster', path || ''); },
             previewText: function (path, maxChars) { return callBackend('getAssetTextPreview', path || '', Number(maxChars || 220)); },
         },
+        // -- Video Editor --
         videoProjects: {
-            listVideoProjects: function () { return callCached('videoProjects:list', DEFAULT_TTL, 'listVideoProjects'); },
-            appendAssetsToSequence: function (data) { return callBackend('appendAssetsToSequence', JSON.stringify(data || {})); },
-            addAssetsToTimeline: function (data) { return callBackend('addAssetsToTimeline', JSON.stringify(data || {})); },
-            reorderVideoClips: function (data) { return callBackend('reorderVideoClips', JSON.stringify(data || {})); },
-            trimVideoClip: function (data) { return callBackend('trimVideoClip', JSON.stringify(data || {})); },
-            deleteVideoClip: function (data) { return callBackend('deleteVideoClip', JSON.stringify(data || {})); },
-            updateVideoClipAudio: function (data) { return callBackend('updateVideoClipAudio', JSON.stringify(data || {})); },
-            createVideoSubtitle: function (data) { return callBackend('createVideoSubtitle', JSON.stringify(data || {})); },
-            updateVideoSubtitle: function (data) { return callBackend('updateVideoSubtitle', JSON.stringify(data || {})); },
-            deleteVideoSubtitle: function (data) { return callBackend('deleteVideoSubtitle', JSON.stringify(data || {})); },
-            removeAssetsFromSequence: function (data) { return callBackend('removeAssetsFromSequence', JSON.stringify(data || {})); },
-            createVideoExport: function (data) { return callBackend('createVideoExport', JSON.stringify(data || {})); },
-            prepareVideoMonitor: function (data) { return callBackend('prepareVideoMonitor', JSON.stringify(data || {})); },
-            getVideoMonitorState: function () { return callBackend('getVideoMonitorState'); },
-            playVideoMonitor: function () { return callBackend('playVideoMonitor'); },
-            pauseVideoMonitor: function () { return callBackend('pauseVideoMonitor'); },
-            stopVideoMonitor: function () { return callBackend('stopVideoMonitor'); },
-            seekVideoMonitor: function (positionMs) { return callBackend('seekVideoMonitor', Number(positionMs || 0)); },
-            stepVideoMonitor: function (deltaMs) { return callBackend('stepVideoMonitor', Number(deltaMs || 0)); },
+            list:   function ()         { return callCached('videoProjects:list', DEFAULT_TTL, 'listVideoProjects'); },
+            create: function (data)     { return callBackend('createVideoProject', JSON.stringify(data || {})); },
+        },
+        videoSequences: {
+            list: function (projectId)  {
+                return callCached(
+                    'videoSequences:list:' + String(projectId || ''),
+                    DEFAULT_TTL,
+                    'listVideoSequences',
+                    Number(projectId || 0)
+                );
+            },
+            create: function (data) {
+                return callBackend('createVideoSequence', JSON.stringify(data || {}));
+            },
+            setActive: function (projectId, sequenceId) {
+                return callBackend('setActiveVideoSequence', Number(projectId || 0), Number(sequenceId || 0));
+            },
+        },
+        videoClips: {
+            list: function (sequenceId) {
+                return callCached(
+                    'videoClips:list:' + String(sequenceId || ''),
+                    DEFAULT_TTL,
+                    'listVideoClips',
+                    Number(sequenceId || 0)
+                );
+            },
+            update: function (id, data) {
+                return callBackend('updateVideoClip', Number(id || 0), JSON.stringify(data || {}));
+            },
+            appendAssets: function (sequenceId, data) {
+                return callBackend('appendAssetsToSequence', Number(sequenceId || 0), JSON.stringify(data || {}));
+            },
+            remove: function (id) {
+                return callBackend('deleteVideoClip', Number(id || 0));
+            },
+        },
+        videoSubtitles: {
+            list: function (sequenceId) {
+                return callCached(
+                    'videoSubtitles:list:' + String(sequenceId || ''),
+                    DEFAULT_TTL,
+                    'listVideoSubtitles',
+                    Number(sequenceId || 0)
+                );
+            },
+            create: function (data) {
+                return callBackend('createVideoSubtitle', JSON.stringify(data || {}));
+            },
+            update: function (id, data) {
+                return callBackend('updateVideoSubtitle', Number(id || 0), JSON.stringify(data || {}));
+            },
+            remove: function (id) {
+                return callBackend('deleteVideoSubtitle', Number(id || 0));
+            },
+        },
+        videoExports: {
+            list: function (projectId) {
+                return callCached(
+                    'videoExports:list:' + String(projectId || ''),
+                    DEFAULT_TTL,
+                    'listVideoExports',
+                    Number(projectId || 0)
+                );
+            },
+            create: function (data) {
+                return callBackend('createVideoExport', JSON.stringify(data || {}));
+            },
+            run: function (id) {
+                return callBackend('runVideoExport', Number(id || 0));
+            },
+        },
+        videoSnapshots: {
+            list: function (projectId) {
+                return callCached(
+                    'videoSnapshots:list:' + String(projectId || ''),
+                    DEFAULT_TTL,
+                    'listVideoSnapshots',
+                    Number(projectId || 0)
+                );
+            },
+            create: function (data) {
+                return callBackend('createVideoSnapshot', JSON.stringify(data || {}));
+            },
+            restore: function (snapshotId) {
+                return callBackend('restoreVideoSnapshot', Number(snapshotId || 0));
+            },
         },
         // -- Utilities --
         _call: callBackend,
@@ -344,6 +414,13 @@
                     } else if (entity === 'activity_log') {
                         _cacheInvalidate('activity:');
                         _cacheInvalidate('notifications:');
+                    } else if (String(entity || '').indexOf('video-') === 0) {
+                        _cacheInvalidate('videoProjects:');
+                        _cacheInvalidate('videoSequences:');
+                        _cacheInvalidate('videoClips:');
+                        _cacheInvalidate('videoSubtitles:');
+                        _cacheInvalidate('videoExports:');
+                        _cacheInvalidate('videoSnapshots:');
                     }
                     // 触发自定义事件，页面可监听
                     document.dispatchEvent(new CustomEvent('data:changed', { detail: ev }));

@@ -1,4 +1,21 @@
-﻿function makeContentWorkbenchRoute(config) {
+﻿const contentWorkbenchFactories = Object.create(null);
+
+function registerContentWorkbenchFactory(workbenchType, factory) {
+    if (!workbenchType || String(workbenchType).trim() === '') {
+        return;
+    }
+    if (typeof factory !== 'function') {
+        return;
+    }
+    contentWorkbenchFactories[workbenchType] = factory;
+}
+
+function makeContentWorkbenchRoute(config) {
+    const registeredFactory = contentWorkbenchFactories[config.workbenchType];
+    if (registeredFactory) {
+        return registeredFactory(config);
+    }
+
     const metrics = config.metrics || [];
     const summaryChips = config.summaryChips || [];
     const inlineSummary = config.inlineSummary === true;
@@ -56,29 +73,28 @@
     let sideHtml = '';
     let bottomHtml = '';
     let outerBottomHtml = '';
-
-    // video-editor workbenchType 分支已移至 factories/video-editor.js
-if (config.workbenchType === 'creative-workshop') {
+
+    if (config.workbenchType === 'creative-workshop') {
         centerHtml = `
             <section class="workbench-canvas workbench-canvas--creative">
                 <div class="toolbar-strip">
-                    <div class="toolbar-strip__group"><strong>创意组合画板</strong><span class="subtle">主题、镜头、口播和卖点在一块板上快速组合</span></div>
-                    <div class="toolbar-strip__group"><button class="secondary-button" type="button">锁定版本</button><button class="secondary-button" type="button">生成对比</button></div>
+                    <div class="toolbar-strip__group"><strong>鍒涙剰缁勫悎鐢绘澘</strong><span class="subtle">涓婚銆侀暅澶淬€佸彛鎾拰鍗栫偣鍦ㄤ竴鍧楁澘涓婂揩閫熺粍鍚?/span></div>
+                    <div class="toolbar-strip__group"><button class="secondary-button" type="button">閿佸畾鐗堟湰</button><button class="secondary-button" type="button">鐢熸垚瀵规瘮</button></div>
                 </div>
-                <div class="focus-grid" data-search="创意工坊 主题 镜头 口播 组合">
+                <div class="focus-grid" data-search="鍒涙剰宸ュ潑 涓婚 闀滃ご 鍙ｆ挱 缁勫悎">
                     ${focusCardsHtml}
                 </div>
             </section>
         `;
         sideHtml = `
             <section class="panel">
-                <div class="panel__header"><div><strong>方案评分</strong><div class="subtle">右列不再是通用摘要，而是创意评分与版本建议</div></div></div>
+                <div class="panel__header"><div><strong>鏂规璇勫垎</strong><div class="subtle">鍙冲垪涓嶅啀鏄€氱敤鎽樿锛岃€屾槸鍒涙剰璇勫垎涓庣増鏈缓璁?/div></div></div>
                 <div class="workbench-side-list">${sideCardsHtml}</div>
             </section>
         `;
         bottomHtml = `
             <section class="panel">
-                <div class="panel__header"><div><strong>实验轨迹</strong><div class="subtle">把已试过的创意组合和保留建议沉淀下来</div></div></div>
+                <div class="panel__header"><div><strong>瀹為獙杞ㄨ抗</strong><div class="subtle">鎶婂凡璇曡繃鐨勫垱鎰忕粍鍚堝拰淇濈暀寤鸿娌夋穩涓嬫潵</div></div></div>
                 <div class="workbench-strip-grid">${bottomCardsHtml}</div>
             </section>
         `;
@@ -86,29 +102,29 @@ if (config.workbenchType === 'creative-workshop') {
         centerHtml = `
             <section class="workbench-canvas workbench-canvas--factory">
                 <div class="toolbar-strip">
-                    <div class="toolbar-strip__group"><strong>内容生产工作流</strong><span class="subtle">节点、批次和产出状态集中显示，不再退化为普通 AI 卡片页</span></div>
-                    <div class="toolbar-strip__group"><button class="secondary-button" type="button">保存工作流</button><button class="secondary-button" type="button">运行批次</button></div>
+                    <div class="toolbar-strip__group"><strong>鍐呭鐢熶骇宸ヤ綔娴?/strong><span class="subtle">鑺傜偣銆佹壒娆″拰浜у嚭鐘舵€侀泦涓樉绀猴紝涓嶅啀閫€鍖栦负鏅€?AI 鍗＄墖椤?/span></div>
+                    <div class="toolbar-strip__group"><button class="secondary-button" type="button">淇濆瓨宸ヤ綔娴?/button><button class="secondary-button" type="button">杩愯鎵规</button></div>
                 </div>
-                <div class="workflow-board" data-search="AI 内容工厂 工作流 节点 生产线">
-                    <div class="workflow-node is-active"><strong>输入素材</strong><div class="subtle">文本、链接、商品库</div></div>
+                <div class="workflow-board" data-search="AI 鍐呭宸ュ巶 宸ヤ綔娴?鑺傜偣 鐢熶骇绾?>
+                    <div class="workflow-node is-active"><strong>杈撳叆绱犳潗</strong><div class="subtle">鏂囨湰銆侀摼鎺ャ€佸晢鍝佸簱</div></div>
                     <div class="workflow-connector"></div>
-                    <div class="workflow-node"><strong>AI 脚本</strong><div class="subtle">钩子、结构、CTA</div></div>
+                    <div class="workflow-node"><strong>AI 鑴氭湰</strong><div class="subtle">閽╁瓙銆佺粨鏋勩€丆TA</div></div>
                     <div class="workflow-connector"></div>
-                    <div class="workflow-node"><strong>语音与字幕</strong><div class="subtle">TTS + 字幕清洗</div></div>
+                    <div class="workflow-node"><strong>璇煶涓庡瓧骞?/strong><div class="subtle">TTS + 瀛楀箷娓呮礂</div></div>
                     <div class="workflow-connector"></div>
-                    <div class="workflow-node"><strong>批量剪辑</strong><div class="subtle">封面、片段、导出</div></div>
+                    <div class="workflow-node"><strong>鎵归噺鍓緫</strong><div class="subtle">灏侀潰銆佺墖娈点€佸鍑?/div></div>
                 </div>
             </section>
         `;
         sideHtml = `
             <section class="panel">
-                <div class="panel__header"><div><strong>节点库与项目区</strong><div class="subtle">把项目、常用节点和当前批次状态维持在主内容右列</div></div></div>
+                <div class="panel__header"><div><strong>鑺傜偣搴撲笌椤圭洰鍖?/strong><div class="subtle">鎶婇」鐩€佸父鐢ㄨ妭鐐瑰拰褰撳墠鎵规鐘舵€佺淮鎸佸湪涓诲唴瀹瑰彸鍒?/div></div></div>
                 <div class="workbench-side-list">${sideCardsHtml}</div>
             </section>
         `;
         bottomHtml = `
             <section class="panel">
-                <div class="panel__header"><div><strong>批次运行状态</strong><div class="subtle">批量生产要优先展示任务通过率、失败节点和可回放批次</div></div></div>
+                <div class="panel__header"><div><strong>鎵规杩愯鐘舵€?/strong><div class="subtle">鎵归噺鐢熶骇瑕佷紭鍏堝睍绀轰换鍔￠€氳繃鐜囥€佸け璐ヨ妭鐐瑰拰鍙洖鏀炬壒娆?/div></div></div>
                 <div class="workbench-strip-grid">${bottomCardsHtml}</div>
             </section>
         `;
@@ -117,13 +133,13 @@ if (config.workbenchType === 'creative-workshop') {
     const detailHtml = `
         <div class="detail-root">
             <section class="panel">
-                <div class="panel__header"><div><strong>${config.title}摘要</strong><div class="subtle">${config.detailDesc}</div></div></div>
+                <div class="panel__header"><div><strong>${config.title}鎽樿</strong><div class="subtle">${config.detailDesc}</div></div></div>
                 <div class="detail-list">
                     ${detailGroups.map((group) => `<div class="detail-item"><span class="subtle">${group.label}</span><strong>${group.value}</strong></div>`).join('')}
                 </div>
             </section>
             <section class="panel">
-                <div class="panel__header"><div><strong>值班动作</strong><div class="subtle">右侧详情继续承载当前批次的决策提示</div></div></div>
+                <div class="panel__header"><div><strong>鍊肩彮鍔ㄤ綔</strong><div class="subtle">鍙充晶璇︽儏缁х画鎵胯浇褰撳墠鎵规鐨勫喅绛栨彁绀?/div></div></div>
                 <div class="workbench-side-list">${detailCardsHtml || sideCardsHtml}</div>
             </section>
         </div>
@@ -163,7 +179,10 @@ if (config.workbenchType === 'creative-workshop') {
     };
 }
 
-/* ═══════════════════════════════════════════════
-   Batch 3 — task-ops 家族工厂
-   Template E: 顶部状态过滤 + 任务看板/列表/日历 + 状态栏
-   ═══════════════════════════════════════════════ */
+/* 鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺?
+   Batch 3 鈥?task-ops 瀹舵棌宸ュ巶
+   Template E: 椤堕儴鐘舵€佽繃婊?+ 浠诲姟鐪嬫澘/鍒楄〃/鏃ュ巻 + 鐘舵€佹爮
+   鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺?*/
+
+
+

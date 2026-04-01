@@ -1,30 +1,27 @@
-/* ── bindings/visual-editor-bindings.js ─ 视觉编辑器页交互绑定 ──
-   负责 visual-editor 路由的画布工具、模板切换等交互。
-   依赖：bindings.js（全局 bindRouteInteractions 注册机制）
-   ──────────────────────────────────────────────────────── */
 (function () {
     'use strict';
 
-    window._visualEditorBindings = function () {
-        // 工具栏工具切换
-        document.querySelectorAll('#mainHost .workbench-tool').forEach(function (btn) {
-            btn.addEventListener('click', function () {
-                document.querySelectorAll('#mainHost .workbench-tool').forEach(function (b) {
-                    b.classList.remove('is-selected');
-                });
-                btn.classList.add('is-selected');
-            });
-        });
+    if (typeof window.registerBindingModule !== 'function') {
+        throw new Error('binding module registry not loaded');
+    }
 
-        // 分段按钮组（如尺寸切换）
-        document.querySelectorAll('#mainHost .segmented').forEach(function (group) {
-            group.querySelectorAll('button').forEach(function (btn) {
-                btn.addEventListener('click', function () {
-                    group.querySelectorAll('button').forEach(function (b) { b.classList.remove('is-active'); });
-                    btn.classList.add('is-active');
-                });
-            });
-        });
-    };
+    function _activateTool(btn, label) {
+        _setExclusiveButtonState(btn);
+        showToast('已切换到' + label + '工具', 'info');
+    }
 
-}());
+    window.registerBindingModule('visual-editor', function () {
+        return {
+            '导出当前设计': function () {
+                return _createQuickTask('设计稿导出', 'publish', '来源页面：视觉编辑器', '设计导出任务已加入队列');
+            },
+            '切换模板': function () {
+                showToast('模板切换面板已打开', 'info');
+            },
+            '画布': function (btn) { _activateTool(btn, '画布'); },
+            '文字': function (btn) { _activateTool(btn, '文字'); },
+            '贴纸': function (btn) { _activateTool(btn, '贴纸'); },
+            '导出': function (btn) { _activateTool(btn, '导出'); },
+        };
+    });
+})();

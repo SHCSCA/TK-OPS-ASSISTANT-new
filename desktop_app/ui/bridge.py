@@ -18,6 +18,7 @@ from typing import Any
 
 from PySide6.QtCore import QObject, Signal, Slot
 from PySide6.QtWidgets import QFileDialog
+from sqlalchemy import select
 
 from desktop_app.database.models import (
     Account,
@@ -27,7 +28,9 @@ from desktop_app.database.models import (
     Group,
     Task,
     VideoClip,
+    VideoExport,
     VideoSequence,
+    VideoSnapshot,
     VideoSubtitle,
 )
 from desktop_app.database.repository import Repository
@@ -42,6 +45,8 @@ from desktop_app.services.dev_seed_service import DevSeedService
 from desktop_app.services.license_service import LicenseService
 from desktop_app.version import APP_VERSION
 from desktop_app.services.report_service import ReportService
+from desktop_app.services.video_editing_service import VideoEditingService
+from desktop_app.services.video_export_service import VideoExportService
 from desktop_app.services.task_service import TaskService
 from desktop_app.services.updater_service import UpdaterService
 from desktop_app.services.usage_tracker import UsageTracker
@@ -181,6 +186,8 @@ class Bridge(QObject):
         self._reports = ReportService(self._repo)
         self._workflows = WorkflowService(self._repo)
         self._activity = ActivityService(self._repo)
+        self._video_editing = VideoEditingService(self._repo)
+        self._video_exports = VideoExportService(self._repo)
         self._updater = UpdaterService()
         self._chat = ChatService(self._repo)
         self._usage = UsageTracker(self._repo)
@@ -791,6 +798,260 @@ class Bridge(QObject):
             return _err("素材不存在")
         self._emit_change("asset", "deleted", pk)
         return _ok({"deleted": pk})
+
+    # ── Video editor slots ──
+
+    @Slot(result=str)
+    @_safe
+    def listVideoProjects(self) -> str:
+        return _ok([_to_dict(project) for project in self._repo.list_video_projects()])
+
+    @Slot(str, result=str)
+    @_safe
+    def createVideoProject(self, payload: str) -> str:
+        data = json.loads(payload or "{}")
+        name = str(data.pop("name", "")).strip()
+        if not name:
+            return _err("项目名称不能为空")
+        project, _sequence = self._video_editing.create_project_with_sequence(name)
+        if data:
+            project = self._repo.update(project, **data)
+        self._emit_change("video-project", "created", project.id)
+        self._emit_change("video-sequence", "created", _sequence.id)
+        return _ok(_to_dict(project))
+
+    @Slot(int, result=str)
+    @_safe
+    def listVideoSequences(self, project_id: int) -> str:
+        rows = [_to_dict(sequence) for sequence in self._repo.list_video_sequences(int(project_id))]
+        return _ok(rows)
+
+    @Slot(str, result=str)
+    @_safe
+    def createVideoSequence(self, payload: str) -> str:
+        data = json.loads(payload or "{}")
+        project_id = data.get("project_id")
+        name = str(data.get("name") or "").strip()
+        if project_id in (None, ""):
+            return _err("项目ID不能为空")
+        if not name:
+            return _err("序列名称不能为空")
+        sequence = self._repo.create_video_sequence(int(project_id), name=name)
+        self._emit_change("video-sequence", "created", sequence.id)
+        self._emit_change("video-project", "updated", int(project_id))
+        return _ok(_to_dict(sequence))
+
+    @Slot(int, int, result=str)
+    @_safe
+    def setActiveVideoSequence(self, project_id: int, sequence_id: int) -> str:
+        sequence = self._repo.get_by_id(VideoSequence, int(sequence_id))
+        if sequence is None or int(sequence.project_id) != int(project_id):
+            return _err("序列不存在")
+        self._repo.set_active_video_sequence(int(project_id), int(sequence_id))
+        self._emit_change("video-sequence", "updated", int(sequence_id))
+        self._emit_change("video-project", "updated", int(project_id))
+        return _ok(_to_dict(self._repo.get_by_id(VideoSequence, int(sequence_id)) or sequence))
+
+    @Slot(int, str, result=str)
+    @_safe
+    def appendAssetsToSequence(self, sequence_id: int, payload: str) -> str:
+        data = json.loads(payload or "{}")
+        asset_ids = data.get("asset_ids")
+        if asset_ids is None:
+            single_asset_id = data.get("asset_id")
+            asset_ids = [single_asset_id] if single_asset_id not in (None, "") else []
+        elif isinstance(asset_ids, (str, int)):
+            asset_ids = [asset_ids]
+        elif not isinstance(asset_ids, list):
+            asset_ids = list(asset_ids or [])
+        asset_ids_list = [int(asset_id) for asset_id in asset_ids if asset_id not in (None, "")]
+        if not asset_ids_list:
+            return _err("素材ID不能为空")
+        clips = self._video_editing.append_assets_to_sequence(int(sequence_id), asset_ids_list)
+        for clip in clips:
+            self._emit_change("video-clip", "created", clip.id)
+        self._emit_change("video-sequence", "updated", sequence_id)
+        return _ok([_to_dict(clip) for clip in clips])
+
+    @Slot(int, result=str)
+    @_safe
+    def listVideoClips(self, sequence_id: int) -> str:
+        return _ok([_to_dict(clip) for clip in self._repo.list_video_clips(int(sequence_id))])
+
+    @Slot(int, result=str)
+    @_safe
+    def listVideoSubtitles(self, sequence_id: int) -> str:
+        return _ok([_to_dict(item) for item in self._repo.list_video_subtitles(int(sequence_id))])
+
+    @Slot(int, str, result=str)
+    @_safe
+    def updateVideoClip(self, clip_id: int, payload: str) -> str:
+        data = json.loads(payload or "{}")
+        direction = str(data.pop("direction", "")).strip()
+        clip = self._repo.get_by_id(VideoClip, int(clip_id))
+        if clip is None:
+            return _err("片段不存在")
+        if direction:
+            sequence_id = int(data.get("sequence_id") or clip.sequence_id)
+            updated_clips = self._video_editing.move_clip(sequence_id, int(clip_id), direction)
+            self._emit_change("video-clip", "updated", clip_id)
+            self._emit_change("video-sequence", "updated", sequence_id)
+            return _ok([_to_dict(item) for item in updated_clips])
+
+        source_in_ms = data.get("source_in_ms", clip.source_in_ms)
+        source_out_ms = data.get("source_out_ms", clip.source_out_ms)
+        if source_in_ms is None and source_out_ms is None:
+            return _err("没有可更新的剪辑字段")
+        updated = self._video_editing.update_clip_range(
+            int(clip_id),
+            source_in_ms=int(source_in_ms if source_in_ms is not None else clip.source_in_ms),
+            source_out_ms=int(source_out_ms if source_out_ms is not None else clip.source_out_ms),
+        )
+        self._emit_change("video-clip", "updated", updated.id)
+        self._emit_change("video-sequence", "updated", updated.sequence_id)
+        return _ok(_to_dict(updated))
+
+    @Slot(int, result=str)
+    @_safe
+    def deleteVideoClip(self, clip_id: int) -> str:
+        clip = self._repo.get_by_id(VideoClip, int(clip_id))
+        if clip is None:
+            return _err("片段不存在")
+        sequence_id = int(clip.sequence_id)
+        self._video_editing.delete_clip(int(clip_id))
+        self._emit_change("video-clip", "deleted", int(clip_id))
+        self._emit_change("video-sequence", "updated", sequence_id)
+        return _ok({"deleted": int(clip_id)})
+
+    @Slot(str, result=str)
+    @_safe
+    def createVideoSubtitle(self, payload: str) -> str:
+        data = json.loads(payload or "{}")
+        sequence_id = data.get("sequence_id")
+        start_ms = data.get("start_ms")
+        end_ms = data.get("end_ms")
+        text = str(data.get("text") or "").strip()
+        if sequence_id in (None, ""):
+            return _err("序列ID不能为空")
+        if start_ms is None or end_ms is None:
+            return _err("字幕时间不能为空")
+        if not text:
+            return _err("字幕内容不能为空")
+        subtitle_kwargs: dict[str, Any] = {"style_json": str(data.get("style_json") or "{}")}
+        if data.get("sort_order") not in (None, ""):
+            subtitle_kwargs["sort_order"] = int(data["sort_order"])
+        subtitle = self._video_editing.create_subtitle(
+            int(sequence_id),
+            start_ms=int(start_ms),
+            end_ms=int(end_ms),
+            text=text,
+            **subtitle_kwargs,
+        )
+        self._emit_change("video-subtitle", "created", subtitle.id)
+        self._emit_change("video-sequence", "updated", subtitle.sequence_id)
+        return _ok(_to_dict(subtitle))
+
+    @Slot(int, str, result=str)
+    @_safe
+    def updateVideoSubtitle(self, subtitle_id: int, payload: str) -> str:
+        subtitle = self._repo.get_by_id(VideoSubtitle, int(subtitle_id))
+        if subtitle is None:
+            return _err("字幕不存在")
+        data = json.loads(payload or "{}")
+        if "text" in data:
+            data["text"] = str(data.get("text") or "").strip()
+            if not data["text"]:
+                return _err("字幕内容不能为空")
+        if "start_ms" in data:
+            data["start_ms"] = int(data["start_ms"])
+        if "end_ms" in data:
+            data["end_ms"] = int(data["end_ms"])
+        updated = self._video_editing.update_subtitle(int(subtitle_id), **data)
+        self._emit_change("video-subtitle", "updated", updated.id)
+        self._emit_change("video-sequence", "updated", updated.sequence_id)
+        return _ok(_to_dict(updated))
+
+    @Slot(int, result=str)
+    @_safe
+    def deleteVideoSubtitle(self, subtitle_id: int) -> str:
+        subtitle = self._repo.get_by_id(VideoSubtitle, int(subtitle_id))
+        if subtitle is None:
+            return _err("字幕不存在")
+        sequence_id = int(subtitle.sequence_id)
+        self._video_editing.delete_subtitle(int(subtitle_id))
+        self._emit_change("video-subtitle", "deleted", int(subtitle_id))
+        self._emit_change("video-sequence", "updated", sequence_id)
+        return _ok({"deleted": int(subtitle_id)})
+
+    @Slot(str, result=str)
+    @_safe
+    def createVideoSnapshot(self, payload: str) -> str:
+        data = json.loads(payload or "{}")
+        project_id = data.get("project_id")
+        title = str(data.get("title") or "").strip()
+        if project_id in (None, ""):
+            return _err("项目ID不能为空")
+        if not title:
+            return _err("快照标题不能为空")
+        snapshot = self._video_editing.create_snapshot(int(project_id), title)
+        self._emit_change("video-snapshot", "created", snapshot.id)
+        return _ok(_to_dict(snapshot))
+
+    @Slot(str, result=str)
+    @_safe
+    def createVideoExport(self, payload: str) -> str:
+        data = json.loads(payload or "{}")
+        project_id = data.get("project_id")
+        sequence_id = data.get("sequence_id")
+        if project_id in (None, "") or sequence_id in (None, ""):
+            return _err("项目ID和序列ID不能为空")
+        preset = str(data.get("preset") or "final").strip() or "final"
+        result = self._video_exports.validate_and_create_export(int(project_id), int(sequence_id), preset=preset)
+        if not bool(result.get("ok")):
+            return _err(str(result.get("error") or "视频导出创建失败"))
+        export_id = result.get("export_id")
+        if export_id is not None:
+            self._emit_change("video-export", "created", export_id)
+        return _ok(result)
+
+    @Slot(int, result=str)
+    @_safe
+    def listVideoExports(self, project_id: int) -> str:
+        stmt = (
+            select(VideoExport)
+            .where(VideoExport.project_id == int(project_id))
+            .order_by(VideoExport.created_at.desc(), VideoExport.id.desc())
+        )
+        rows = [_to_dict(item) for item in self._repo.session.execute(stmt).scalars().all()]
+        return _ok(rows)
+
+    @Slot(int, result=str)
+    @_safe
+    def runVideoExport(self, export_id: int) -> str:
+        export = self._video_exports.run_export(int(export_id))
+        self._emit_change("video-export", "updated", export.id)
+        if export.sequence_id:
+            self._emit_change("video-sequence", "updated", int(export.sequence_id))
+        return _ok(_to_dict(export))
+
+    @Slot(int, result=str)
+    @_safe
+    def listVideoSnapshots(self, project_id: int) -> str:
+        stmt = (
+            select(VideoSnapshot)
+            .where(VideoSnapshot.project_id == int(project_id))
+            .order_by(VideoSnapshot.created_at.desc(), VideoSnapshot.id.desc())
+        )
+        rows = [_to_dict(snapshot) for snapshot in self._repo.session.execute(stmt).scalars().all()]
+        return _ok(rows)
+
+    @Slot(int, result=str)
+    @_safe
+    def restoreVideoSnapshot(self, snapshot_id: int) -> str:
+        project = self._video_editing.restore_snapshot(int(snapshot_id))
+        self._emit_change("video-snapshot", "restored", snapshot_id)
+        self._emit_change("video-project", "updated", project.id)
+        return _ok(_to_dict(project))
 
     @Slot(result=str)
     @_safe

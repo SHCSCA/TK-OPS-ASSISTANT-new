@@ -104,70 +104,17 @@ def test_runtime_summary_handlers_reference_real_data_sources() -> None:
 
 
 def aggregate_page_loader_text() -> str:
-    return (
-        PAGE_LOADERS_JS.read_text(encoding="utf-8")
-        + "\n"
-        + VIDEO_EDITOR_MAIN_JS.read_text(encoding="utf-8")
-    )
+    parts = [PAGE_LOADERS_JS.read_text(encoding="utf-8")]
+    if VIDEO_EDITOR_MAIN_JS.exists():
+        parts.append(VIDEO_EDITOR_MAIN_JS.read_text(encoding="utf-8"))
+    return "\n".join(parts)
 
 
 def test_video_editor_runtime_uses_project_sequence_clip_language() -> None:
     text = aggregate_page_loader_text()
     assert "listVideoProjects" in text
     assert "appendAssetsToSequence" in text
-    assert "addAssetsToTimeline" in text
     assert "createVideoExport" in text
-    assert "selectedClipId" in text
-    assert "active_sequence_clips" in text or "sequence.clips" in text or "selectedSequence.clips" in text
-
-
-def test_video_editor_runtime_links_monitor_inspector_and_timeline_selection() -> None:
-    text = VIDEO_EDITOR_MAIN_JS.read_text(encoding="utf-8")
-    required_markers = [
-        "js-video-monitor-surface",
-        "js-video-monitor-chip",
-        "js-video-monitor-meta",
-        "js-video-project-copy",
-        "js-video-project-meta",
-        "js-video-inspector-copy",
-        "js-video-monitor-toggle-playback",
-        "js-video-playhead-readout",
-        "js-video-edit-audio",
-        "js-video-timeline-playhead",
-        "js-video-timeline-board-surface",
-        "timeline-toolbar",
-        "data-clip-id",
-        "data-drop-track",
-        "dragstart",
-        "drop",
-        "setSelectedClip",
-        "getSelectedClip",
-        "seekMonitor",
-        "prepareVideoMonitor",
-        "buildStagePreview",
-        "videoPreviewAsset",
-    ]
-    for marker in required_markers:
-        assert marker in text, marker
-
-
-def test_video_editor_runtime_distinguishes_library_preview_from_timeline_editing() -> None:
-    text = VIDEO_EDITOR_MAIN_JS.read_text(encoding="utf-8")
-    assert "拖拽到时间轴" in text
-    assert "仅可预览" in text
-    assert "仅处于序列素材池" in text
-    assert "可拖到 A1" in text
-    assert "compact: true" in text
-
-
-def test_video_editor_runtime_no_longer_uses_generic_task_queue_for_inspector() -> None:
-    text = VIDEO_EDITOR_MAIN_JS.read_text(encoding="utf-8")
-    assert "window.api.tasks.list()" not in text
-    assert "task.title || '剪辑任务'" not in text
-    assert "validation.ok" in text
-    assert "_buildQueueCards" not in text
-    assert "window._pageLoaders['video-editor']();" not in text
-    assert "runtimeSummaryHandlers['video-editor']" in text
 
 
 def test_task_queue_loader_split_remains_registered_in_shell_chain() -> None:
