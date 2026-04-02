@@ -1,0 +1,31 @@
+{
+  "meta": {
+    "name": "tk-ops-base",
+    "version": 1
+  },
+  "color": {
+    "surface": "#f5f1e8",
+    "surfaceElevated": "#fffaf0",
+    "text": "#1f1a14",
+    "textMuted": "#6f6558",
+    "accent": "#0f766e",
+    "accentStrong": "#115e59",
+    "danger": "#b42318",
+    "border": "#d9cdbd"
+  },
+  "radius": {
+    "sm": 8,
+    "md": 14,
+    "lg": 20
+  },
+  "space": {
+    "xs": 4,
+    "sm": 8,
+    "md": 16,
+    "lg": 24,
+    "xl": 32
+  },
+  "shadow": {
+    "card": "0 12px 32px rgba(31, 26, 20, 0.08)"
+  }
+}

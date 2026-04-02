@@ -10,6 +10,9 @@ __pycache__/
 build/
 dist/
 .pytest_cache/
+dist-alpha/
+apps/desktop/node_modules/
+apps/desktop/src-tauri/target/
 
 # Logs and local databases
 *.log

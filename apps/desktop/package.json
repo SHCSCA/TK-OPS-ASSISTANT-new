@@ -1,0 +1,29 @@
+{
+  "name": "tk-ops-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tauri dev",
+    "dev:web": "vite",
+    "dev:desktop": "tauri dev",
+    "build": "vite build",
+    "preview": "vite preview",
+    "typecheck": "vue-tsc --noEmit",
+    "tauri:smoke": "powershell -NoProfile -ExecutionPolicy Bypass -File ../../scripts/smoke-tauri-runtime.ps1 -SkipBuild",
+    "alpha:release": "powershell -NoProfile -ExecutionPolicy Bypass -File ../../scripts/release.ps1"
+  },
+  "dependencies": {
+    "pinia": "^3.0.3",
+    "vue": "^3.5.13",
+    "vue-router": "^4.5.1"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.5.0",
+    "@types/node": "^24.0.3",
+    "@vitejs/plugin-vue": "^5.2.4",
+    "typescript": "^5.8.3",
+    "vite": "^6.3.5",
+    "vue-tsc": "^2.2.10"
+  }
+}

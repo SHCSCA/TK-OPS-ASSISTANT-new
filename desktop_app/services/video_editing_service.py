@@ -1,11 +1,18 @@
-"""Video editing service with basic project, timeline, subtitle, and export validation flows."""
+"""视频编辑服务：提供项目、时间线、字幕与快照能力。"""
 from __future__ import annotations
 
 import json
 from pathlib import Path
 from typing import Any
 
-from desktop_app.database.models import Asset, VideoClip, VideoProject, VideoSequence, VideoSnapshot, VideoSubtitle
+from desktop_app.database.models import (
+    Asset,
+    VideoClip,
+    VideoProject,
+    VideoSequence,
+    VideoSnapshot,
+    VideoSubtitle,
+)
 from desktop_app.database.repository import Repository
 
 
@@ -50,9 +57,11 @@ class VideoEditingService:
         source_out_ms = int(source_out_ms)
         if source_in_ms >= source_out_ms:
             raise ValueError("裁切区间无效：起点必须小于终点")
+
         source_limit = max(int(clip.source_out_ms or 0), int(clip.duration_ms or 0))
         if source_limit and source_out_ms > source_limit:
             raise ValueError("裁切区间不能超过素材长度")
+
         updated = self._repo.update(
             clip,
             source_in_ms=source_in_ms,
@@ -75,6 +84,7 @@ class VideoEditingService:
         ids = [int(clip.id) for clip in clips]
         if int(clip_id) not in ids:
             raise ValueError("片段不存在")
+
         current_index = ids.index(int(clip_id))
         normalized = str(direction or "").strip().lower()
         if normalized == "left" and current_index > 0:
@@ -83,6 +93,7 @@ class VideoEditingService:
             swap_index = current_index + 1
         else:
             return clips
+
         ids[current_index], ids[swap_index] = ids[swap_index], ids[current_index]
         return list(self._repo.reorder_video_clips(sequence_id, ids))
 
@@ -124,7 +135,7 @@ class VideoEditingService:
             VideoSnapshot(
                 project_id=project_id,
                 title=title,
-                snapshot_json=json.dumps(payload, ensure_ascii=False),
+                payload_json=json.dumps(payload, ensure_ascii=False),
             )
         )
         refreshed = self._repo.get_by_id(VideoSnapshot, snapshot.id)
@@ -134,43 +145,51 @@ class VideoEditingService:
         snapshot = self._repo.get_by_id(VideoSnapshot, snapshot_id)
         if snapshot is None:
             raise ValueError("快照不存在")
-        payload = self._load_snapshot(snapshot.snapshot_json)
+
+        payload = self._load_snapshot(snapshot.payload_json)
         project = self._repo.get_video_project(int(snapshot.project_id))
         if project is None:
             raise ValueError("工程不存在")
 
         for sequence in list(self._repo.list_video_sequences(project.id)):
             self._repo.delete(sequence)
+        self._repo.update(project, active_sequence_id=None)
 
+        restored_sequences: list[VideoSequence] = []
         for sequence_payload in payload.get("sequences", []):
             sequence = self._repo.create_video_sequence(
                 project.id,
                 name=str(sequence_payload.get("name") or "主序列"),
                 duration_ms=int(sequence_payload.get("duration_ms") or 0),
-                sort_order=int(sequence_payload.get("sort_order") or 0),
-                is_active=bool(sequence_payload.get("is_active")),
+                fps=float(sequence_payload.get("fps") or 30.0),
+                width=int(sequence_payload.get("width") or 1920),
+                height=int(sequence_payload.get("height") or 1080),
+                meta_json=str(sequence_payload.get("meta_json") or "{}"),
             )
-            clip_payloads = sequence_payload.get("clips", [])
-            if clip_payloads:
-                for clip_payload in clip_payloads:
-                    if clip_payload.get("asset_id") is None:
-                        self._repo.create_video_clip_placeholder(
-                            sequence.id,
-                            track_type=str(clip_payload.get("track_type") or "video"),
-                            track_index=int(clip_payload.get("track_index") or 0),
-                            duration_ms=int(clip_payload.get("duration_ms") or 0),
-                        )
-                    else:
-                        self._repo.append_video_clip(
-                            sequence.id,
-                            int(clip_payload["asset_id"]),
-                            track_type=str(clip_payload.get("track_type") or "video"),
-                            track_index=int(clip_payload.get("track_index") or 0),
-                            start_ms=int(clip_payload.get("start_ms") or 0),
-                            source_in_ms=int(clip_payload.get("source_in_ms") or 0),
-                            source_out_ms=int(clip_payload.get("source_out_ms") or 0),
-                            duration_ms=int(clip_payload.get("duration_ms") or 0),
-                        )
+            restored_sequences.append(sequence)
+
+            for clip_payload in sequence_payload.get("clips", []):
+                if clip_payload.get("asset_id") is None:
+                    self._repo.create_video_clip_placeholder(
+                        sequence.id,
+                        track_type=str(clip_payload.get("track_type") or "video"),
+                        track_index=int(clip_payload.get("track_index") or 0),
+                        duration_ms=int(clip_payload.get("duration_ms") or 0),
+                    )
+                    continue
+
+                self._repo.append_video_clip(
+                    sequence.id,
+                    int(clip_payload["asset_id"]),
+                    track_type=str(clip_payload.get("track_type") or "video"),
+                    track_index=int(clip_payload.get("track_index") or 0),
+                    start_ms=int(clip_payload.get("start_ms") or 0),
+                    source_in_ms=int(clip_payload.get("source_in_ms") or 0),
+                    source_out_ms=int(clip_payload.get("source_out_ms") or 0),
+                    duration_ms=int(clip_payload.get("duration_ms") or 0),
+                    meta_json=str(clip_payload.get("meta_json") or "{}"),
+                )
+
             for subtitle_payload in sequence_payload.get("subtitles", []):
                 self._repo.create_video_subtitle(
                     sequence.id,
@@ -178,8 +197,14 @@ class VideoEditingService:
                     end_ms=int(subtitle_payload.get("end_ms") or 0),
                     text=str(subtitle_payload.get("text") or ""),
                     style_json=str(subtitle_payload.get("style_json") or "{}"),
-                    sort_order=int(subtitle_payload.get("sort_order") or 0),
                 )
+
+        active_index = payload.get("active_sequence_index")
+        if restored_sequences:
+            if isinstance(active_index, int) and 0 <= active_index < len(restored_sequences):
+                self._repo.set_active_video_sequence(project.id, restored_sequences[active_index].id)
+            else:
+                self._repo.set_active_video_sequence(project.id, restored_sequences[0].id)
 
         refreshed = self._repo.get_video_project(project.id)
         return refreshed or project
@@ -189,17 +214,18 @@ class VideoEditingService:
         project = self._repo.get_video_project(int(project_id))
         if project is None:
             return {"ok": False, "errors": ["工程不存在"]}
+
         sequence = self._repo.get_by_id(VideoSequence, int(sequence_id))
         if sequence is None or int(sequence.project_id) != int(project.id):
             return {"ok": False, "errors": ["序列不存在"]}
 
         clips = list(self._repo.list_video_clips(sequence.id))
         if not clips:
-            errors.append("当前序列为空，不能导出")
+            errors.append("当前序列为空，无法导出")
 
         for clip in clips:
             if clip.asset_id is None:
-                errors.append("片段缺少素材，不能导出")
+                errors.append("片段缺少素材，无法导出")
                 continue
             asset = self._repo.get_by_id(Asset, int(clip.asset_id))
             if asset is None:
@@ -208,11 +234,11 @@ class VideoEditingService:
             if not self._path_exists(asset.file_path):
                 errors.append(f"素材源文件不存在: {asset.file_path}")
 
-        for subtitle in self._repo.list_video_subtitles(sequence.id):
+        subtitles = list(self._repo.list_video_subtitles(sequence.id))
+        for subtitle in subtitles:
             if int(subtitle.start_ms) >= int(subtitle.end_ms):
                 errors.append("字幕时间重叠或越界")
                 break
-        subtitles = list(self._repo.list_video_subtitles(sequence.id))
         for previous, current in zip(subtitles, subtitles[1:]):
             if int(current.start_ms) < int(previous.end_ms):
                 errors.append("字幕时间重叠或越界")
@@ -274,9 +300,11 @@ class VideoEditingService:
     ) -> None:
         if start_ms >= end_ms:
             raise ValueError("字幕时间重叠或越界")
+
         sequence = self._repo.get_by_id(VideoSequence, int(sequence_id))
         if sequence is not None and int(sequence.duration_ms or 0) > 0 and end_ms > int(sequence.duration_ms):
             raise ValueError("字幕时间重叠或越界")
+
         for subtitle in self._repo.list_video_subtitles(sequence_id):
             if exclude_id is not None and int(subtitle.id) == int(exclude_id):
                 continue
@@ -284,14 +312,20 @@ class VideoEditingService:
                 raise ValueError("字幕时间重叠或越界")
 
     def _snapshot_payload(self, project_id: int) -> dict[str, object]:
+        project = self._repo.get_video_project(project_id)
+        sequences = list(self._repo.list_video_sequences(project_id))
+        active_sequence_id = int(project.active_sequence_id) if project and project.active_sequence_id else None
+
         sequences_payload: list[dict[str, object]] = []
-        for sequence in self._repo.list_video_sequences(project_id):
+        for sequence in sequences:
             sequences_payload.append(
                 {
                     "name": sequence.name,
                     "duration_ms": int(sequence.duration_ms or 0),
-                    "sort_order": int(sequence.sort_order or 0),
-                    "is_active": bool(sequence.is_active),
+                    "fps": float(sequence.fps or 0),
+                    "width": int(sequence.width or 0),
+                    "height": int(sequence.height or 0),
+                    "meta_json": sequence.meta_json,
                     "clips": [
                         {
                             "asset_id": clip.asset_id,
@@ -302,6 +336,7 @@ class VideoEditingService:
                             "source_out_ms": int(clip.source_out_ms or 0),
                             "duration_ms": int(clip.duration_ms or 0),
                             "sort_order": int(clip.sort_order or 0),
+                            "meta_json": clip.meta_json,
                         }
                         for clip in self._repo.list_video_clips(sequence.id)
                     ],
@@ -311,13 +346,23 @@ class VideoEditingService:
                             "end_ms": int(subtitle.end_ms or 0),
                             "text": subtitle.text,
                             "style_json": subtitle.style_json,
-                            "sort_order": int(subtitle.sort_order or 0),
                         }
                         for subtitle in self._repo.list_video_subtitles(sequence.id)
                     ],
                 }
             )
-        return {"project_id": int(project_id), "sequences": sequences_payload}
+
+        payload: dict[str, object] = {"project_id": int(project_id), "sequences": sequences_payload}
+        if active_sequence_id is not None:
+            payload["active_sequence_index"] = next(
+                (
+                    index
+                    for index, sequence in enumerate(sequences)
+                    if int(sequence.id) == active_sequence_id
+                ),
+                None,
+            )
+        return payload
 
     @staticmethod
     def _load_snapshot(raw: str | None) -> dict[str, Any]:

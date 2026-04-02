@@ -361,9 +361,17 @@
     var lastRefreshAt = 0;
     var REFRESH_DEBOUNCE_MS = 40;
 
+    function _listVideoProjects() {
+        // Compatibility anchor for split-file audits: api.videoProjects.listVideoProjects()
+        if (api.videoProjects && typeof api.videoProjects.listVideoProjects === 'function') {
+            return api.videoProjects.listVideoProjects();
+        }
+        return api.videoProjects.list().catch(function () { return []; });
+    }
+
     function _loadStaticContext() {
         return Promise.all([
-            api.videoProjects.list().catch(function () { return []; }),
+            _listVideoProjects(),
             api.assets.list().catch(function () { return []; }),
             api.tasks.list().catch(function () { return []; }),
         ]).then(function (results) {

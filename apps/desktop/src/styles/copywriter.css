@@ -1,0 +1,84 @@
+.copywriter-page,
+.copywriter-layout,
+.copywriter-meta-grid {
+  display: grid;
+  gap: 16px;
+}
+
+.copywriter-layout {
+  grid-template-columns: 0.9fr 1.2fr 0.8fr;
+}
+
+.copywriter-field {
+  display: grid;
+  gap: 8px;
+  margin-top: 16px;
+  color: #3e372f;
+}
+
+.copywriter-field span {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.copywriter-field select,
+.copywriter-field textarea {
+  width: 100%;
+  border: 1px solid rgba(111, 101, 88, 0.18);
+  border-radius: 16px;
+  background: rgba(255, 252, 247, 0.92);
+  padding: 14px 16px;
+  font: inherit;
+  color: #1f1a14;
+}
+
+.copywriter-field textarea {
+  resize: vertical;
+  min-height: 220px;
+}
+
+.copywriter-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  margin-top: 18px;
+}
+
+.copywriter-hint {
+  color: #6f6558;
+  font-size: 13px;
+}
+
+.copywriter-output-body {
+  margin-top: 16px;
+  border-radius: 18px;
+  background: rgba(239, 230, 215, 0.4);
+  padding: 16px 18px;
+}
+
+.copywriter-output-body pre {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font: inherit;
+  line-height: 1.7;
+  color: #1f1a14;
+}
+
+.copywriter-meta-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 16px;
+}
+
+@media (max-width: 1100px) {
+  .copywriter-layout,
+  .copywriter-meta-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .copywriter-actions {
+    align-items: start;
+    flex-direction: column;
+  }
+}

@@ -50,6 +50,9 @@ class Account(Base):
     last_connection_status: Mapped[str] = mapped_column(String(20), default="unknown")
     last_connection_checked_at: Mapped[_dt.datetime | None] = mapped_column(DateTime, nullable=True)
     last_connection_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    risk_status: Mapped[str] = mapped_column(String(20), default="normal")
+    archived_at: Mapped[_dt.datetime | None] = mapped_column(DateTime, nullable=True)
+    archived_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[_dt.datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[_dt.datetime] = mapped_column(
@@ -182,148 +185,6 @@ class Asset(Base):
 
 
 # ── Analysis Snapshot ─────────────────────────────────────
-
-class VideoProject(Base):
-    __tablename__ = "video_projects"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    name: Mapped[str] = mapped_column(String(160), nullable=False)
-    status: Mapped[str] = mapped_column(String(40), default="draft")
-    canvas_ratio: Mapped[str] = mapped_column(String(20), default="9:16")
-    width: Mapped[int] = mapped_column(Integer, default=1080)
-    height: Mapped[int] = mapped_column(Integer, default=1920)
-    cover_asset_id: Mapped[int | None] = mapped_column(ForeignKey("assets.id"), nullable=True, index=True)
-    last_opened_at: Mapped[_dt.datetime | None] = mapped_column(DateTime, nullable=True)
-    created_at: Mapped[_dt.datetime] = mapped_column(DateTime, server_default=func.now())
-    updated_at: Mapped[_dt.datetime] = mapped_column(
-        DateTime, server_default=func.now(), onupdate=func.now()
-    )
-
-    cover_asset: Mapped[Asset | None] = relationship("Asset", foreign_keys=[cover_asset_id])
-    sequences: Mapped[list[VideoSequence]] = relationship(
-        "VideoSequence",
-        back_populates="project",
-        cascade="all, delete-orphan",
-        order_by="VideoSequence.sort_order",
-    )
-    exports: Mapped[list[VideoExport]] = relationship(
-        "VideoExport",
-        back_populates="project",
-        cascade="all, delete-orphan",
-        order_by="VideoExport.created_at",
-    )
-    snapshots: Mapped[list[VideoSnapshot]] = relationship(
-        "VideoSnapshot",
-        back_populates="project",
-        cascade="all, delete-orphan",
-        order_by="VideoSnapshot.created_at",
-    )
-
-
-class VideoSequence(Base):
-    __tablename__ = "video_sequences"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    project_id: Mapped[int] = mapped_column(ForeignKey("video_projects.id"), nullable=False, index=True)
-    name: Mapped[str] = mapped_column(String(160), nullable=False)
-    duration_ms: Mapped[int] = mapped_column(Integer, default=0)
-    sort_order: Mapped[int] = mapped_column(Integer, default=0)
-    is_active: Mapped[bool] = mapped_column(Boolean, default=False)
-    created_at: Mapped[_dt.datetime] = mapped_column(DateTime, server_default=func.now())
-    updated_at: Mapped[_dt.datetime] = mapped_column(
-        DateTime, server_default=func.now(), onupdate=func.now()
-    )
-
-    project: Mapped[VideoProject] = relationship("VideoProject", back_populates="sequences")
-    clips: Mapped[list[VideoClip]] = relationship(
-        "VideoClip",
-        back_populates="sequence",
-        cascade="all, delete-orphan",
-        order_by="VideoClip.sort_order",
-    )
-    subtitles: Mapped[list[VideoSubtitle]] = relationship(
-        "VideoSubtitle",
-        back_populates="sequence",
-        cascade="all, delete-orphan",
-        order_by="VideoSubtitle.sort_order",
-    )
-    exports: Mapped[list[VideoExport]] = relationship("VideoExport", back_populates="sequence")
-
-
-class VideoClip(Base):
-    __tablename__ = "video_clips"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    sequence_id: Mapped[int] = mapped_column(ForeignKey("video_sequences.id"), nullable=False, index=True)
-    asset_id: Mapped[int | None] = mapped_column(ForeignKey("assets.id"), nullable=True, index=True)
-    track_type: Mapped[str] = mapped_column(
-        Enum("video", "audio", name="video_track_type"),
-        default="video",
-    )
-    track_index: Mapped[int] = mapped_column(Integer, default=0)
-    start_ms: Mapped[int] = mapped_column(Integer, default=0)
-    source_in_ms: Mapped[int] = mapped_column(Integer, default=0)
-    source_out_ms: Mapped[int] = mapped_column(Integer, default=0)
-    duration_ms: Mapped[int] = mapped_column(Integer, default=0)
-    sort_order: Mapped[int] = mapped_column(Integer, default=0)
-    transform_json: Mapped[str] = mapped_column(Text, default="{}")
-    created_at: Mapped[_dt.datetime] = mapped_column(DateTime, server_default=func.now())
-    updated_at: Mapped[_dt.datetime] = mapped_column(
-        DateTime, server_default=func.now(), onupdate=func.now()
-    )
-
-    sequence: Mapped[VideoSequence] = relationship("VideoSequence", back_populates="clips")
-    asset: Mapped[Asset | None] = relationship("Asset", foreign_keys=[asset_id])
-
-
-class VideoSubtitle(Base):
-    __tablename__ = "video_subtitles"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    sequence_id: Mapped[int] = mapped_column(ForeignKey("video_sequences.id"), nullable=False, index=True)
-    start_ms: Mapped[int] = mapped_column(Integer, default=0)
-    end_ms: Mapped[int] = mapped_column(Integer, default=0)
-    text: Mapped[str] = mapped_column(Text, default="")
-    style_json: Mapped[str] = mapped_column(Text, default="{}")
-    sort_order: Mapped[int] = mapped_column(Integer, default=0)
-    created_at: Mapped[_dt.datetime] = mapped_column(DateTime, server_default=func.now())
-    updated_at: Mapped[_dt.datetime] = mapped_column(
-        DateTime, server_default=func.now(), onupdate=func.now()
-    )
-
-    sequence: Mapped[VideoSequence] = relationship("VideoSequence", back_populates="subtitles")
-
-
-class VideoExport(Base):
-    __tablename__ = "video_exports"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    project_id: Mapped[int] = mapped_column(ForeignKey("video_projects.id"), nullable=False, index=True)
-    sequence_id: Mapped[int | None] = mapped_column(ForeignKey("video_sequences.id"), nullable=True, index=True)
-    status: Mapped[str] = mapped_column(String(40), default="pending")
-    preset: Mapped[str] = mapped_column(String(80), default="final")
-    output_path: Mapped[str | None] = mapped_column(Text, nullable=True)
-    ffmpeg_command: Mapped[str | None] = mapped_column(Text, nullable=True)
-    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
-    started_at: Mapped[_dt.datetime | None] = mapped_column(DateTime, nullable=True)
-    finished_at: Mapped[_dt.datetime | None] = mapped_column(DateTime, nullable=True)
-    created_at: Mapped[_dt.datetime] = mapped_column(DateTime, server_default=func.now())
-
-    project: Mapped[VideoProject] = relationship("VideoProject", back_populates="exports")
-    sequence: Mapped[VideoSequence | None] = relationship("VideoSequence", back_populates="exports")
-
-
-class VideoSnapshot(Base):
-    __tablename__ = "video_snapshots"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    project_id: Mapped[int] = mapped_column(ForeignKey("video_projects.id"), nullable=False, index=True)
-    title: Mapped[str] = mapped_column(String(160), nullable=False)
-    snapshot_json: Mapped[str] = mapped_column(Text, default="{}")
-    created_at: Mapped[_dt.datetime] = mapped_column(DateTime, server_default=func.now())
-
-    project: Mapped[VideoProject] = relationship("VideoProject", back_populates="snapshots")
-
 
 class AnalysisSnapshot(Base):
     __tablename__ = "analysis_snapshots"
@@ -589,6 +450,7 @@ class VideoExport(Base):
         default="pending",
     )
     output_path: Mapped[str | None] = mapped_column(Text, nullable=True)
+    ffmpeg_command: Mapped[str | None] = mapped_column(Text, nullable=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     progress: Mapped[int] = mapped_column(Integer, default=0)
     started_at: Mapped[_dt.datetime | None] = mapped_column(DateTime, nullable=True)

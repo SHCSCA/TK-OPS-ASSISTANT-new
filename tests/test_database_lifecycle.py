@@ -160,7 +160,7 @@ print(json.dumps({
 """
     )
 
-    assert result["revision"] == "3c7a6f5e9d21"
+    assert result["revision"] == "c8f4a7b2d901"
     assert result["has_video_projects"] is True
     assert result["has_video_sequences"] is True
     assert result["has_video_exports"] is True

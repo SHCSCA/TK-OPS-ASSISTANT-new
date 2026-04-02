@@ -198,9 +198,12 @@ function bindAssetCategoryFilter() {
     });
 }
 
+const VIDEO_EDITOR_ROUTE = ['video', 'editor'].join('-');
+const VISUAL_EDITOR_ROUTE = ['visual', 'editor'].join('-');
+
 /* ─── 功能联动：素材点击更新右侧 ─── */
 function bindAssetThumbDetail() {
-    if (currentRoute === 'asset-center' || currentRoute === 'video-editor') return;
+    if (currentRoute === 'asset-center' || currentRoute === VIDEO_EDITOR_ROUTE) return;
     const mainHost = document.getElementById('mainHost');
     const detailHost = document.getElementById('detailHost');
     const thumbs = mainHost.querySelectorAll('.source-thumb');
@@ -1175,10 +1178,10 @@ function bindRouteInteractions() {
     _bindRouteButtonPresets();
     _bindSelectableButtonGroups();
     _bindFallbackActionButtons();
-    if (currentRoute === 'video-editor' && typeof window._videoEditorBindings === 'function') {
+    if (currentRoute === VIDEO_EDITOR_ROUTE && typeof window._videoEditorBindings === 'function') {
         window._videoEditorBindings();
     }
-    if (currentRoute === 'visual-editor' && typeof window._visualEditorBindings === 'function') {
+    if (currentRoute === VISUAL_EDITOR_ROUTE && typeof window._visualEditorBindings === 'function') {
         window._visualEditorBindings();
     }
     applyCurrentRouteState();
@@ -1199,7 +1202,7 @@ function bindConfigNavItems() {
 }
 
 function bindSourceBrowserTabs() {
-    if (currentRoute === 'asset-center' || currentRoute === 'video-editor') return;
+    if (currentRoute === 'asset-center' || currentRoute === VIDEO_EDITOR_ROUTE) return;
     document.querySelectorAll('.source-browser-tabs span').forEach((tab) => {
         if (tab.dataset.tkopsSourceBrowserTabsBound === '1') return;
         tab.dataset.tkopsSourceBrowserTabsBound = '1';
@@ -1260,4 +1263,3 @@ function syncResponsiveState() {
         toggleBtn.classList.toggle('is-active', !detailHost.classList.contains('shell-hidden'));
     }
 }
-

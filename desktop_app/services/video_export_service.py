@@ -1,4 +1,4 @@
-"""Video export service backed by real ffmpeg execution."""
+"""视频导出服务，基于 FFmpeg 执行真实导出。"""
 from __future__ import annotations
 
 import datetime as dt
@@ -46,7 +46,6 @@ class VideoExportService(VideoEditingService):
                 status="pending",
                 preset=str(preset or "").strip() or "final",
                 output_path="",
-                ffmpeg_command="",
                 error_message=None,
                 started_at=None,
                 finished_at=None,
@@ -72,7 +71,6 @@ class VideoExportService(VideoEditingService):
         output_path = self._ensure_output_path(export)
         if len(clip_specs) == 1:
             return self._single_clip_command(Path(ffmpeg_path), clip_specs[0], output_path)
-
         return self._concat_command(Path(ffmpeg_path), clip_specs, output_path)
 
     def run_export(self, export_id: int) -> VideoExport:
@@ -87,7 +85,6 @@ class VideoExportService(VideoEditingService):
             started_at=dt.datetime.now(),
             finished_at=None,
             error_message=None,
-            ffmpeg_command=self._format_command(command),
         )
 
         try:
@@ -248,7 +245,7 @@ class VideoExportService(VideoEditingService):
     @staticmethod
     def _command_error(exc: subprocess.CalledProcessError) -> str:
         message = (exc.stderr or exc.stdout or str(exc)).strip()
-        return message or "FFmpeg 导出失败"
+        return message or "FFmpeg 执行失败"
 
     def _mark_failed(self, export: VideoExport, message: str) -> VideoExport:
         log.exception("Video export failed: export_id=%s", export.id)
@@ -256,5 +253,5 @@ class VideoExportService(VideoEditingService):
             export,
             status="failed",
             finished_at=dt.datetime.now(),
-            error_message=f"FFmpeg 导出失败：{message}",
+            error_message=f"FFmpeg 执行失败: {message}",
         )

@@ -27,6 +27,7 @@ import httpx
 from desktop_app.database import DATA_DIR
 from desktop_app.database.models import Account, Asset, Device, Group, Task
 from desktop_app.database.repository import Repository
+from desktop_app.services.activity_service import ActivityService
 
 
 _BROWSER_HEADERS = {
@@ -491,10 +492,45 @@ class AccountService:
         self._account_session_trackers: dict[int, _AccountSessionTracker] = {}
 
     def create_account(self, username: str, **kwargs: Any) -> Account:
-        return self._repo.add(Account(username=username, **kwargs))
+        payload = self._normalize_account_fields(kwargs)
+        payload.setdefault("risk_status", "normal")
+        account = self._repo.add(Account(username=username, **payload))
+        self._log_account_activity(
+            "account_created",
+            "创建账号",
+            account.id,
+            {
+                "message": f"账号 {account.username} 已创建",
+                "manual_status": account.status,
+                "risk_status": account.risk_status,
+            },
+        )
+        return account
 
-    def list_accounts(self, *, status: str | None = None) -> Sequence[Account]:
-        return self._repo.list_accounts(status=status)
+    def list_accounts(
+        self,
+        *,
+        status: str | None = None,
+        query: str | None = None,
+        manual_status: str | None = None,
+        system_status: str | None = None,
+        risk_status: str | None = None,
+        include_archived: bool = False,
+    ) -> Sequence[Account]:
+        accounts = list(
+            self._repo.list_accounts(
+                status=status,
+                manual_status=manual_status,
+                query=query,
+                risk_status=risk_status,
+                include_archived=include_archived,
+            )
+        )
+        if system_status:
+            accounts = [
+                account for account in accounts if self._resolve_system_status(account) == system_status
+            ]
+        return accounts
 
     def get_account(self, pk: int) -> Account | None:
         return self._repo.get_by_id(Account, pk)
@@ -503,7 +539,124 @@ class AccountService:
         account = self._repo.get_by_id(Account, pk)
         if account is None:
             return None
-        return self._repo.update(account, **fields)
+        payload = self._normalize_account_fields(fields)
+        updated = self._repo.update(account, **payload)
+        self._log_account_activity(
+            "account_updated",
+            "更新账号",
+            updated.id,
+            {
+                "message": f"账号 {updated.username} 已更新",
+                "manual_status": updated.status,
+                "risk_status": getattr(updated, "risk_status", "normal"),
+            },
+        )
+        return updated
+
+    def get_account_detail(self, pk: int, *, activity_limit: int = 5) -> dict[str, Any] | None:
+        account = self.get_account(pk)
+        if account is None:
+            return None
+        return {
+            "account": account,
+            "activitySummary": self.list_account_activity_summary(pk, limit=activity_limit),
+            "systemStatus": self._resolve_system_status(account),
+            "lastError": self._resolve_last_error(account),
+        }
+
+    def list_account_activity_summary(self, account_id: int, *, limit: int = 5) -> list[dict[str, Any]]:
+        rows = self._repo.list_activity_logs(
+            related_entity_type="account",
+            related_entity_id=int(account_id),
+        )[:limit]
+        summary: list[dict[str, Any]] = []
+        for row in rows:
+            payload = ActivityService._load_payload(row.payload_json)
+            summary.append(
+                {
+                    "title": row.title,
+                    "summary": str(payload.get("message") or payload.get("summary") or "").strip(),
+                    "occurredAt": row.created_at.isoformat() if row.created_at else None,
+                }
+            )
+        return summary
+
+    def bulk_update_accounts(
+        self,
+        account_ids: Sequence[int],
+        *,
+        action: str,
+        manual_status: str | None = None,
+        risk_status: str | None = None,
+        group_id: int | None = None,
+        archive_reason: str | None = None,
+    ) -> dict[str, Any]:
+        processed_ids: list[int] = []
+        for account_id in [int(item) for item in account_ids if int(item)]:
+            if action in {"set_manual_status", "manual_status"}:
+                updated = self.update_account(account_id, status=manual_status or "active")
+                if updated is not None:
+                    processed_ids.append(updated.id)
+            elif action in {"set_risk_status", "risk_status"}:
+                updated = self.update_account(account_id, risk_status=risk_status or "normal")
+                if updated is not None:
+                    processed_ids.append(updated.id)
+            elif action in {"assign_group", "group"}:
+                updated = self.update_account(account_id, group_id=group_id)
+                if updated is not None:
+                    processed_ids.append(updated.id)
+            elif action == "archive":
+                archived = self.archive_account(account_id, reason=archive_reason)
+                if archived is not None:
+                    processed_ids.append(account_id)
+            elif action == "unarchive":
+                restored = self.unarchive_account(account_id)
+                if restored is not None:
+                    processed_ids.append(account_id)
+            elif action in {"test_connection", "test"}:
+                self.test_account_connection(account_id)
+                processed_ids.append(account_id)
+            else:
+                raise ValueError("不支持的批量动作")
+        return {
+            "action": action,
+            "processed": len(processed_ids),
+            "accountIds": processed_ids,
+            "manualStatus": manual_status,
+            "riskStatus": risk_status,
+            "groupId": group_id,
+            "archiveReason": archive_reason,
+        }
+
+    def archive_account(self, pk: int, *, reason: str | None = None) -> dict[str, Any] | None:
+        account = self._repo.get_by_id(Account, pk)
+        if account is None:
+            return None
+        archived = self._repo.update(
+            account,
+            archived_at=_dt.datetime.now(),
+            archived_reason=(reason or "").strip() or None,
+        )
+        self._log_account_activity(
+            "account_archived",
+            "归档账号",
+            archived.id,
+            {"message": f"账号 {archived.username} 已归档", "reason": archived.archived_reason},
+        )
+        return {"accountId": archived.id, "archived": True, "archiveReason": archived.archived_reason}
+
+    def unarchive_account(self, pk: int) -> dict[str, Any] | None:
+        account = self._repo.get_by_id(Account, pk)
+        if account is None:
+            return None
+        restored = self._repo.update(account, archived_at=None, archived_reason=None)
+        self._log_account_activity(
+            "account_unarchived",
+            "取消归档",
+            restored.id,
+            {"message": f"账号 {restored.username} 已取消归档"},
+        )
+        return {"accountId": restored.id, "archived": False}
 
     def delete_account(self, pk: int) -> bool:
         account = self._repo.get_by_id(Account, pk)
@@ -516,6 +669,12 @@ class AccountService:
             )
             session.query(Asset).filter(Asset.account_id == pk).update(
                 {Asset.account_id: None}, synchronize_session="fetch"
+            )
+            self._log_account_activity(
+                "account_deleted",
+                "删除账号",
+                account.id,
+                {"message": f"账号 {account.username} 已删除"},
             )
             session.delete(account)
             session.commit()
@@ -566,6 +725,18 @@ class AccountService:
         if updated is None:
             raise ValueError("账号不存在")
 
+        self._log_account_activity(
+            "account_connection_tested",
+            "账号连接检测",
+            updated.id,
+            {
+                "message": message,
+                "system_status": "reachable" if ok else "unreachable",
+                "checked_at": checked_at.isoformat(),
+                "latency_ms": latency_ms,
+            },
+        )
+
         return {
             "account_id": updated.id,
             "username": updated.username,
@@ -581,6 +752,67 @@ class AccountService:
             "device_status": device.status if device else "unknown",
             "proxy_status": device.proxy_status if device else "unknown",
         }
+
+    def _normalize_account_fields(self, fields: dict[str, Any]) -> dict[str, Any]:
+        payload = dict(fields)
+        normalized: dict[str, Any] = {}
+        field_map = {
+            "username": "username",
+            "platform": "platform",
+            "region": "region",
+            "status": "status",
+            "followers": "followers",
+            "group_id": "group_id",
+            "device_id": "device_id",
+            "cookie_status": "cookie_status",
+            "cookie_content": "cookie_content",
+            "cookie_updated_at": "cookie_updated_at",
+            "isolation_enabled": "isolation_enabled",
+            "last_connection_status": "last_connection_status",
+            "last_connection_message": "last_connection_message",
+            "last_connection_checked_at": "last_connection_checked_at",
+            "last_login_check_status": "last_login_check_status",
+            "last_login_check_at": "last_login_check_at",
+            "last_login_check_message": "last_login_check_message",
+            "last_login_at": "last_login_at",
+            "notes": "notes",
+            "tags": "tags",
+            "risk_status": "risk_status",
+            "archived_at": "archived_at",
+            "archived_reason": "archived_reason",
+        }
+        for key, target in field_map.items():
+            if key in payload:
+                normalized[target] = payload[key]
+        return normalized
+
+    def _resolve_system_status(self, account: Account) -> str:
+        login_status = str(account.last_login_check_status or "unknown")
+        if login_status != "unknown":
+            return login_status
+        return str(account.last_connection_status or "unknown")
+
+    def _resolve_last_error(self, account: Account) -> str | None:
+        return (
+            account.last_login_check_message
+            or account.last_connection_message
+            or None
+        )
+
+    def _log_account_activity(
+        self,
+        category: str,
+        title: str,
+        account_id: int,
+        payload: dict[str, Any],
+    ) -> None:
+        ActivityService(self._repo).create_activity_log(
+            category,
+            title,
+            payload_json=json.dumps(payload, ensure_ascii=False),
+            related_entity_type="account",
+            related_entity_id=int(account_id),
+        )
 
     def validate_account_login(self, pk: int, *, timeout: float = 10.0) -> dict[str, Any]:
         account = self._repo.get_by_id(Account, pk)

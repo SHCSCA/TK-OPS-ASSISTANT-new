@@ -1,320 +1,157 @@
-# TK-OPS Desktop Application
-
-TK-OPS 是一个面向 TikTok Shop 运营团队的 Windows 桌面应用。当前版本已经不再停留在纯前端原型阶段，而是以 Python 后端、SQLite 数据库、QWebChannel bridge、桌面 Web Shell 前端的组合方式运行。
+# TK-OPS Desktop
 
 当前发布版本：`1.3.0`
 
-## 这个版本更新了什么
+## 项目现状
 
-### 1.3.0 更新说明
+仓库当前已经切换到新单壳主链路：
 
-- 视频剪辑模块落地为真实业务链路：新增视频工程、序列、片段、字幕、快照、导出记录与 FFmpeg 导出执行路径，基础剪辑、保存恢复和成片导出不再停留在假动作。
-- 页面职责与大文件继续拆分：`video-editor` 与 `visual-editor` 按模块拆到独立 factory / loader / bindings，`page-loaders.js` 保留聚合入口，视频剪辑页改为分层增量刷新，避免数据变更时整页重渲染。
-- 交互与性能收口：素材双击加入时间线、字幕/片段/导出操作改为局部刷新；补齐重复绑定防护、运行时摘要接线和语法校验，降低界面卡顿与加载抖动。
-- 稳定性增强：补齐视频剪辑迁移兼容逻辑，允许旧库在已存在部分视频表时继续升级到最新 revision，并补充桌面启动 smoke 与前后端运行时回归测试。
+- `apps/desktop`：桌面宿主，技术栈为 `Tauri + Vue 3 + TypeScript`
+- `apps/py-runtime`：业务 runtime，技术栈为 `Python + FastAPI`
+- `desktop_app/`：仅保留为迁移参考和部分运行时复用来源，不再作为默认启动入口
 
-### 1.2.3 更新说明
+当前主线目标已经从“搭骨架”进入“填业务、补稳定性、收口发布”的阶段。账号管理已完成生产预备版第一阶段。
 
-- 素材中心稳定性修复：移除路由首屏对视频海报的主动生成请求，进入页面不再因为海报补齐链路而额外拉起 Python 窗口。
-- 视频海报后台任务收口：`getAssetVideoPoster` 改为纯缓存读取；导入和更新素材仍可后台补海报，但 Windows 下优先使用 `pythonw.exe` 并显式隐藏窗口。
-- 发布链路继续统一：以 GitHub Release 为自动更新锚点，版本号同步提升至 `1.2.3`，并统一同步 README、安装器、Windows 版本资源与 bridge stub。
+## 环境准备
 
-### 1.2.2 更新说明
+推荐 Windows 11 x64，准备以下依赖：
 
-- 素材中心预览增强：图片继续直出，视频改为卡片自动循环预览 + 详情区可控件播放，文稿/模板接入后端文本片段预览。
-- 素材指标口径收口：移除“待审核/复用率”展示，改为“未绑定账号”“标签完善率”，避免无真实业务链路时误导。
-- 版本治理继续统一：以根目录 `VERSION` 为唯一源，统一同步 README、安装器、Windows 版本资源、bridge stub。
+- Python `3.11+`
+- Node.js `20+`
+- Rust + Cargo
+- Visual Studio 2022 Build Tools（含 MSVC C++ 工具链）
 
-### 1.2.0 更新说明
-
-本次更新收口了 4 个 AI 生成页面的硬编码原型内容：
-
-1. **爆款标题页 (viral-title)**
-   - 移除了标题示例（"只有 1% 的人知道的理财秘籍"等）、模板成功率（92%/88%/85%）、指标值（8.4/10、88%、92%）和 A/B 方案硬编码
-   - 接入 `runtimeSummaryHandlers['viral-title']`，页面加载后根据供应商配置动态更新侧栏摘要
-   - 新增 `pageAudits` 审计条目
-
-2. **脚本提取页 (script-extractor)**
-   - 移除了示例视频 URL、提取进度（124/300 帧、02:45）、AI 实时摘要和脚本文案示例
-   - 接入 `runtimeSummaryHandlers['script-extractor']`，页面加载后根据供应商配置动态更新侧栏摘要
-   - 新增 `pageAudits` 审计条目
-
-3. **商品标题页 (product-title)**
-   - 移除了示例商品名称、竞品标题、关键词密度和 AI 生成方案
-   - 接入 `runtimeSummaryHandlers['product-title']`，页面加载后根据供应商配置动态更新侧栏摘要
-   - 新增 `pageAudits` 审计条目
-
-4. **AI 文案页 (ai-copywriter)**
-   - 移除了文案示例（"这款划时代的智能助手"等）、合规分（72）、风险词和建议
-   - 接入 `runtimeSummaryHandlers['ai-copywriter']`，页面加载后根据供应商配置动态更新侧栏摘要
-   - 新增 `pageAudits` 审计条目
-
-所有 4 个页面的 loader 函数均已改造，在加载时通过 `Promise.all` 并行拉取供应商数据并调用对应的 `runtimeSummaryHandlers`。
-
-### 1.2.1 更新说明
-
-- 修复：账号管理卡片操作过多导致按钮文字溢出的问题，卡片区仅保留高频动作并将低频操作移至详情区；按钮支持多行换行以适配窄卡片显示。
-
-
-### 1.1.0 更新说明
-
-本版本重点完成了“从可点击原型到真实后端驱动”的一大轮收口：
-
-1. 第一层主链路页面已经真实接线
-   - 账号管理、分组管理、设备管理、任务队列、AI 供应商、素材中心、系统设置等页面不再依赖主数据硬编码
-   - 创建、编辑、删除、启停、筛选、批量动作已尽量接到真实 bridge / service / repository / database 路径
-
-2. 异步按钮不再只做假反馈
-   - 原先只是 toast 的部分操作已改为真实 `Task` 创建与回流
-   - task-backed actions 已覆盖测试连接、环境检查、分析类动作等典型路径
-
-3. analytics / experiment / workflow / report 已补最小持久化闭环
-   - 新增并接入 `analysis_snapshots`
-   - 新增并接入 `report_runs`
-   - 新增并接入 `workflow_definitions` / `workflow_runs`
-   - 新增并接入 `experiment_projects` / `experiment_views`
-   - 新增并接入 `activity_logs`
-
-4. analytics 页面开始以真实聚合为主
-   - `profit-analysis`、`ecommerce-conversion`、`fan-profile` 已优先改为真实聚合结果驱动
-   - 不再伪造利润、ROI、订单额等当前模型不支持的业务指标
-   - 无法真实支撑的区域收口为运营过程指标或真实空态
-
-5. analyst 页面与通知中心进一步改成后端驱动
-   - 通知中心不再通过前端 `setTimeout` 模拟系统消息
-   - 通知列表改为读取真实 `activity_logs` 与 `tasks` 映射结果
-   - `traffic-board`、`competitor-monitor`、`blue-ocean`、`interaction-analysis` 已接入新的后端 aggregate surface
-   - analyst 工厂模板中的一批静态示例值已被清理，页面默认态改成中性骨架与真实空态
-
-6. 开发测试数据更完整
-   - `DevSeedService` 已扩展为页面查看级 seed
-   - 可真实写入账号、分组、素材、任务、活动日志、分析快照、报表、工作流、实验项目与实验视图
-   - 再次执行 seed 保持幂等，不会无限重复灌数据
-
-7. 自动化测试覆盖继续增强
-   - 新增 bridge contract、page audit、CRUD interaction、task-backed action、analytics aggregate、metric truthfulness、experiment/workflow persistence、notification truthfulness、analyst backend-driven、dev seed 等测试
-   - 当前 worktree 已验证 `tests/ -v` 全量通过
-
-## 当前架构
-
-- Python 负责桌面外壳、数据库、服务层、bridge 与系统能力
-- PySide6 + QtWebEngine 承载桌面窗口
-- HTML / CSS / JavaScript 负责页面结构、交互和运行时渲染
-- Python 与前端通过 QWebChannel 双向通信
-- SQLite + SQLAlchemy + Alembic 负责本地持久化
-
-## 技术栈
-
-| 分类 | 技术 | 说明 |
-| --- | --- | --- |
-| 语言 | Python 3.11+ | 桌面应用主语言 |
-| 桌面框架 | PySide6 6.10 | QApplication、QWebEngine、系统托盘 |
-| 前端 | HTML / CSS / JavaScript | 桌面 Web Shell 与页面逻辑 |
-| 桥接 | QWebChannel | JS 调用 Python 服务 |
-| 数据库 | SQLite | 本地数据文件 |
-| ORM / 迁移 | SQLAlchemy 2.x / Alembic | 模型与迁移管理 |
-| HTTP | httpx | 服务侧网络调用 |
-| AI 接入 | openai | AI provider 基础能力 |
-| 测试 | pytest / pytest-qt | 自动化验证 |
-
-## 目录结构
-
-```text
-TK-OPS-ASSISTANT-new/
-├── README.md
-├── requirements.txt
-├── alembic.ini
-├── build.py
-├── build_exe.bat
-├── installer.iss
-├── file_version_info.txt
-├── desktop_app/
-│   ├── main.py
-│   ├── app.py
-│   ├── logging_config.py
-│   ├── assets/
-│   │   ├── app_shell.html
-│   │   ├── css/
-│   │   └── js/
-│   ├── database/
-│   │   ├── __init__.py
-│   │   ├── models.py
-│   │   ├── repository.py
-│   │   └── migrations/
-│   ├── services/
-│   └── ui/
-├── docs/
-└── tests/
-```
-
-## 核心模块
-
-### 桌面启动链路
-
-- `desktop_app/main.py`：应用入口
-- `desktop_app/app.py`：应用组装、数据库初始化、主窗口创建
-- `desktop_app/ui/web_shell.py`：桌面壳、QWebEngineView、QWebChannel 注册
-
-### 前端运行时
-
-- `desktop_app/assets/app_shell.html`：桌面主壳页面
-- `desktop_app/assets/js/routes.js`：路由元数据与页面工厂
-- `desktop_app/assets/js/page-loaders.js`：真实数据加载与页面行为绑定
-- `desktop_app/assets/js/bindings.js`：共享交互绑定与按钮落点
-- `desktop_app/assets/js/data.js`：bridge API 封装、缓存与回流
-- `desktop_app/assets/js/ui-notifications.js`：真实通知渲染
-
-### 服务层
-
-- `desktop_app/services/account_service.py`
-- `desktop_app/services/task_service.py`
-- `desktop_app/services/ai_service.py`
-- `desktop_app/services/asset_service.py`
-- `desktop_app/services/chat_service.py`
-- `desktop_app/services/analytics_service.py`
-- `desktop_app/services/report_service.py`
-- `desktop_app/services/workflow_service.py`
-- `desktop_app/services/activity_service.py`
-- `desktop_app/services/dev_seed_service.py`
-
-### 数据层
-
-- 默认数据库位置：`%APPDATA%/TK-OPS-ASSISTANT/tk_ops.db`
-- 开发/测试可通过环境变量 `TK_OPS_DATA_DIR` 覆盖数据目录
-- 应用启动时会自动执行 Alembic 迁移
-
-## 本地运行
-
-### 1. 创建虚拟环境
+首次安装依赖：
 
 ```powershell
 python -m venv venv
-venv\Scripts\Activate.ps1
+venv\Scripts\python.exe -m pip install --upgrade pip
+venv\Scripts\python.exe -m pip install -r requirements.txt
+
+cd apps\desktop
+npm install
+cd ..\..
 ```
 
-### 2. 安装依赖
+## 如何启动项目
+
+### 默认开发链路
+
+启动新桌面前端和 Python runtime：
 
 ```powershell
-pip install -r requirements.txt
+scripts\dev.ps1
 ```
 
-### 3. 启动桌面应用
+常用参数：
 
 ```powershell
-venv\Scripts\python.exe desktop_app\main.py
+# 只启动 Python runtime
+scripts\dev.ps1 -RuntimeOnly
+
+# 只启动桌面前端（默认连接已有 runtime）
+scripts\dev.ps1 -DesktopOnly
 ```
 
-## 测试
-
-### 运行全量测试
+### 仅检查 runtime
 
 ```powershell
-venv\Scripts\python.exe -m pytest tests/ -v
+scripts\build-runtime.ps1
 ```
 
-### 运行重点测试
+### 构建桌面前端并连跑 runtime 烟测
 
 ```powershell
-venv\Scripts\python.exe -m pytest tests/test_notification_runtime_truthfulness.py tests/test_analyst_page_backend_driven.py tests/test_dev_seed_service.py -v
+scripts\build-desktop.ps1 -SmokeRuntime
 ```
 
-## 开发测试数据
-
-当前已提供开发 seed，供界面查看和自动化测试使用。
-
-### 方式 1：通过 bridge 调用
-
-- 前端 API：`api.dev.seed()`
-- bridge slot：`runDevSeed`
-
-### 方式 2：通过 Python 服务调用
-
-```python
-from desktop_app.database.repository import Repository
-from desktop_app.services.dev_seed_service import DevSeedService
-
-repo = Repository()
-service = DevSeedService(repo)
-result = service.seed_development_data()
-print(result)
-```
-
-seed 特性：
-
-- 幂等
-- 写入真实表
-- 覆盖 analyst / notification / report / workflow / experiment 页面查看场景
-
-### 仓库内测试数据库样本
-
-仓库现在附带一份可直接用于联调和界面测试的 SQLite 样本库：
-
-- 文件路径：`sample_data/tk_ops_test_seed.db`
-- 数据来源：基于本地真实开发库导出的完整一致性快照
-- 数据用途：用于页面联调、功能演示、自动化测试前的人工验证
-- 数据处理：已清空并重写 `app_settings`，不包含真实 `license_key` 和本机个性化配置
-
-当前样本库包含以下测试数据量：
-
-- `groups=4`
-- `devices=4`
-- `accounts=9`
-- `tasks=14`
-- `ai_providers=3`
-- `assets=15`
-- `analysis_snapshots=6`
-- `report_runs=4`
-- `workflow_definitions=3`
-- `workflow_runs=4`
-- `experiment_projects=3`
-- `experiment_views=6`
-- `activity_logs=12`
-
-### 如何使用仓库样本库
-
-应用默认数据库目录是 `%APPDATA%/TK-OPS-ASSISTANT/`。如果你想在本地直接使用仓库里的样本库进行测试，推荐：
-
-1. 新建一个临时数据目录，例如 `tmp/test-db/`
-2. 将 `sample_data/tk_ops_test_seed.db` 复制到该目录，并重命名为 `tk_ops.db`
-3. 启动应用前设置环境变量 `TK_OPS_DATA_DIR` 指向这个目录
-
-PowerShell 示例：
+### 生成 Alpha 产物
 
 ```powershell
-$env:TK_OPS_DATA_DIR = "$PWD\tmp\test-db"
-New-Item -ItemType Directory -Force "$env:TK_OPS_DATA_DIR" | Out-Null
-Copy-Item ".\sample_data\tk_ops_test_seed.db" "$env:TK_OPS_DATA_DIR\tk_ops.db" -Force
-venv\Scripts\python.exe desktop_app\main.py
+scripts\release.ps1
 ```
 
-注意事项：
+产物默认输出到：
 
-- `sample_data/tk_ops_test_seed.db` 是仓库测试样本，不是生产数据库
-- 如需重新生成最新样本，应从本地开发库重新导出并再次脱敏
-- `.gitignore` 已默认忽略其他 `.db` 文件，仅允许提交 `sample_data/*.db`
+```text
+dist-alpha\TK-OPS-Alpha
+```
 
-## 打包
+如需生成 Inno Setup 安装包，先执行 `scripts\release.ps1`，再运行：
 
 ```powershell
-.\build_exe.bat --clean
+iscc installer.iss
 ```
 
-输出 EXE：`dist\TK-OPS\TK-OPS.exe`
+## 验证命令
 
-## 当前边界
+### Python 测试
 
-以下内容仍不在当前版本真实业务范围内：
+```powershell
+venv\Scripts\python.exe -m pytest tests -q
+```
 
-1. TikTok Shop 订单、GMV、真实投流消耗、履约流水等未建模业务数据
-2. 无法真实支撑的利润/ROI/订单额类指标，不会在当前版本伪造展示
-3. 少数系统工具类页面仍有受控降级路径，但不应再保留“能点却无反应”的 silent no-op
+### Python 编译检查
 
-## 开发建议
+```powershell
+venv\Scripts\python.exe -m compileall apps\py-runtime\src desktop_app
+```
 
-1. 新增功能优先走 TDD
-2. 新页面优先补 bridge contract test 与 runtime audit test
-3. 页面展示内容优先来自 service / bridge，不要在前端 factory 里硬编码业务主数据
-4. 提交前至少运行一次 `venv\Scripts\python.exe -m pytest tests/ -v`
+### 前端类型检查与构建
+
+```powershell
+cd apps\desktop
+npm run typecheck
+npm run build
+```
+
+### Tauri managed runtime 烟测
+
+```powershell
+scripts\smoke-tauri-runtime.ps1 -SkipBuild
+```
+
+## 当前进度
+
+已完成的主线能力：
+
+- 新单壳桌面链路：`Tauri host + Python sidecar runtime`
+- 开发、构建、Alpha 组装和烟测脚本
+- `Dashboard / 账号管理 / Provider / 任务队列 / 任务调度 / AI 文案 / Setup Wizard / 设置` 新前端与 runtime 主链路
+- 账号管理生产预备版第一阶段：
+  - 双状态并排展示
+  - 风险状态
+  - 批量操作
+  - 归档优先
+  - 详情摘要与活动摘要
+
+更详细的进度与路线图见：
+
+- [当前进度与路线图](c:/Users/wz/Desktop/py/TK-OPS-ASSISTANT-new/docs/migration/current-status-and-roadmap.md)
+- [页面迁移矩阵](c:/Users/wz/Desktop/py/TK-OPS-ASSISTANT-new/docs/migration/page-matrix.md)
+- [账号管理设计说明](c:/Users/wz/Desktop/py/TK-OPS-ASSISTANT-new/docs/superpowers/specs/2026-04-02-account-management-production-ready-design.md)
+
+## 目录说明
+
+```text
+apps/
+├─ desktop/                    # Tauri + Vue 3 + TypeScript 桌面宿主
+└─ py-runtime/                 # Python sidecar runtime
+desktop_app/                   # reference only，保留迁移参考与部分运行时复用
+scripts/
+├─ dev.ps1
+├─ build-runtime.ps1
+├─ build-desktop.ps1
+├─ smoke-tauri-runtime.ps1
+└─ release.ps1
+installer.iss                  # 基于 dist-alpha\TK-OPS-Alpha 的安装脚本
+```
+
+## 当前约束
+
+- 新需求优先落在 `apps/desktop` 与 `apps/py-runtime`
+- `desktop_app/` 不再新增桌面壳功能，只保留迁移参考和运行时复用代码
+- 项目文案、交互提示与说明文档优先使用中文
 
 ## 许可证
 

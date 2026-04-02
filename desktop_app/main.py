@@ -13,6 +13,11 @@ if __package__ is None or __package__ == "":
 
 log = logging.getLogger(__name__)
 
+REFERENCE_ONLY_MESSAGE = (
+    "REFERENCE ONLY: desktop_app 旧桌面壳不再是默认运行入口。"
+    "请改用 apps/desktop 与 apps/py-runtime 对应的新架构链路。"
+)
+
 
 def _global_excepthook(exc_type, exc_value, exc_tb):
     """Catch unhandled exceptions and log them before the process dies."""
@@ -27,6 +32,7 @@ def _global_excepthook(exc_type, exc_value, exc_tb):
 
 def main() -> int:
     sys.excepthook = _global_excepthook
+    log.warning(REFERENCE_ONLY_MESSAGE)
 
     from desktop_app.app import build_application
 

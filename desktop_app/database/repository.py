@@ -2,11 +2,12 @@
 from __future__ import annotations
 
 import datetime as dt
+import json
 import threading
 
 from typing import Any, Sequence, Type, TypeVar
 
-from sqlalchemy import and_, func, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session
 
 from desktop_app.database import get_session
@@ -98,10 +99,32 @@ class Repository:
 
     # 鈹€鈹€ specialized queries 鈹€鈹€
 
-    def list_accounts(self, *, status: str | None = None) -> Sequence[Account]:
+    def list_accounts(
+        self,
+        *,
+        status: str | None = None,
+        manual_status: str | None = None,
+        query: str | None = None,
+        risk_status: str | None = None,
+        include_archived: bool = False,
+    ) -> Sequence[Account]:
         stmt = select(Account)
-        if status:
-            stmt = stmt.where(Account.status == status)
+        effective_status = manual_status or status
+        if effective_status:
+            stmt = stmt.where(Account.status == effective_status)
+        if query:
+            like = f"%{query.strip()}%"
+            stmt = stmt.where(
+                or_(
+                    Account.username.ilike(like),
+                    Account.platform.ilike(like),
+                    Account.region.ilike(like),
+                )
+            )
+        if risk_status:
+            stmt = stmt.where(Account.risk_status == risk_status)
+        if not include_archived:
+            stmt = stmt.where(Account.archived_at.is_(None))
         return self.session.execute(stmt.order_by(Account.id)).scalars().all()
 
     def list_devices(self, *, status: str | None = None) -> Sequence[Device]:
@@ -131,11 +154,15 @@ class Repository:
 
     def create_video_project(self, *, name: str, **fields: Any) -> VideoProject:
         payload = dict(fields)
-        payload.setdefault("status", "draft")
-        payload.setdefault("canvas_ratio", "9:16")
-        payload.setdefault("width", 1080)
-        payload.setdefault("height", 1920)
-        return self.add(VideoProject(name=name, **payload))
+        project_fields: dict[str, Any] = {}
+        if "description" in payload:
+            project_fields["description"] = payload.pop("description")
+        if "active_sequence_id" in payload:
+            project_fields["active_sequence_id"] = payload.pop("active_sequence_id")
+        meta_json = self._merge_meta_json(payload.pop("meta_json", None), payload)
+        if meta_json != "{}":
+            project_fields["meta_json"] = meta_json
+        return self.add(VideoProject(name=name, **project_fields))
 
     def list_video_projects(self) -> Sequence[VideoProject]:
         stmt = select(VideoProject).order_by(VideoProject.updated_at.desc(), VideoProject.id.desc())
@@ -147,11 +174,26 @@ class Repository:
     def create_video_sequence(self, project_id: int, *, name: str, **fields: Any) -> VideoSequence:
         payload = dict(fields)
         existing = self.list_video_sequences(project_id)
-        payload.setdefault("duration_ms", 0)
-        payload.setdefault("sort_order", len(existing))
-        payload.setdefault("is_active", not existing)
-        sequence = self.add(VideoSequence(project_id=project_id, name=name, **payload))
-        if bool(getattr(sequence, "is_active", False)):
+        sequence_fields: dict[str, Any] = {}
+        if "duration_ms" in payload:
+            sequence_fields["duration_ms"] = payload.pop("duration_ms")
+        if "fps" in payload:
+            sequence_fields["fps"] = payload.pop("fps")
+        if "width" in payload:
+            sequence_fields["width"] = payload.pop("width")
+        if "height" in payload:
+            sequence_fields["height"] = payload.pop("height")
+        is_active = bool(payload.pop("is_active", False))
+        payload.pop("sort_order", None)
+        meta_json = self._merge_meta_json(payload.pop("meta_json", None), payload)
+        if meta_json != "{}":
+            sequence_fields["meta_json"] = meta_json
+        sequence = self.add(VideoSequence(project_id=project_id, name=name, **sequence_fields))
+        project = self.get_by_id(VideoProject, project_id)
+        should_activate = is_active or not existing or (
+            project is not None and project.active_sequence_id is None
+        )
+        if should_activate:
             self.set_active_video_sequence(project_id, sequence.id)
             refreshed = self.get_by_id(VideoSequence, sequence.id)
             return refreshed or sequence
@@ -161,19 +203,17 @@ class Repository:
         stmt = (
             select(VideoSequence)
             .where(VideoSequence.project_id == project_id)
-            .order_by(VideoSequence.sort_order.asc(), VideoSequence.id.asc())
+            .order_by(VideoSequence.id.asc())
         )
         return self.session.execute(stmt).scalars().all()
 
     def set_active_video_sequence(self, project_id: int, sequence_id: int) -> None:
-        sequences = list(self.list_video_sequences(project_id))
-        changed = False
-        for sequence in sequences:
-            should_be_active = int(sequence.id) == int(sequence_id)
-            if bool(sequence.is_active) != should_be_active:
-                sequence.is_active = should_be_active
-                changed = True
-        if changed:
+        project = self.get_by_id(VideoProject, int(project_id))
+        sequence = self.get_by_id(VideoSequence, int(sequence_id))
+        if project is None or sequence is None or int(sequence.project_id) != int(project_id):
+            return
+        if int(project.active_sequence_id or 0) != int(sequence_id):
+            project.active_sequence_id = int(sequence_id)
             self.session.commit()
             self.session.expire_all()
 
@@ -189,15 +229,26 @@ class Repository:
                 duration_ms = max(0, source_out_ms - source_in_ms)
         else:
             source_out_ms = source_in_ms + max(0, duration_ms)
-        payload.setdefault("track_type", "video")
-        payload.setdefault("track_index", 0)
-        payload.setdefault("start_ms", 0)
-        payload.setdefault("sort_order", self._next_video_clip_sort_order(sequence_id))
-        payload.setdefault("transform_json", "{}")
-        payload["source_in_ms"] = source_in_ms
-        payload["source_out_ms"] = source_out_ms
-        payload["duration_ms"] = max(0, duration_ms)
-        clip = self.add(VideoClip(sequence_id=sequence_id, asset_id=asset_id, **payload))
+        track_type = payload.pop("track_type", "video")
+        track_index = payload.pop("track_index", 0)
+        start_ms = payload.pop("start_ms", 0)
+        sort_order = payload.pop("sort_order", self._next_video_clip_sort_order(sequence_id))
+        meta_base = payload.pop("meta_json", None)
+        transform_json = payload.pop("transform_json", None)
+        meta_json = self._merge_meta_json(meta_base, transform_json)
+        meta_json = self._merge_meta_json(meta_json, payload)
+        clip_fields: dict[str, Any] = {
+            "track_type": track_type,
+            "track_index": track_index,
+            "start_ms": start_ms,
+            "sort_order": sort_order,
+            "source_in_ms": source_in_ms,
+            "source_out_ms": source_out_ms,
+            "duration_ms": max(0, duration_ms),
+        }
+        if meta_json != "{}":
+            clip_fields["meta_json"] = meta_json
+        clip = self.add(VideoClip(sequence_id=sequence_id, asset_id=asset_id, **clip_fields))
         self._refresh_video_sequence_duration(sequence_id)
         refreshed = self.get_by_id(VideoClip, clip.id)
         return refreshed or clip
@@ -221,7 +272,7 @@ class Repository:
                 source_out_ms=max(0, int(duration_ms)),
                 duration_ms=max(0, int(duration_ms)),
                 sort_order=self._next_video_clip_sort_order(sequence_id),
-                transform_json="{}",
+                meta_json="{}",
             )
         )
         self._refresh_video_sequence_duration(sequence_id)
@@ -256,15 +307,18 @@ class Repository:
         **fields: Any,
     ) -> VideoSubtitle:
         payload = dict(fields)
-        payload.setdefault("style_json", "{}")
-        payload.setdefault("sort_order", self._next_video_subtitle_sort_order(sequence_id))
+        payload.pop("sort_order", None)
+        payload.pop("meta_json", None)
+        payload.pop("transform_json", None)
+        style_json = payload.pop("style_json", "{}")
+        payload.clear()
         subtitle = self.add(
             VideoSubtitle(
                 sequence_id=sequence_id,
                 start_ms=int(start_ms),
                 end_ms=int(end_ms),
                 text=text,
-                **payload,
+                style_json=str(style_json),
             )
         )
         refreshed = self.get_by_id(VideoSubtitle, subtitle.id)
@@ -274,7 +328,7 @@ class Repository:
         stmt = (
             select(VideoSubtitle)
             .where(VideoSubtitle.sequence_id == sequence_id)
-            .order_by(VideoSubtitle.sort_order.asc(), VideoSubtitle.id.asc())
+            .order_by(VideoSubtitle.start_ms.asc(), VideoSubtitle.id.asc())
         )
         return self.session.execute(stmt).scalars().all()
 
@@ -324,10 +378,20 @@ class Repository:
             stmt.order_by(ExperimentView.created_at.desc(), ExperimentView.id.desc())
         ).scalars().all()
 
-    def list_activity_logs(self, *, category: str | None = None) -> Sequence[ActivityLog]:
+    def list_activity_logs(
+        self,
+        *,
+        category: str | None = None,
+        related_entity_type: str | None = None,
+        related_entity_id: int | None = None,
+    ) -> Sequence[ActivityLog]:
         stmt = select(ActivityLog)
         if category:
             stmt = stmt.where(ActivityLog.category == category)
+        if related_entity_type:
+            stmt = stmt.where(ActivityLog.related_entity_type == related_entity_type)
+        if related_entity_id is not None:
+            stmt = stmt.where(ActivityLog.related_entity_id == related_entity_id)
         return self.session.execute(
             stmt.order_by(ActivityLog.created_at.desc(), ActivityLog.id.desc())
         ).scalars().all()
@@ -403,9 +467,7 @@ class Repository:
         return int(current or 0) + 1 if current is not None else 0
 
     def _next_video_subtitle_sort_order(self, sequence_id: int) -> int:
-        stmt = select(func.max(VideoSubtitle.sort_order)).where(VideoSubtitle.sequence_id == sequence_id)
-        current = self.session.execute(stmt).scalar()
-        return int(current or 0) + 1 if current is not None else 0
+        return 0
 
     def _refresh_video_sequence_duration(self, sequence_id: int) -> None:
         sequence = self.get_by_id(VideoSequence, sequence_id)
@@ -418,6 +480,31 @@ class Repository:
         sequence.duration_ms = duration_ms
         self.session.commit()
         self.session.refresh(sequence)
+
+    def _merge_meta_json(self, base: Any | None, extra: Any | None) -> str:
+        payload: dict[str, Any] = {}
+        if isinstance(base, dict):
+            payload.update(base)
+        elif isinstance(base, str) and base.strip():
+            try:
+                parsed = json.loads(base)
+            except Exception:
+                parsed = {"raw": base}
+            if isinstance(parsed, dict):
+                payload.update(parsed)
+        if extra is not None:
+            if isinstance(extra, dict):
+                payload.update(extra)
+            elif isinstance(extra, str) and extra.strip():
+                try:
+                    parsed = json.loads(extra)
+                except Exception:
+                    parsed = {"raw": extra}
+                if isinstance(parsed, dict):
+                    payload.update(parsed)
+                else:
+                    payload["transform_json"] = extra
+        return json.dumps(payload, ensure_ascii=False, default=str) if payload else "{}"
 
     def close(self) -> None:
         if self._session is None:

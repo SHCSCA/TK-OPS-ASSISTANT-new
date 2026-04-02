@@ -1,4 +1,4 @@
-"""TK-OPS build helper."""
+"""TK-OPS 旧 PyInstaller 构建辅助脚本。"""
 from __future__ import annotations
 
 import argparse
@@ -9,16 +9,13 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
+
 ROOT = Path(__file__).resolve().parent
 ASSETS = ROOT / "desktop_app" / "assets"
 ICO_PATH = ROOT / "tkops.ico"
 LEGACY_ICO_PATH = ASSETS / "icon.ico"
 SPEC_PATH = ROOT / "tk_ops.spec"
 VERSION_FILE = ROOT / "VERSION"
-README_PATH = ROOT / "README.md"
-INSTALLER_PATH = ROOT / "installer.iss"
-FILE_VERSION_INFO_PATH = ROOT / "file_version_info.txt"
-BRIDGE_JS_PATH = ROOT / "desktop_app" / "assets" / "js" / "bridge.js"
 FFMPEG_BINARIES = ("ffmpeg.exe", "ffprobe.exe")
 FFMPEG_DLL_GLOB = "*.dll"
 
@@ -183,17 +180,17 @@ def generate_ico() -> None:
     try:
         from PIL import Image
     except ImportError as exc:
-        raise RuntimeError("未安装 Pillow，请先执行: pip install Pillow") from exc
+        raise RuntimeError("未安装 Pillow，请先执行 `pip install Pillow`。") from exc
 
     sizes = (256, 128, 64, 48, 32, 16)
-    imgs = []
+    images = []
     for size in sizes:
         path = ASSETS / f"icon_{size}.png"
         if not path.exists():
             raise RuntimeError(f"缺少图标源文件: {path}")
-        imgs.append(Image.open(path).convert("RGBA"))
+        images.append(Image.open(path).convert("RGBA"))
 
-    imgs[0].save(str(ICO_PATH), format="ICO", append_images=imgs[1:])
+    images[0].save(str(ICO_PATH), format="ICO", append_images=images[1:])
     print(f"[OK] icon.ico generated ({ICO_PATH.stat().st_size:,} bytes)")
 
 
@@ -226,14 +223,14 @@ def build(extra_args: list[str]) -> None:
         *extra_args,
     ]
     print(f"[RUN] {' '.join(cmd)}")
-    ret = subprocess.call(cmd, cwd=str(ROOT))
-    if ret != 0:
-        raise RuntimeError(f"PyInstaller exited with code {ret}")
+    result = subprocess.call(cmd, cwd=str(ROOT))
+    if result != 0:
+        raise RuntimeError(f"PyInstaller exited with code {result}")
     print("[OK] Build complete -> dist/TK-OPS/")
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="TK-OPS build helper")
+    parser = argparse.ArgumentParser(description="TK-OPS legacy build helper")
     parser.add_argument("--ico-only", action="store_true", help="仅生成 icon.ico")
     parser.add_argument("--clean", action="store_true", help="构建前清理 build/dist")
     parser.add_argument(
