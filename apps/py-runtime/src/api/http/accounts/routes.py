@@ -106,6 +106,28 @@ def build_accounts_router(container: RuntimeContainer) -> APIRouter:
         finally:
             repo.reset_session()
 
+    @router.get("/{account_id}/activity", response_model=None)
+    def list_account_activity(account_id: int, limit: int = 20):
+        normalized_limit = max(1, min(int(limit), 100))
+
+        repo = Repository()
+        try:
+            service = AccountService(repo)
+            detail = service.get_account_detail(account_id)
+            if detail is None:
+                return _not_found("账号不存在，无法查看活动记录")
+            items = service.list_account_activity_summary(account_id, limit=normalized_limit)
+            return ok(
+                {
+                    "accountId": account_id,
+                    "items": items,
+                    "total": len(items),
+                    "limit": normalized_limit,
+                }
+            )
+        finally:
+            repo.reset_session()
+
     @router.post("", response_model=None)
     def create_account(payload: AccountUpsertPayload):
         payload_data = payload.model_dump(by_alias=False)
