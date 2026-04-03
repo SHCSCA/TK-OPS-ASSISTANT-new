@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, WebSocket
 
-from api.ws.ws_common import WS_CLOSE_UNAUTHORIZED, websocket_has_valid_token
+from api.ws.ws_common import WS_CLOSE_UNAUTHORIZED, send_runtime_handshake, websocket_has_valid_token
 from bootstrap.settings import RuntimeSettings
 
 RUNTIME_STATUS_EVENT = "runtime.status"
@@ -21,6 +21,11 @@ def build_runtime_status_router(version: str, settings: RuntimeSettings) -> APIR
             await websocket.close(code=WS_CLOSE_UNAUTHORIZED, reason="invalid runtime token")
             return
         await websocket.accept()
+        await send_runtime_handshake(
+            websocket,
+            channel="runtime-status",
+            app_version=version,
+        )
         payload = build_runtime_status_payload("ready")
         payload["payload"]["version"] = version
         await websocket.send_json(payload)

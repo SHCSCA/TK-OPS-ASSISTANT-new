@@ -127,9 +127,9 @@ scripts\smoke-tauri-runtime.ps1 -SkipBuild
 
 更详细的进度与路线图见：
 
-- [当前进度与路线图](c:/Users/wz/Desktop/py/TK-OPS-ASSISTANT-new/docs/migration/current-status-and-roadmap.md)
-- [页面迁移矩阵](c:/Users/wz/Desktop/py/TK-OPS-ASSISTANT-new/docs/migration/page-matrix.md)
-- [账号管理设计说明](c:/Users/wz/Desktop/py/TK-OPS-ASSISTANT-new/docs/superpowers/specs/2026-04-02-account-management-production-ready-design.md)
+- [当前进度与路线图](docs/migration/current-status-and-roadmap.md)
+- [页面迁移矩阵](docs/migration/page-matrix.md)
+- [账号管理设计说明](docs/superpowers/specs/2026-04-02-account-management-production-ready-design.md)
 
 ## 目录说明
 

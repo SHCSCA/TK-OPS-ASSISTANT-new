@@ -4,7 +4,7 @@ import logging
 
 from fastapi import APIRouter, WebSocket
 
-from api.ws.ws_common import WS_CLOSE_UNAUTHORIZED, websocket_has_valid_token
+from api.ws.ws_common import WS_CLOSE_UNAUTHORIZED, send_runtime_handshake, websocket_has_valid_token
 from bootstrap.container import RuntimeContainer
 
 log = logging.getLogger(__name__)
@@ -19,6 +19,11 @@ def build_copywriter_stream_router(container: RuntimeContainer) -> APIRouter:
             await websocket.close(code=WS_CLOSE_UNAUTHORIZED, reason="invalid runtime token")
             return
         await websocket.accept()
+        await send_runtime_handshake(
+            websocket,
+            channel="copywriter-stream",
+            app_version=container.app_version,
+        )
         request = await websocket.receive_json()
 
         prompt = str(request.get("prompt", "")).strip()

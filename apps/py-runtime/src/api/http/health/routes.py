@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
+from api.common.session import PROTOCOL_VERSION, TOKEN_HEADER, TOKEN_QUERY_KEY
 from api.http.common.envelope import ok
 from bootstrap.container import RuntimeContainer
 
@@ -22,6 +23,13 @@ def build_health_router(container: RuntimeContainer) -> APIRouter:
                 "environment": container.runtime_settings.environment,
                 "logLevel": container.runtime_settings.log_level,
                 "logFile": str(container.runtime_settings.log_file),
+                "protocol": {
+                    "version": PROTOCOL_VERSION,
+                    "auth": {
+                        "header": TOKEN_HEADER,
+                        "wsQuery": TOKEN_QUERY_KEY,
+                    },
+                },
             }
         )
 
