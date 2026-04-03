@@ -7,6 +7,7 @@ from time import perf_counter
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
+from api.common.session import is_public_http_path
 from api.http.common.auth import request_has_valid_token, unauthorized_response
 from api.http.accounts.routes import build_accounts_router
 from api.http.copywriter.routes import build_copywriter_router
@@ -54,13 +55,14 @@ def build_app(container: RuntimeContainer) -> FastAPI:
         if request.method == "OPTIONS":
             return await call_next(request)
 
-        if request.url.path != "/health" and not request_has_valid_token(
+        is_public_path = is_public_http_path(request.url.path)
+        if not is_public_path and not request_has_valid_token(
             request,
             container.runtime_settings,
         ):
             return unauthorized_response()
 
-        if not container.runtime_settings.enable_request_logging or request.url.path == "/health":
+        if not container.runtime_settings.enable_request_logging or is_public_path:
             return await call_next(request)
 
         started_at = perf_counter()
