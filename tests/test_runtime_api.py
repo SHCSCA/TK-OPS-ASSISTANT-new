@@ -186,16 +186,69 @@ class _FakeFacade:
     def get_settings(self):
         return {"values": {"theme": "light"}, "items": [{"key": "theme", "value": "light"}], "theme": "light", "total": 1}
 
-    def get_dashboard_overview(self):
+    def get_dashboard_overview(self, range_key: str = "today"):
         return {
             "generatedAt": "2026-04-01T00:00:00",
+            "range": range_key,
             "metrics": [{"key": "accounts", "label": "账号总数", "value": 1, "meta": "活跃 1"}],
             "accountStatus": [{"key": "active", "count": 1}],
             "taskStatus": [{"key": "pending", "count": 1}],
             "regions": [{"key": "US", "count": 1}],
             "recentTasks": [{"id": 1, "title": "seed", "status": "pending"}],
+            "trend": [{"label": "近7天", "created": 3, "completed": 2, "failed": 1}],
+            "activity": [
+                {
+                    "title": "任务创建",
+                    "entity": "task",
+                    "category": "task",
+                    "status": "info",
+                    "time": "2026-04-01T00:00:00",
+                }
+            ],
+            "systems": [
+                {
+                    "key": "runtime",
+                    "title": "Runtime 状态",
+                    "status": "ok",
+                    "tone": "success",
+                    "summary": "runtime 在线",
+                }
+            ],
             "activeProvider": {"id": 1, "name": "OpenAI", "providerType": "openai", "defaultModel": "gpt-4o-mini"},
             "settingsSummary": {"theme": "light", "total": 1},
+        }
+
+    def list_notifications(self, *, limit: int = 20):
+        _ = limit
+        return [
+            {
+                "id": "activity-1",
+                "title": "系统摘要已刷新",
+                "body": "dashboard 指标已更新",
+                "tone": "info",
+                "createdAt": "2026-04-01T00:00:00",
+                "source": "activity",
+                "read": False,
+            }
+        ]
+
+    def get_app_version(self):
+        return {"version": "1.3.1"}
+
+    def check_for_update(self):
+        return {
+            "hasUpdate": False,
+            "state": "latest",
+            "current": "1.3.1",
+            "latest": "1.3.1",
+        }
+
+    def chat_shell_assistant(self, *, message: str, context: dict[str, object], history: list[dict[str, object]]):
+        _ = (context, history)
+        return {
+            "answer": f"收到：{message}",
+            "source": "fallback",
+            "suggestions": [{"id": "toggle-theme", "label": "切换主题", "action": "toggle_theme"}],
         }
 
 
@@ -230,8 +283,19 @@ def test_runtime_health_and_resources_return_envelopes() -> None:
     providers = client.get("/providers")
     tasks = client.get("/tasks")
     scheduler = client.get("/scheduler")
-    overview = client.get("/dashboard/overview")
+    overview = client.get("/dashboard/overview?range=7d")
     copywriter = client.get("/copywriter/bootstrap")
+    notifications = client.get("/notifications")
+    version_current = client.get("/version/current")
+    version_check = client.get("/version/check")
+    assistant = client.post(
+        "/assistant/chat",
+        json={
+            "message": "切换主题",
+            "context": {"routeName": "dashboard"},
+            "history": [],
+        },
+    )
 
     assert health.status_code == 200
     assert health.json()["ok"] is True
@@ -253,9 +317,78 @@ def test_runtime_health_and_resources_return_envelopes() -> None:
     assert tasks.json()["data"]["items"][0]["title"] == "seed"
     assert scheduler.json()["data"]["summary"]["total"] == 2
     assert scheduler.json()["data"]["items"][0]["title"] == "晚高峰评论分流"
+    assert overview.json()["data"]["range"] == "7d"
     assert overview.json()["data"]["metrics"][0]["label"] == "账号总数"
+    assert overview.json()["data"]["trend"][0]["label"] == "近7天"
+    assert overview.json()["data"]["activity"][0]["entity"] == "task"
+    assert overview.json()["data"]["systems"][0]["key"] == "runtime"
     assert copywriter.json()["data"]["defaultPreset"] == "copywriter"
     assert copywriter.json()["data"]["usageToday"]["requests"] == 1
+    assert notifications.json()["data"][0]["title"] == "系统摘要已刷新"
+    assert version_current.json()["data"]["version"] == "1.3.1"
+    assert version_check.json()["data"]["state"] == "latest"
+    assert assistant.json()["data"]["answer"] == "收到：切换主题"
+    assert assistant.json()["data"]["suggestions"][0]["action"] == "toggle_theme"
+
+
+def test_runtime_assistant_rejects_empty_message() -> None:
+    client = _build_client()
+
+    response = client.post(
+        "/assistant/chat",
+        json={"message": "   ", "context": {}, "history": []},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["ok"] is False
+    assert response.json()["error"]["code"] == "assistant.invalid_message"
+
+
+def test_dashboard_overview_supports_empty_trend_activity_systems() -> None:
+    class _EmptyFacade(_FakeFacade):
+        def get_dashboard_overview(self, range_key: str = "today"):
+            return {
+                "generatedAt": "2026-04-01T00:00:00",
+                "range": range_key,
+                "metrics": [],
+                "accountStatus": [],
+                "taskStatus": [],
+                "regions": [],
+                "recentTasks": [],
+                "trend": [],
+                "activity": [],
+                "systems": [],
+                "activeProvider": None,
+                "settingsSummary": {"theme": "system", "total": 0},
+            }
+
+    container = RuntimeContainer(
+        app_version="test",
+        db_path=Path("test.db"),
+        runtime_settings=RuntimeSettings(
+            host="127.0.0.1",
+            port=8765,
+            session_token="test",
+            environment="test",
+            data_dir=Path("data"),
+            log_dir=Path("logs"),
+            log_file=Path("logs/runtime.log"),
+            log_level="INFO",
+            enable_request_logging=True,
+        ),
+        legacy_facade=_EmptyFacade(),
+        initializer=lambda: None,
+    )
+    client = TestClient(build_app(container), headers={"X-TKOPS-Token": "test"})
+
+    response = client.get("/dashboard/overview?range=30d")
+
+    assert response.status_code == 200
+    payload = response.json()["data"]
+    assert payload["range"] == "30d"
+    assert payload["trend"] == []
+    assert payload["activity"] == []
+    assert payload["systems"] == []
 
 
 def test_runtime_status_websocket_emits_ready_event() -> None:
@@ -448,22 +581,110 @@ def test_runtime_accounts_support_create_update_delete_and_connection_test(monke
                 ],
             }
 
-        def list_account_activity_summary(self, account_id: int, *, limit: int = 5) -> list[dict[str, object]]:
+        def list_account_activity_summary(
+            self,
+            account_id: int,
+            *,
+            limit: int = 5,
+            query: str | None = None,
+            category: str | None = None,
+            severity: str | None = None,
+        ) -> list[dict[str, object]]:
             if account_id != 2:
                 return []
             base = [
                 {
-                    "id": "activity-1",
+                    "id": 101,
+                    "category": "account_tested",
+                    "severity": "info",
                     "title": "账号检测完成",
-                    "createdAt": "2026-04-01T12:00:00",
+                    "summary": "网络连通性正常",
+                    "occurredAt": "2026-04-01T12:00:00",
                 },
                 {
-                    "id": "activity-2",
+                    "id": 102,
+                    "category": "account_archived",
+                    "severity": "warning",
                     "title": "账号已归档",
-                    "createdAt": "2026-04-01T13:00:00",
+                    "summary": "账号处于归档状态",
+                    "reason": "批量收口",
+                    "occurredAt": "2026-04-01T13:00:00",
                 },
             ]
+            if query:
+                lowered = query.lower()
+                base = [
+                    item
+                    for item in base
+                    if lowered in f"{item.get('title', '')} {item.get('summary', '')}".lower()
+                ]
+            if category:
+                base = [item for item in base if item.get("category") == category]
+            if severity:
+                base = [item for item in base if item.get("severity") == severity]
             return base[:limit]
+
+        def preview_account_import(
+            self,
+            content: str,
+            *,
+            delimiter: str = ",",
+            has_header: bool = True,
+        ) -> dict[str, object]:
+            _ = (delimiter, has_header)
+            if not content.strip():
+                raise ValueError("导入内容不能为空")
+            return {
+                "total": 2,
+                "valid": 1,
+                "invalid": 1,
+                "create": 1,
+                "update": 0,
+                "items": [
+                    {
+                        "line": 2,
+                        "username": "demo-new",
+                        "action": "create",
+                        "valid": True,
+                        "reason": "账号不存在，将创建新账号",
+                        "existingAccountId": None,
+                    },
+                    {
+                        "line": 3,
+                        "username": "",
+                        "action": "invalid",
+                        "valid": False,
+                        "reason": "用户名不能为空",
+                        "existingAccountId": None,
+                    },
+                ],
+            }
+
+        def apply_account_import(
+            self,
+            content: str,
+            *,
+            delimiter: str = ",",
+            has_header: bool = True,
+            update_existing: bool = False,
+        ) -> dict[str, object]:
+            _ = (content, delimiter, has_header)
+            return {
+                "total": 2,
+                "created": 1,
+                "updated": 1 if update_existing else 0,
+                "skipped": 0 if update_existing else 1,
+                "invalid": 0,
+                "updateExisting": update_existing,
+                "items": [
+                    {
+                        "line": 2,
+                        "username": "demo-new",
+                        "status": "created",
+                        "message": "账号 demo-new 已创建",
+                    }
+                ],
+            }
 
         def bulk_update_accounts(
             self,
@@ -494,6 +715,25 @@ def test_runtime_accounts_support_create_update_delete_and_connection_test(monke
             if account_id != 2:
                 return None
             return {"accountId": 2, "archived": False}
+
+        def apply_lifecycle_action(
+            self,
+            account_id: int,
+            *,
+            action: str,
+            reason: str | None = None,
+        ) -> dict[str, object] | None:
+            if account_id != 2:
+                return None
+            if action == "suspend":
+                return {"accountId": 2, "manualStatus": "suspended"}
+            if action == "restore":
+                return {"accountId": 2, "manualStatus": "active", "archived": False}
+            if action == "archive":
+                return {"accountId": 2, "archived": True, "archiveReason": reason}
+            if action == "delete":
+                return {"accountId": 2, "deleted": True}
+            raise ValueError("不支持的生命周期动作")
 
         def delete_account(self, account_id: int) -> bool:
             return account_id == 2
@@ -539,8 +779,29 @@ def test_runtime_accounts_support_create_update_delete_and_connection_test(monke
     archive = client.post("/accounts/2/archive", json={"reason": "批量收口"})
     unarchive = client.post("/accounts/2/unarchive")
     activity = client.get("/accounts/2/activity?limit=1")
+    filtered_activity = client.get("/accounts/2/activity?limit=5&query=归档&category=account_archived&severity=warning")
+    lifecycle_suspend = client.post("/accounts/2/lifecycle", json={"action": "suspend", "reason": "风险隔离"})
+    lifecycle_restore = client.post("/accounts/2/lifecycle", json={"action": "restore"})
+    import_preview = client.post(
+        "/accounts/import/preview",
+        json={
+            "content": "username,platform\\ndemo-new,tiktok\\n,tiktok",
+            "delimiter": ",",
+            "hasHeader": True,
+        },
+    )
+    import_apply = client.post(
+        "/accounts/import/apply",
+        json={
+            "content": "username,platform\\ndemo-new,tiktok",
+            "delimiter": ",",
+            "hasHeader": True,
+            "updateExisting": True,
+        },
+    )
     test_result = client.post("/accounts/2/test")
     delete = client.delete("/accounts/2")
+    lifecycle_delete = client.post("/accounts/2/lifecycle", json={"action": "delete"})
 
     assert create.status_code == 200
     assert create.json()["data"]["username"] == "demo-new"
@@ -560,10 +821,28 @@ def test_runtime_accounts_support_create_update_delete_and_connection_test(monke
     assert activity.json()["data"]["accountId"] == 2
     assert activity.json()["data"]["total"] == 1
     assert activity.json()["data"]["items"][0]["title"] == "账号检测完成"
+    assert filtered_activity.status_code == 200
+    assert filtered_activity.json()["data"]["total"] == 1
+    assert filtered_activity.json()["data"]["items"][0]["title"] == "账号已归档"
+    assert filtered_activity.json()["data"]["filters"]["category"] == "account_archived"
+    assert filtered_activity.json()["data"]["filters"]["severity"] == "warning"
+    assert lifecycle_suspend.status_code == 200
+    assert lifecycle_suspend.json()["data"]["manualStatus"] == "suspended"
+    assert lifecycle_restore.status_code == 200
+    assert lifecycle_restore.json()["data"]["manualStatus"] == "active"
+    assert import_preview.status_code == 200
+    assert import_preview.json()["data"]["valid"] == 1
+    assert import_preview.json()["data"]["invalid"] == 1
+    assert import_apply.status_code == 200
+    assert import_apply.json()["data"]["created"] == 1
+    assert import_apply.json()["data"]["updated"] == 1
+    assert import_apply.json()["data"]["updateExisting"] is True
     assert test_result.status_code == 200
     assert test_result.json()["data"]["ok"] is True
     assert delete.status_code == 200
     assert delete.json()["data"]["deleted"] is True
+    assert lifecycle_delete.status_code == 200
+    assert lifecycle_delete.json()["data"]["deleted"] is True
 
 
 def test_runtime_accounts_reject_empty_username_with_chinese_error(monkeypatch) -> None:
@@ -605,3 +884,35 @@ def test_runtime_accounts_reject_empty_username_with_chinese_error(monkeypatch) 
     assert response.status_code == 400
     assert response.json()["ok"] is False
     assert response.json()["error"]["message"] == "用户名不能为空"
+
+
+def test_runtime_accounts_import_rejects_blank_content(monkeypatch) -> None:
+    import api.http.accounts.routes as accounts_routes
+
+    class _FakeRepository:
+        def reset_session(self) -> None:
+            return None
+
+    class _FakeAccountService:
+        def __init__(self, repo: object) -> None:
+            self._repo = repo
+
+        def preview_account_import(self, content: str, *, delimiter: str = ",", has_header: bool = True) -> dict[str, object]:
+            _ = (delimiter, has_header)
+            if not content.strip():
+                raise ValueError("导入内容不能为空")
+            return {"total": 0, "valid": 0, "invalid": 0, "create": 0, "update": 0, "items": []}
+
+    monkeypatch.setattr(accounts_routes, "Repository", _FakeRepository)
+    monkeypatch.setattr(accounts_routes, "AccountService", _FakeAccountService)
+
+    client = _build_client()
+    response = client.post(
+        "/accounts/import/preview",
+        json={"content": "   ", "delimiter": ",", "hasHeader": True},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["ok"] is False
+    assert response.json()["error"]["message"] == "导入内容不能为空"
+

@@ -1,6 +1,6 @@
 # TK-OPS Desktop
 
-当前发布版本：`1.3.0`
+当前发布版本：`1.3.2`
 
 ## 项目现状
 
@@ -70,6 +70,22 @@ scripts\build-desktop.ps1 -SmokeRuntime
 ```powershell
 scripts\release.ps1
 ```
+
+### 发布前统一门禁（推荐）
+
+```powershell
+# 开发日常快速检查
+scripts\preflight-gate.ps1 -Quick
+
+# 发布前完整检查
+scripts\preflight-gate.ps1 -Full
+```
+
+更多说明见：
+
+- [发布前门禁清单](docs/releases/preflight-checklist.md)
+- [发布回滚手册](docs/releases/rollback-playbook.md)
+- [v1.3.2 发布记录](docs/releases/2026-04-03-v1.3.2.md)
 
 产物默认输出到：
 
@@ -142,6 +158,7 @@ scripts/
 ├─ dev.ps1
 ├─ build-runtime.ps1
 ├─ build-desktop.ps1
+├─ preflight-gate.ps1
 ├─ smoke-tauri-runtime.ps1
 └─ release.ps1
 installer.iss                  # 基于 dist-alpha\TK-OPS-Alpha 的安装脚本

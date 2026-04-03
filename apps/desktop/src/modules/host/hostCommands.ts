@@ -122,3 +122,7 @@ export async function restartRuntimeFromHost(): Promise<HostRuntimeRestartResult
     bootAttempts: result.snapshot?.boot_attempts || 0,
   };
 }
+
+export async function notifyAppShellReady(): Promise<void> {
+  await invokeCommand('app_shell_ready');
+}

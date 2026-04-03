@@ -1,5 +1,6 @@
 param(
-    [switch]$SkipSmoke
+    [switch]$SkipSmoke,
+    [switch]$SkipPreflight
 )
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
@@ -12,6 +13,16 @@ $hostSource = Join-Path $tauriRoot "target\release\tk_ops_desktop.exe"
 $hostTarget = Join-Path $stageRoot "TK-OPS.exe"
 $vsDevCmd = "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\Common7\Tools\VsDevCmd.bat"
 $cargo = Join-Path $env:USERPROFILE ".cargo\bin\cargo.exe"
+
+if (-not $SkipPreflight) {
+    & (Join-Path $repoRoot "scripts\preflight-gate.ps1") -Quick
+    if ($LASTEXITCODE -ne 0) {
+        throw "preflight-gate quick checks failed with exit code $LASTEXITCODE"
+    }
+}
+else {
+    Write-Host "PREFLIGHT=skip_by_flag"
+}
 
 if (-not (Test-Path $vsDevCmd)) {
     throw "VsDevCmd.bat not found: $vsDevCmd"

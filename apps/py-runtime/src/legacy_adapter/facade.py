@@ -1,17 +1,21 @@
 from __future__ import annotations
 
 import datetime as dt
+import json
 import logging
 from typing import Any
 
 from desktop_app.database.repository import Repository
 from desktop_app.services.account_service import AccountService
+from desktop_app.services.activity_service import ActivityService
 from desktop_app.services.ai_service import AIService
 from desktop_app.services.analytics_service import AnalyticsService
 from desktop_app.services.chat_service import ChatService, get_preset, list_presets
 from desktop_app.services.license_service import LicenseService
 from desktop_app.services.task_service import TaskService
+from desktop_app.services.updater_service import UpdaterService
 from desktop_app.services.usage_tracker import UsageTracker
+from desktop_app.version import APP_VERSION
 
 from legacy_adapter.serializers import serialize_account, serialize_provider, serialize_task
 
@@ -19,6 +23,9 @@ log = logging.getLogger(__name__)
 
 
 class LegacyRuntimeFacade:
+    def __init__(self) -> None:
+        self._updater = UpdaterService()
+
     def get_license_status(self) -> dict[str, Any]:
         status = LicenseService().get_status()
         return {
@@ -271,15 +278,19 @@ class LegacyRuntimeFacade:
         finally:
             repo.reset_session()
 
-    def get_dashboard_overview(self) -> dict[str, Any]:
+    def get_dashboard_overview(self, range_key: str = "today") -> dict[str, Any]:
         repo = Repository()
         try:
             analytics = AnalyticsService(repo)
             provider_service = AIService(repo)
             summary = analytics.get_analytics_summary()
             settings = repo.get_all_settings()
+            now = dt.datetime.now()
+            normalized_range, range_start, range_end, range_label = self._resolve_dashboard_range(range_key, now)
             recent_tasks = [serialize_task(task) for task in repo.list_recent_tasks(limit=6)]
             active_provider = serialize_provider(provider_service.get_active_provider())
+            account_status_map = repo.count_accounts_by_status()
+            task_status_map = repo.count_tasks_by_status()
             regions = [
                 {"key": key, "count": value}
                 for key, value in sorted(
@@ -289,11 +300,11 @@ class LegacyRuntimeFacade:
             ]
             account_status = [
                 {"key": key, "count": value}
-                for key, value in sorted(repo.count_accounts_by_status().items(), key=lambda item: item[0])
+                for key, value in sorted(account_status_map.items(), key=lambda item: item[0])
             ]
             task_status = [
                 {"key": key, "count": value}
-                for key, value in sorted(repo.count_tasks_by_status().items(), key=lambda item: item[0])
+                for key, value in sorted(task_status_map.items(), key=lambda item: item[0])
             ]
             metrics = [
                 {
@@ -318,16 +329,53 @@ class LegacyRuntimeFacade:
                     "key": "assets-total",
                     "label": "素材总数",
                     "value": int(summary["assets"]["total"]),
-                    "meta": f"AI 提供方 {int(summary['providers']['active'])}",
+                    "meta": f"AI 提供商 {int(summary['providers']['active'])}",
                 },
             ]
+            trend = [
+                {
+                    "label": range_label,
+                    "created": int(repo.count_tasks_created_between(range_start, range_end)),
+                    "completed": int(repo.count_tasks_completed_between(range_start, range_end)),
+                    "failed": int(repo.count_tasks_failed_between(range_start, range_end)),
+                }
+            ]
+            activity = [
+                self._serialize_dashboard_activity_row(item)
+                for item in repo.list_recent_activity_logs(limit=12)
+            ]
+            systems = self._build_dashboard_systems(
+                summary=summary,
+                account_status_map=account_status_map,
+                task_status_map=task_status_map,
+                active_provider=active_provider,
+            )
+            stats = {
+                "accounts": {
+                    "total": int(summary["accounts"]["total"]),
+                    "active": int(summary["accounts"]["active"]),
+                    "byStatus": account_status_map,
+                },
+                "tasks": {
+                    "total": int(summary["tasks"]["total"]),
+                    "running": int(summary["tasks"]["running"]),
+                    "failed": int(summary["tasks"]["failed"]),
+                    "byStatus": task_status_map,
+                },
+                "providers": int(summary["providers"]["active"]),
+            }
             return {
-                "generatedAt": dt.datetime.now().isoformat(),
+                "generatedAt": now.isoformat(),
+                "range": normalized_range,
                 "metrics": metrics,
                 "accountStatus": account_status,
                 "taskStatus": task_status,
                 "regions": regions,
                 "recentTasks": recent_tasks,
+                "trend": trend,
+                "activity": activity,
+                "systems": systems,
+                "stats": stats,
                 "activeProvider": active_provider,
                 "settingsSummary": {
                     "theme": settings.get("theme", "system"),
@@ -355,6 +403,114 @@ class LegacyRuntimeFacade:
                 "activeProvider": serialize_provider(ai_service.get_active_provider()),
                 "usageToday": usage.get_today(),
                 "usageStats": usage.get_stats(),
+            }
+        finally:
+            repo.reset_session()
+
+    def list_notifications(self, *, limit: int = 20) -> list[dict[str, Any]]:
+        repo = Repository()
+        try:
+            service = ActivityService(repo)
+            rows = service.list_notifications(limit=max(1, min(int(limit), 50)))
+            return [
+                {
+                    "id": row.get("id"),
+                    "title": row.get("title", ""),
+                    "body": row.get("body", ""),
+                    "tone": row.get("tone", "info"),
+                    "createdAt": row.get("created_at", ""),
+                    "source": row.get("source", "activity"),
+                    "read": False,
+                }
+                for row in rows
+            ]
+        finally:
+            repo.reset_session()
+
+    def get_app_version(self) -> dict[str, Any]:
+        return {"version": APP_VERSION}
+
+    def check_for_update(self) -> dict[str, Any]:
+        info = self._updater.check_update()
+        if info is None:
+            return {
+                "hasUpdate": False,
+                "state": "latest",
+                "current": APP_VERSION,
+                "latest": APP_VERSION,
+            }
+        state = "available" if info.has_update else "latest"
+        return {
+            "hasUpdate": info.has_update,
+            "state": state,
+            "current": APP_VERSION,
+            "latest": info.version,
+            "tag": info.tag,
+            "downloadUrl": info.download_url,
+            "htmlUrl": info.html_url,
+            "releaseNotes": info.body,
+            "assetName": info.asset_name,
+            "assetSize": info.asset_size,
+        }
+
+    def chat_shell_assistant(
+        self,
+        *,
+        message: str,
+        context: dict[str, Any] | None = None,
+        history: list[dict[str, Any]] | None = None,
+    ) -> dict[str, Any]:
+        normalized_message = (message or "").strip()
+        context_payload = context or {}
+        suggestions = self._build_shell_suggestions(normalized_message, context_payload)
+
+        if not normalized_message:
+            return {
+                "answer": "请先输入你的问题，我会结合当前页面给出建议。",
+                "suggestions": suggestions,
+                "source": "fallback",
+                "contextEcho": context_payload,
+            }
+
+        repo = Repository()
+        try:
+            chat = ChatService(repo)
+            usage = UsageTracker(repo)
+            system_prompt = self._build_shell_assistant_system_prompt(context_payload)
+            history_messages = self._normalize_chat_history(history)
+            messages = [
+                {"role": "system", "content": system_prompt},
+                *history_messages[-8:],
+                {"role": "user", "content": normalized_message},
+            ]
+            result = chat.chat(messages=messages, preset_key="copywriter")
+            if result.prompt_tokens:
+                usage.record(
+                    result.provider_name,
+                    result.model,
+                    result.prompt_tokens,
+                    result.completion_tokens,
+                )
+            answer = (result.content or "").strip()
+            if not answer:
+                answer = self._build_shell_assistant_fallback(normalized_message, context_payload)
+            return {
+                "answer": answer,
+                "suggestions": suggestions,
+                "source": "model",
+                "model": result.model,
+                "provider": result.provider_name,
+                "elapsedMs": result.elapsed_ms,
+                "contextEcho": context_payload,
+            }
+        except Exception as exc:
+            log.warning("shell assistant fallback: %s", exc)
+            return {
+                "answer": self._build_shell_assistant_fallback(normalized_message, context_payload),
+                "suggestions": suggestions,
+                "source": "fallback",
+                "error": str(exc),
+                "contextEcho": context_payload,
             }
         finally:
             repo.reset_session()
@@ -458,6 +614,204 @@ class LegacyRuntimeFacade:
                 return self._is_truthy(payload.get(key))
         return default
 
+    def _normalize_chat_history(self, history: list[dict[str, Any]] | None) -> list[dict[str, str]]:
+        if not history:
+            return []
+        normalized: list[dict[str, str]] = []
+        for item in history:
+            if not isinstance(item, dict):
+                continue
+            role = str(item.get("role") or "").strip().lower()
+            content = str(item.get("content") or "").strip()
+            if role not in {"user", "assistant"} or not content:
+                continue
+            normalized.append({"role": role, "content": content})
+        return normalized
+
+    def _build_shell_assistant_system_prompt(self, context: dict[str, Any]) -> str:
+        route_name = str(context.get("routeName") or "")
+        route_title = str(context.get("routeTitle") or "")
+        runtime_status = str(context.get("runtimeStatus") or "")
+        shell_summary = str(context.get("routeSummary") or "")
+        notifications = str(context.get("notificationSummary") or "")
+        return (
+            "你是 TK-OPS 桌面壳层 AI 助手。"
+            "回答要简洁、可执行、中文优先。"
+            "只提供壳层级建议，不要虚构后端数据。"
+            f"\n当前页面: {route_name} / {route_title}"
+            f"\n页面摘要: {shell_summary}"
+            f"\nRuntime: {runtime_status}"
+            f"\n通知摘要: {notifications}"
+            "\n如果用户问题不明确，先给1-2条最可能可执行建议。"
+        )
+
+    def _build_shell_assistant_fallback(self, message: str, context: dict[str, Any]) -> str:
+        route_title = str(context.get("routeTitle") or "当前页面")
+        if "通知" in message:
+            return "你可以先打开通知中心，优先处理未读告警，再回到当前页面继续操作。"
+        if "主题" in message or "深色" in message or "浅色" in message:
+            return "可以直接使用顶部主题按钮切换明暗主题，切换后会自动持久化到设置。"
+        if "右栏" in message or "详情" in message:
+            return "你可以先展开右侧详情区查看页面摘要和运行状态，再决定下一步动作。"
+        return f"我建议先在“{route_title}”确认当前状态，再使用顶部搜索或快捷动作完成下一步。"
+
+    def _build_shell_suggestions(
+        self,
+        message: str,
+        context: dict[str, Any],
+    ) -> list[dict[str, Any]]:
+        route_name = str(context.get("routeName") or "")
+        base = [
+            {"id": "open-notifications", "label": "打开通知中心", "action": "open_notifications"},
+            {"id": "toggle-theme", "label": "切换主题", "action": "toggle_theme"},
+            {"id": "toggle-detail", "label": "切换右栏", "action": "toggle_detail_panel"},
+            {"id": "refresh-page", "label": "刷新当前页", "action": "refresh_current_page"},
+        ]
+        if route_name:
+            base.insert(
+                0,
+                {
+                    "id": "route-focus",
+                    "label": "聚焦当前页面",
+                    "action": "focus_route",
+                    "payload": {"routeName": route_name},
+                },
+            )
+
+        if "通知" in message:
+            return [
+                {
+                    "id": "open-notifications",
+                    "label": "查看未读通知",
+                    "action": "open_notifications",
+                },
+                *[item for item in base if item["id"] != "open-notifications"],
+            ][:5]
+        if "主题" in message or "深色" in message or "浅色" in message:
+            return [
+                {"id": "toggle-theme", "label": "立即切换主题", "action": "toggle_theme"},
+                *[item for item in base if item["id"] != "toggle-theme"],
+            ][:5]
+        if "右栏" in message or "详情" in message:
+            return [
+                {"id": "toggle-detail", "label": "展开/收起右栏", "action": "toggle_detail_panel"},
+                *[item for item in base if item["id"] != "toggle-detail"],
+            ][:5]
+        return base[:5]
+
+    def _resolve_dashboard_range(
+        self,
+        range_key: str | None,
+        now: dt.datetime,
+    ) -> tuple[str, dt.datetime, dt.datetime, str]:
+        normalized = str(range_key or "today").strip().lower()
+        if normalized not in {"today", "7d", "30d"}:
+            normalized = "today"
+        if normalized == "today":
+            start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+            return normalized, start, now, "今日汇总"
+        if normalized == "7d":
+            return normalized, now - dt.timedelta(days=7), now, "近7天汇总"
+        return normalized, now - dt.timedelta(days=30), now, "近30天汇总"
+
+    def _serialize_dashboard_activity_row(self, item: Any) -> dict[str, str]:
+        payload = self._safe_payload_json(getattr(item, "payload_json", None))
+        category = str(getattr(item, "category", "") or payload.get("category") or "activity")
+        entity = str(getattr(item, "related_entity_type", "") or payload.get("entity") or "activity")
+        status = self._derive_dashboard_activity_status(category, payload)
+        created_at = self._format_dashboard_time(getattr(item, "created_at", None))
+        return {
+            "title": str(getattr(item, "title", "") or payload.get("title") or "未命名活动"),
+            "entity": entity,
+            "category": category,
+            "status": status,
+            "time": created_at,
+        }
+
+    def _safe_payload_json(self, raw: Any) -> dict[str, Any]:
+        if isinstance(raw, dict):
+            return raw
+        if not raw:
+            return {}
+        try:
+            parsed = json.loads(str(raw))
+        except (TypeError, ValueError, json.JSONDecodeError):
+            return {}
+        return parsed if isinstance(parsed, dict) else {}
+
+    def _derive_dashboard_activity_status(self, category: str, payload: dict[str, Any]) -> str:
+        payload_status = str(payload.get("status") or "").strip()
+        if payload_status:
+            return payload_status
+        normalized = category.lower()
+        if any(token in normalized for token in ("error", "failed", "exception", "risk", "archive")):
+            return "异常"
+        if any(token in normalized for token in ("warn", "pending", "review", "delay")):
+            return "关注"
+        return "正常"
+
+    def _build_dashboard_systems(
+        self,
+        *,
+        summary: dict[str, Any],
+        account_status_map: dict[str, int],
+        task_status_map: dict[str, int],
+        active_provider: dict[str, Any] | None,
+    ) -> list[dict[str, str]]:
+        failed_count = int(task_status_map.get("failed", 0))
+        running_count = int(task_status_map.get("running", 0))
+        queued_count = int(task_status_map.get("pending", 0))
+        provider_active = int(summary["providers"]["active"])
+        provider_total = int(summary["providers"]["total"])
+        account_total = int(summary["accounts"]["total"])
+        account_active = int(summary["accounts"]["active"])
+
+        task_tone = "error" if failed_count > 0 else ("warning" if queued_count > 0 else "success")
+        task_status = "异常" if failed_count > 0 else ("排队中" if queued_count > 0 else "正常")
+
+        provider_tone = "success" if provider_active > 0 else "warning"
+        provider_status = "已接入" if provider_active > 0 else "未接入"
+
+        account_tone = "warning" if account_total > 0 and account_active == 0 else "success"
+        account_status = "正常" if account_active > 0 else ("待检查" if account_total > 0 else "空")
+
+        runtime_status = "在线" if active_provider is not None or provider_total >= 0 else "未知"
+        return [
+            {
+                "key": "runtime",
+                "title": "Runtime 状态",
+                "status": runtime_status,
+                "tone": "success",
+                "summary": "dashboard 聚合链路已连接运行时。",
+            },
+            {
+                "key": "tasks",
+                "title": "任务执行状态",
+                "status": task_status,
+                "tone": task_tone,
+                "summary": f"运行中 {running_count} / 排队 {queued_count} / 异常 {failed_count}",
+            },
+            {
+                "key": "providers",
+                "title": "AI 供应商接入",
+                "status": provider_status,
+                "tone": provider_tone,
+                "summary": f"启用 {provider_active} / 总计 {provider_total}",
+            },
+            {
+                "key": "accounts",
+                "title": "账号同步准备",
+                "status": account_status,
+                "tone": account_tone,
+                "summary": f"账号 {account_total} / 活跃 {account_active}",
+            },
+        ]
+
+    def _format_dashboard_time(self, value: Any) -> str:
+        if isinstance(value, dt.datetime):
+            return value.isoformat()
+        return str(value or "")
+
     def _safe_int(self, value: Any, default: int) -> int:
         try:
             if value is None or value == "":
@@ -474,3 +828,4 @@ class LegacyRuntimeFacade:
         if isinstance(value, (int, float)):
             return value != 0
         return str(value).strip().lower() in {"1", "true", "yes", "on", "completed"}
+

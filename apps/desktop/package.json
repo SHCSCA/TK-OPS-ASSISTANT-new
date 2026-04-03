@@ -1,6 +1,6 @@
 {
   "name": "tk-ops-desktop",
-  "version": "0.1.0",
+  "version": "1.3.2",
   "private": true,
   "type": "module",
   "scripts": {
@@ -11,7 +11,9 @@
     "preview": "vite preview",
     "typecheck": "vue-tsc --noEmit",
     "tauri:smoke": "powershell -NoProfile -ExecutionPolicy Bypass -File ../../scripts/smoke-tauri-runtime.ps1 -SkipBuild",
-    "alpha:release": "powershell -NoProfile -ExecutionPolicy Bypass -File ../../scripts/release.ps1"
+    "alpha:release": "powershell -NoProfile -ExecutionPolicy Bypass -File ../../scripts/release.ps1",
+    "gate:quick": "powershell -NoProfile -ExecutionPolicy Bypass -File ../../scripts/preflight-gate.ps1 -Quick",
+    "gate:full": "powershell -NoProfile -ExecutionPolicy Bypass -File ../../scripts/preflight-gate.ps1 -Full"
   },
   "dependencies": {
     "pinia": "^3.0.3",

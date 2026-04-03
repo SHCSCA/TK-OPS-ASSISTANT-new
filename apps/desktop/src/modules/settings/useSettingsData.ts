@@ -9,6 +9,16 @@ function coerceNumber(value: unknown, fallback: number): number {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
+function resolveThemeForDom(theme: string): 'light' | 'dark' {
+  if (theme === 'dark') {
+    return 'dark';
+  }
+  if (theme === 'light') {
+    return 'light';
+  }
+  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+}
+
 function syncSettingsForm(
   snapshot: RuntimeSettingsPayload | null,
   form: {
@@ -18,7 +28,7 @@ function syncSettingsForm(
     timeoutSeconds: { value: number };
     concurrency: { value: number };
   },
-) {
+): void {
   const preferences = snapshot?.preferences;
   form.theme.value = preferences?.theme || snapshot?.theme || 'system';
   form.language.value = preferences?.language || 'zh-CN';
@@ -60,6 +70,12 @@ export function useSettingsData() {
       });
       resource.data.value = data;
       syncSettingsForm(data, { theme, language, proxyUrl, timeoutSeconds, concurrency });
+      document.body.setAttribute('data-theme', resolveThemeForDom(theme.value));
+      window.dispatchEvent(
+        new CustomEvent('tkops:theme-preference-changed', {
+          detail: { theme: theme.value },
+        }),
+      );
       saveMessage.value = data.message || '设置已保存';
       return data;
     } catch (cause) {
@@ -86,3 +102,4 @@ export function useSettingsData() {
     saveMessage,
   };
 }
+

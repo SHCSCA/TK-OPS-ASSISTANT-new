@@ -14,6 +14,7 @@ RUNTIME_HEALTH_RS = ROOT / "apps" / "desktop" / "src-tauri" / "src" / "runtime" 
 RUNTIME_HANDSHAKE_RS = ROOT / "apps" / "desktop" / "src-tauri" / "src" / "runtime" / "handshake.rs"
 PATHS_MOD_RS = ROOT / "apps" / "desktop" / "src-tauri" / "src" / "paths" / "mod.rs"
 APP_PATHS_RS = ROOT / "apps" / "desktop" / "src-tauri" / "src" / "paths" / "app_paths.rs"
+TAURI_CONF = ROOT / "apps" / "desktop" / "src-tauri" / "tauri.conf.json"
 BUILD_RS = ROOT / "apps" / "desktop" / "src-tauri" / "build.rs"
 DEV_SCRIPT = ROOT / "scripts" / "dev.ps1"
 SMOKE_SCRIPT = ROOT / "scripts" / "smoke-tauri-runtime.ps1"
@@ -27,6 +28,7 @@ def test_tauri_main_registers_runtime_commands() -> None:
     assert "tauri::generate_handler!" in text
     assert "commands::app::get_app_version" in text
     assert "commands::app::get_app_paths" in text
+    assert "commands::app::app_shell_ready" in text
     assert "commands::runtime::runtime_health" in text
     assert "commands::runtime::restart_runtime" in text
 
@@ -46,7 +48,19 @@ def test_app_command_module_exposes_runtime_paths() -> None:
     text = COMMANDS_APP_RS.read_text(encoding="utf-8")
 
     assert "pub fn get_app_paths()" in text
+    assert "pub fn app_shell_ready" in text
     assert "discover_app_paths_json" in text
+    assert "get_webview_window(\"splash\")" in text
+    assert "get_webview_window(\"main\")" in text
+
+
+def test_tauri_config_declares_main_and_splash_windows() -> None:
+    text = TAURI_CONF.read_text(encoding="utf-8")
+
+    assert "\"label\": \"main\"" in text
+    assert "\"visible\": false" in text
+    assert "\"label\": \"splash\"" in text
+    assert "\"url\": \"/splash.html\"" in text
 
 
 def test_runtime_manager_scaffold_exposes_named_state() -> None:

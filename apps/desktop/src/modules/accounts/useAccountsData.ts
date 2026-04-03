@@ -3,9 +3,13 @@ import { computed, reactive, ref, watch } from 'vue';
 import { runtimeApi } from '../runtime/runtimeApi';
 import { useAsyncResource } from '../runtime/useAsyncResource';
 import type {
+  AccountActivitySummaryItem,
   AccountBulkActionPayload,
   AccountBulkActionType,
   AccountDetail,
+  AccountImportApplyResult,
+  AccountImportPayload,
+  AccountImportPreviewResult,
   AccountItem,
   AccountListQuery,
   AccountUpsertPayload,
@@ -40,10 +44,19 @@ interface AccountBulkDraftState {
   groupName: string;
 }
 
+interface AccountImportDraftState {
+  content: string;
+  delimiter: string;
+  hasHeader: boolean;
+  updateExisting: boolean;
+}
+
 interface StatusOption {
   value: string;
   label: string;
 }
+
+type AccountLifecycleTarget = Pick<AccountItem, 'id' | 'username'>;
 
 const MANUAL_STATUS_OPTIONS: StatusOption[] = [
   { value: '', label: '全部人工状态' },
@@ -71,6 +84,24 @@ const RISK_STATUS_OPTIONS: StatusOption[] = [
   { value: 'high_risk', label: '高风险' },
   { value: 'blocked', label: '阻断' },
   { value: 'unknown', label: '未知' },
+];
+
+const ACTIVITY_CATEGORY_OPTIONS: StatusOption[] = [
+  { value: '', label: '全部分类' },
+  { value: 'account_created', label: '创建' },
+  { value: 'account_updated', label: '更新' },
+  { value: 'account_suspended', label: '停用' },
+  { value: 'account_archived', label: '归档' },
+  { value: 'account_restored', label: '恢复' },
+  { value: 'account_deleted', label: '删除' },
+];
+
+const ACTIVITY_SEVERITY_OPTIONS: StatusOption[] = [
+  { value: '', label: '全部级别' },
+  { value: 'info', label: '信息' },
+  { value: 'success', label: '成功' },
+  { value: 'warning', label: '警告' },
+  { value: 'error', label: '错误' },
 ];
 
 const DEFAULT_DRAFT: AccountDraftState = {
@@ -102,6 +133,13 @@ const DEFAULT_BULK_DRAFT: AccountBulkDraftState = {
   groupName: '',
 };
 
+const DEFAULT_IMPORT_DRAFT: AccountImportDraftState = {
+  content: '',
+  delimiter: ',',
+  hasHeader: true,
+  updateExisting: false,
+};
+
 function createDefaultDraft(): AccountDraftState {
   return { ...DEFAULT_DRAFT };
 }
@@ -112,6 +150,10 @@ function createDefaultFilters(): AccountFilterState {
 
 function createDefaultBulkDraft(): AccountBulkDraftState {
   return { ...DEFAULT_BULK_DRAFT };
+}
+
+function createDefaultImportDraft(): AccountImportDraftState {
+  return { ...DEFAULT_IMPORT_DRAFT };
 }
 
 function toDraft(account: AccountItem): AccountDraftState {
@@ -157,21 +199,39 @@ function buildListQuery(filters: AccountFilterState): AccountListQuery {
 export function useAccountsData() {
   const filters = reactive<AccountFilterState>(createDefaultFilters());
   const bulkDraft = reactive<AccountBulkDraftState>(createDefaultBulkDraft());
+  const importDraft = reactive<AccountImportDraftState>(createDefaultImportDraft());
   const draft = ref<AccountDraftState>(createDefaultDraft());
   const actionError = ref('');
   const actionMessage = ref('');
   const saving = ref(false);
   const testingAccountId = ref<number | null>(null);
   const archivingAccountId = ref<number | null>(null);
-  const unarchivingAccountId = ref<number | null>(null);
   const editingAccountId = ref<number | null>(null);
   const selectedAccountId = ref<number | null>(null);
   const selectedAccountIds = ref<number[]>([]);
   const accountDetail = ref<AccountDetail | null>(null);
+  const recentActivityItems = ref<AccountActivitySummaryItem[]>([]);
+  const activityQuery = ref('');
+  const activityLimit = ref(50);
+  const activityCategory = ref('');
+  const activitySeverity = ref('');
   const detailError = ref('');
   const detailLoading = ref(false);
+  const activityError = ref('');
+  const activityLoading = ref(false);
   const bulkWorkingAction = ref<AccountBulkActionType | ''>('');
+  const lifecycleReason = ref('');
+  const suspendingAccountId = ref<number | null>(null);
+  const restoringAccountId = ref<number | null>(null);
+  const deletingAccountId = ref<number | null>(null);
+  const importPreview = ref<AccountImportPreviewResult | null>(null);
+  const importApplyResult = ref<AccountImportApplyResult | null>(null);
+  const importLoading = ref(false);
+  const importApplying = ref(false);
+  const importError = ref('');
+  const importMessage = ref('');
   let detailRequestToken = 0;
+  let activityRequestToken = 0;
 
   const resource = useAsyncResource(() => runtimeApi.listAccounts(buildListQuery(filters)));
 
@@ -186,6 +246,14 @@ export function useAccountsData() {
 
   function createDefaultBulkDraftState() {
     Object.assign(bulkDraft, createDefaultBulkDraft());
+  }
+
+  function createDefaultImportDraftState() {
+    Object.assign(importDraft, createDefaultImportDraft());
+    importPreview.value = null;
+    importApplyResult.value = null;
+    importError.value = '';
+    importMessage.value = '';
   }
 
   function clearSelectedAccounts() {
@@ -238,15 +306,52 @@ export function useAccountsData() {
       const detail = await runtimeApi.getAccountDetail(accountId);
       if (requestToken === detailRequestToken) {
         accountDetail.value = detail;
+        void loadAccountActivity(accountId);
       }
     } catch (cause) {
       if (requestToken === detailRequestToken) {
         accountDetail.value = null;
+        recentActivityItems.value = [];
         detailError.value = cause instanceof Error ? cause.message : '加载账号详情失败';
       }
     } finally {
       if (requestToken === detailRequestToken) {
         detailLoading.value = false;
+      }
+    }
+  }
+
+  async function loadAccountActivity(
+    accountId: number,
+    options: {
+      limit?: number;
+      query?: string;
+      category?: string;
+      severity?: string;
+    } = {},
+  ) {
+    activityLoading.value = true;
+    activityError.value = '';
+    const requestToken = ++activityRequestToken;
+
+    try {
+      const response = await runtimeApi.getAccountActivity(accountId, {
+        limit: options.limit ?? activityLimit.value,
+        query: options.query ?? activityQuery.value,
+        category: options.category ?? activityCategory.value,
+        severity: options.severity ?? activitySeverity.value,
+      });
+      if (requestToken === activityRequestToken) {
+        recentActivityItems.value = response.items || [];
+      }
+    } catch (cause) {
+      if (requestToken === activityRequestToken) {
+        recentActivityItems.value = [];
+        activityError.value = cause instanceof Error ? cause.message : '加载账号活动失败';
+      }
+    } finally {
+      if (requestToken === activityRequestToken) {
+        activityLoading.value = false;
       }
     }
   }
@@ -324,17 +429,21 @@ export function useAccountsData() {
     }
   }
 
-  async function archiveAccount(account: AccountItem) {
+  async function archiveAccount(account: AccountLifecycleTarget) {
     archivingAccountId.value = account.id;
     clearActionFeedback();
 
     try {
-      await runtimeApi.archiveAccount(account.id);
+      await runtimeApi.applyAccountLifecycle({
+        accountId: account.id,
+        action: 'archive',
+        reason: lifecycleReason.value.trim() || undefined,
+      });
       await refreshAccounts();
       if (selectedAccountId.value === account.id) {
         await loadAccountDetail(account.id);
       }
-      actionMessage.value = `已归档账号：${account.username}`;
+      actionMessage.value = `已归档账号：${account.username}${lifecycleReason.value.trim() ? `（原因：${lifecycleReason.value.trim()}）` : ''}`;
     } catch (cause) {
       actionError.value = cause instanceof Error ? cause.message : '归档账号失败';
     } finally {
@@ -342,21 +451,72 @@ export function useAccountsData() {
     }
   }
 
-  async function unarchiveAccount(account: AccountItem) {
-    unarchivingAccountId.value = account.id;
+  async function restoreAccount(account: AccountLifecycleTarget) {
+    restoringAccountId.value = account.id;
     clearActionFeedback();
 
     try {
-      await runtimeApi.unarchiveAccount(account.id);
+      await runtimeApi.applyAccountLifecycle({
+        accountId: account.id,
+        action: 'restore',
+        reason: lifecycleReason.value.trim() || undefined,
+      });
       await refreshAccounts();
       if (selectedAccountId.value === account.id) {
         await loadAccountDetail(account.id);
       }
-      actionMessage.value = `已取消归档账号：${account.username}`;
+      actionMessage.value = `已恢复账号：${account.username}`;
     } catch (cause) {
-      actionError.value = cause instanceof Error ? cause.message : '取消归档失败';
+      actionError.value = cause instanceof Error ? cause.message : '恢复账号失败';
     } finally {
-      unarchivingAccountId.value = null;
+      restoringAccountId.value = null;
+    }
+  }
+
+  async function suspendAccount(account: AccountLifecycleTarget) {
+    suspendingAccountId.value = account.id;
+    clearActionFeedback();
+
+    try {
+      await runtimeApi.applyAccountLifecycle({
+        accountId: account.id,
+        action: 'suspend',
+        reason: lifecycleReason.value.trim() || undefined,
+      });
+      await refreshAccounts();
+      if (selectedAccountId.value === account.id) {
+        await loadAccountDetail(account.id);
+      }
+      actionMessage.value = `已停用账号：${account.username}`;
+    } catch (cause) {
+      actionError.value = cause instanceof Error ? cause.message : '停用账号失败';
+    } finally {
+      suspendingAccountId.value = null;
+    }
+  }
+
+  async function deleteAccount(account: AccountLifecycleTarget) {
+    deletingAccountId.value = account.id;
+    clearActionFeedback();
+
+    try {
+      await runtimeApi.applyAccountLifecycle({
+        accountId: account.id,
+        action: 'delete',
+        reason: lifecycleReason.value.trim() || undefined,
+      });
+      await refreshAccounts();
+      if (selectedAccountId.value === account.id) {
+        selectedAccountId.value = null;
+        accountDetail.value = null;
+        recentActivityItems.value = [];
+      }
+      selectedAccountIds.value = selectedAccountIds.value.filter((id) => id !== account.id);
+      actionMessage.value = `已删除账号：${account.username}`;
+    } catch (cause) {
+      actionError.value = cause instanceof Error ? cause.message : '删除账号失败';
+    } finally {
+      deletingAccountId.value = null;
     }
   }
 
@@ -426,6 +586,14 @@ export function useAccountsData() {
     await runBulkAction('unarchive', {}, `已批量取消归档 ${selectedAccountIds.value.length} 个账号`);
   }
 
+  async function bulkSuspendAccounts() {
+    await runBulkAction('suspend', { archiveReason: lifecycleReason.value.trim() || undefined }, `已批量停用 ${selectedAccountIds.value.length} 个账号`);
+  }
+
+  async function bulkRestoreAccounts() {
+    await runBulkAction('restore', { archiveReason: lifecycleReason.value.trim() || undefined }, `已批量恢复 ${selectedAccountIds.value.length} 个账号`);
+  }
+
   async function applyFilters() {
     await refreshAccounts();
   }
@@ -433,6 +601,60 @@ export function useAccountsData() {
   async function clearFilters() {
     createDefaultFiltersState();
     await refreshAccounts();
+  }
+
+  function buildImportPayload(updateExisting: boolean): AccountImportPayload {
+    return {
+      content: importDraft.content,
+      delimiter: importDraft.delimiter.trim() || ',',
+      hasHeader: importDraft.hasHeader,
+      updateExisting,
+    };
+  }
+
+  async function previewAccountImport() {
+    if (importLoading.value) {
+      return;
+    }
+
+    importLoading.value = true;
+    importError.value = '';
+    importMessage.value = '';
+    importApplyResult.value = null;
+
+    try {
+      importPreview.value = await runtimeApi.previewAccountImport(buildImportPayload(false));
+      importMessage.value = '导入预检查完成';
+    } catch (cause) {
+      importPreview.value = null;
+      importError.value = cause instanceof Error ? cause.message : '导入预检查失败';
+    } finally {
+      importLoading.value = false;
+    }
+  }
+
+  async function applyAccountImport() {
+    if (importApplying.value) {
+      return;
+    }
+    importApplying.value = true;
+    importError.value = '';
+    importMessage.value = '';
+
+    try {
+      const result = await runtimeApi.applyAccountImport(buildImportPayload(importDraft.updateExisting));
+      importApplyResult.value = result;
+      importMessage.value = `导入完成：创建 ${result.created}，更新 ${result.updated}，跳过 ${result.skipped}，无效 ${result.invalid}`;
+      await refreshAccounts();
+      if (selectedAccountId.value !== null) {
+        await loadAccountDetail(selectedAccountId.value);
+      }
+    } catch (cause) {
+      importApplyResult.value = null;
+      importError.value = cause instanceof Error ? cause.message : '执行导入失败';
+    } finally {
+      importApplying.value = false;
+    }
   }
 
   const accounts = computed(() => resource.data.value?.items || []);
@@ -452,6 +674,14 @@ export function useAccountsData() {
     ...resource,
     accounts,
     accountDetail,
+    activityCategory,
+    activityCategoryOptions: ACTIVITY_CATEGORY_OPTIONS,
+    activityError,
+    activityLimit,
+    activityLoading,
+    activityQuery,
+    activitySeverity,
+    activitySeverityOptions: ACTIVITY_SEVERITY_OPTIONS,
     actionError,
     actionMessage,
     allVisibleSelected,
@@ -465,10 +695,20 @@ export function useAccountsData() {
     bulkChangeRiskStatus,
     bulkDraft,
     bulkArchiveAccounts,
+    bulkRestoreAccounts,
+    bulkSuspendAccounts,
     bulkTestAccounts,
     bulkUnarchiveAccounts,
     bulkWorkingAction,
+    importApplying,
+    importApplyResult,
+    importDraft,
+    importError,
+    importLoading,
+    importMessage,
+    importPreview,
     clearFilters,
+    createDefaultImportDraftState,
     clearSelectedAccounts,
     detailError,
     detailLoading,
@@ -477,11 +717,15 @@ export function useAccountsData() {
     filters,
     focusAccount,
     isEditing,
+    lifecycleReason,
     loadAccountDetail,
+    previewAccountImport,
+    loadAccountActivity,
     manualStatusOptions: MANUAL_STATUS_OPTIONS,
     prepareCreate,
     refreshAccounts,
     riskStatusOptions: RISK_STATUS_OPTIONS,
+    recentActivityItems,
     saveAccount,
     saving,
     selectVisibleAccounts,
@@ -489,13 +733,18 @@ export function useAccountsData() {
     selectedAccountId,
     selectedAccountIds,
     setAccountSelection,
+    suspendingAccountId,
+    suspendAccount,
     systemStatusOptions: SYSTEM_STATUS_OPTIONS,
+    deletingAccountId,
+    deleteAccount,
     testingAccountId,
     testAccountConnection,
     toggleAccountSelection,
     total,
-    unarchiveAccount,
-    unarchivingAccountId,
+    restoreAccount,
+    restoringAccountId,
     visibleAccountCount,
+    applyAccountImport,
   };
 }

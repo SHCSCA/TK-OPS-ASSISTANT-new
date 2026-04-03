@@ -161,8 +161,8 @@
             // Theme
             setTheme: noopObj, getTheme: () => ok('light'),
             // Version
-            getAppVersion: () => ok({ version: '1.3.0' }),
-            checkForUpdate: () => ok({ hasUpdate: false, current: '1.3.0' }),
+            getAppVersion: () => ok({ version: '1.3.2' }),
+            checkForUpdate: () => ok({ hasUpdate: false, current: '1.3.2' }),
             startDownloadUpdate: () => ok(true),
             getDownloadProgress: () => ok({ state: 'idle', percent: 0, downloaded: 0, total: 0, speed: '', filePath: '', error: '' }),
             applyUpdate: () => ok({ ok: true, action: 'stub' }),

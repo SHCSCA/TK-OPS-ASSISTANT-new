@@ -3,7 +3,9 @@ from __future__ import annotations
 
 import base64
 import contextlib
+import csv
 import datetime as _dt
+import io
 import json
 import os
 import re
@@ -58,6 +60,34 @@ _PLATFORM_DEFAULT_COOKIE_DOMAINS = {
 }
 
 _ACCOUNT_SESSION_EXTENSION_NAME = "TKOPS Account Session"
+
+_ACCOUNT_IMPORT_DEFAULT_COLUMNS = [
+    "username",
+    "platform",
+    "region",
+    "status",
+    "risk_status",
+    "followers",
+    "group_id",
+    "device_id",
+    "cookie_status",
+    "notes",
+    "tags",
+]
+
+_ACCOUNT_IMPORT_HEADER_ALIASES = {
+    "username": {"username", "user", "account", "account_name", "账号", "用户名"},
+    "platform": {"platform", "平台"},
+    "region": {"region", "地区", "国家"},
+    "status": {"status", "manual_status", "manualstatus", "人工状态", "状态"},
+    "risk_status": {"risk_status", "riskstatus", "风险状态", "风险"},
+    "followers": {"followers", "follower", "粉丝数", "粉丝"},
+    "group_id": {"group_id", "groupid", "分组id", "分组"},
+    "device_id": {"device_id", "deviceid", "设备id", "设备"},
+    "cookie_status": {"cookie_status", "cookiestatus", "cookie状态"},
+    "notes": {"notes", "note", "备注"},
+    "tags": {"tags", "tag", "标签"},
+}
 
 
 @dataclass(slots=True)
@@ -564,22 +594,174 @@ class AccountService:
             "lastError": self._resolve_last_error(account),
         }
 
-    def list_account_activity_summary(self, account_id: int, *, limit: int = 5) -> list[dict[str, Any]]:
+    def list_account_activity_summary(
+        self,
+        account_id: int,
+        *,
+        limit: int = 5,
+        query: str | None = None,
+        category: str | None = None,
+        severity: str | None = None,
+    ) -> list[dict[str, Any]]:
         rows = self._repo.list_activity_logs(
             related_entity_type="account",
             related_entity_id=int(account_id),
-        )[:limit]
+        )
         summary: list[dict[str, Any]] = []
+        normalized_query = str(query or "").strip().lower()
+        normalized_category = str(category or "").strip().lower()
+        normalized_severity = str(severity or "").strip().lower()
         for row in rows:
+            row_category = str(row.category or "").strip().lower()
+            if normalized_category and row_category != normalized_category:
+                continue
             payload = ActivityService._load_payload(row.payload_json)
+            item_summary = str(payload.get("message") or payload.get("summary") or "").strip()
+            item_severity = self._resolve_activity_severity(
+                category=row.category,
+                title=row.title,
+                summary=item_summary,
+                payload=payload,
+            )
+            if normalized_severity and item_severity != normalized_severity:
+                continue
+            if normalized_query:
+                searchable = " ".join(
+                    [
+                        str(row.title or ""),
+                        str(item_summary or ""),
+                        str(row.category or ""),
+                        str(payload.get("reason") or ""),
+                    ]
+                ).lower()
+                if normalized_query not in searchable:
+                    continue
             summary.append(
                 {
+                    "id": row.id,
+                    "category": row.category,
+                    "severity": item_severity,
                     "title": row.title,
-                    "summary": str(payload.get("message") or payload.get("summary") or "").strip(),
+                    "summary": item_summary or "系统记录已同步",
+                    "reason": str(payload.get("reason") or "").strip() or None,
+                    "entityType": row.related_entity_type,
+                    "entityId": row.related_entity_id,
                     "occurredAt": row.created_at.isoformat() if row.created_at else None,
                 }
             )
+            if len(summary) >= limit:
+                break
         return summary
+
+    def preview_account_import(
+        self,
+        content: str,
+        *,
+        delimiter: str = ",",
+        has_header: bool = True,
+    ) -> dict[str, Any]:
+        plan = self._build_account_import_plan(content, delimiter=delimiter, has_header=has_header)
+        return {
+            "total": len(plan),
+            "valid": len([item for item in plan if item["valid"]]),
+            "invalid": len([item for item in plan if not item["valid"]]),
+            "create": len([item for item in plan if item["valid"] and item["action"] == "create"]),
+            "update": len([item for item in plan if item["valid"] and item["action"] == "update"]),
+            "items": [self._serialize_import_plan_item(item) for item in plan],
+        }
+
+    def apply_account_import(
+        self,
+        content: str,
+        *,
+        delimiter: str = ",",
+        has_header: bool = True,
+        update_existing: bool = False,
+    ) -> dict[str, Any]:
+        plan = self._build_account_import_plan(content, delimiter=delimiter, has_header=has_header)
+        existing_lookup = self._load_existing_accounts_by_username()
+
+        created_count = 0
+        updated_count = 0
+        skipped_count = 0
+        invalid_count = 0
+        result_items: list[dict[str, Any]] = []
+
+        for item in plan:
+            if not item["valid"]:
+                invalid_count += 1
+                result_items.append(
+                    {
+                        "line": item["line"],
+                        "username": item["username"],
+                        "status": "invalid",
+                        "message": item["reason"],
+                    }
+                )
+                continue
+
+            username_key = str(item["username"]).strip().lower()
+            existing_account = existing_lookup.get(username_key)
+            payload = dict(item["payload"])
+            username = str(payload.pop("username", "")).strip()
+
+            if existing_account is not None:
+                if not update_existing:
+                    skipped_count += 1
+                    result_items.append(
+                        {
+                            "line": item["line"],
+                            "username": item["username"],
+                            "status": "skipped",
+                            "message": "账号已存在，未开启覆盖更新",
+                        }
+                    )
+                    continue
+
+                updated = self.update_account(existing_account.id, username=username, **payload)
+                if updated is None:
+                    skipped_count += 1
+                    result_items.append(
+                        {
+                            "line": item["line"],
+                            "username": item["username"],
+                            "status": "skipped",
+                            "message": "账号不存在，跳过更新",
+                        }
+                    )
+                    continue
+                updated_count += 1
+                result_items.append(
+                    {
+                        "line": item["line"],
+                        "username": item["username"],
+                        "status": "updated",
+                        "message": f"账号 {updated.username} 已更新",
+                    }
+                )
+                continue
+
+            created = self.create_account(username, **payload)
+            created_count += 1
+            existing_lookup[username_key] = created
+            result_items.append(
+                {
+                    "line": item["line"],
+                    "username": item["username"],
+                    "status": "created",
+                    "message": f"账号 {created.username} 已创建",
+                }
+            )
+
+        return {
+            "total": len(plan),
+            "created": created_count,
+            "updated": updated_count,
+            "skipped": skipped_count,
+            "invalid": invalid_count,
+            "updateExisting": bool(update_existing),
+            "items": result_items,
+        }
 
     def bulk_update_accounts(
         self,
@@ -613,6 +795,14 @@ class AccountService:
                 restored = self.unarchive_account(account_id)
                 if restored is not None:
                     processed_ids.append(account_id)
+            elif action in {"suspend", "deactivate"}:
+                suspended = self.apply_lifecycle_action(account_id, action="suspend", reason=archive_reason)
+                if suspended is not None:
+                    processed_ids.append(account_id)
+            elif action == "restore":
+                restored_state = self.apply_lifecycle_action(account_id, action="restore", reason=archive_reason)
+                if restored_state is not None:
+                    processed_ids.append(account_id)
             elif action in {"test_connection", "test"}:
                 self.test_account_connection(account_id)
                 processed_ids.append(account_id)
@@ -627,6 +817,56 @@ class AccountService:
             "groupId": group_id,
             "archiveReason": archive_reason,
         }
+
+    def apply_lifecycle_action(
+        self,
+        pk: int,
+        *,
+        action: str,
+        reason: str | None = None,
+    ) -> dict[str, Any] | None:
+        normalized = self._normalize_lifecycle_action(action)
+        if normalized == "archive":
+            return self.archive_account(pk, reason=reason)
+        if normalized == "restore":
+            account = self._repo.get_by_id(Account, pk)
+            if account is None:
+                return None
+            updates: dict[str, Any] = {"status": "active"}
+            if account.archived_at is not None:
+                updates["archived_at"] = None
+                updates["archived_reason"] = None
+            restored = self._repo.update(account, **updates)
+            self._log_account_activity(
+                "account_restored",
+                "恢复账号",
+                restored.id,
+                {"message": f"账号 {restored.username} 已恢复到启用状态", "reason": reason},
+            )
+            return {
+                "accountId": restored.id,
+                "manualStatus": restored.status,
+                "archived": bool(restored.archived_at),
+                "archiveReason": restored.archived_reason,
+            }
+        if normalized == "suspend":
+            account = self._repo.get_by_id(Account, pk)
+            if account is None:
+                return None
+            suspended = self._repo.update(account, status="suspended")
+            self._log_account_activity(
+                "account_suspended",
+                "停用账号",
+                suspended.id,
+                {"message": f"账号 {suspended.username} 已停用", "reason": reason},
+            )
+            return {"accountId": suspended.id, "manualStatus": suspended.status}
+        if normalized == "delete":
+            deleted = self.delete_account(pk)
+            if not deleted:
+                return None
+            return {"accountId": pk, "deleted": True}
+        raise ValueError("不支持的生命周期动作")
 
     def archive_account(self, pk: int, *, reason: str | None = None) -> dict[str, Any] | None:
         account = self._repo.get_by_id(Account, pk)
@@ -683,6 +923,49 @@ class AccountService:
             session.rollback()
             raise
         return True
+
+    def _normalize_lifecycle_action(self, action: str | None) -> str:
+        normalized = str(action or "").strip().lower()
+        alias_map = {
+            "archive": "archive",
+            "unarchive": "restore",
+            "restore": "restore",
+            "resume": "restore",
+            "activate": "restore",
+            "suspend": "suspend",
+            "deactivate": "suspend",
+            "disable": "suspend",
+            "delete": "delete",
+            "remove": "delete",
+        }
+        target = alias_map.get(normalized)
+        if not target:
+            raise ValueError("不支持的生命周期动作")
+        return target
+
+    def _resolve_activity_severity(
+        self,
+        *,
+        category: str | None,
+        title: str | None,
+        summary: str | None,
+        payload: dict[str, Any],
+    ) -> str:
+        text = " ".join(
+            [
+                str(category or ""),
+                str(title or ""),
+                str(summary or ""),
+                str(payload.get("reason") or ""),
+            ]
+        ).lower()
+        if any(token in text for token in ("error", "fail", "failed", "异常", "失败", "阻塞", "invalid")):
+            return "error"
+        if any(token in text for token in ("warning", "risk", "warn", "告警", "归档", "停用", "待处理")):
+            return "warning"
+        if any(token in text for token in ("success", "ok", "恢复", "完成", "创建", "更新", "通过")):
+            return "success"
+        return "info"
 
     def bind_device(self, account_id: int, device_id: int) -> Account | None:
         return self.update_account(account_id, device_id=device_id)
@@ -785,6 +1068,216 @@ class AccountService:
             if key in payload:
                 normalized[target] = payload[key]
         return normalized
+
+    def _serialize_import_plan_item(self, item: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "line": item["line"],
+            "username": item["username"],
+            "action": item["action"],
+            "valid": item["valid"],
+            "reason": item["reason"],
+            "existingAccountId": item["existing_account_id"],
+        }
+
+    def _build_account_import_plan(
+        self,
+        content: str,
+        *,
+        delimiter: str = ",",
+        has_header: bool = True,
+    ) -> list[dict[str, Any]]:
+        parsed_rows = self._parse_account_import_rows(content, delimiter=delimiter, has_header=has_header)
+        existing_lookup = self._load_existing_accounts_by_username()
+        seen_usernames: set[str] = set()
+        plan: list[dict[str, Any]] = []
+
+        for row in parsed_rows:
+            line = int(row["line"])
+            payload = dict(row["payload"])
+            username = str(payload.get("username") or "").strip()
+            username_key = username.lower()
+
+            if not username:
+                plan.append(
+                    {
+                        "line": line,
+                        "username": "",
+                        "action": "invalid",
+                        "valid": False,
+                        "reason": "用户名不能为空",
+                        "existing_account_id": None,
+                        "payload": {},
+                    }
+                )
+                continue
+
+            if username_key in seen_usernames:
+                plan.append(
+                    {
+                        "line": line,
+                        "username": username,
+                        "action": "invalid",
+                        "valid": False,
+                        "reason": "导入内容中存在重复用户名",
+                        "existing_account_id": None,
+                        "payload": {},
+                    }
+                )
+                continue
+            seen_usernames.add(username_key)
+
+            numeric_error = self._validate_import_numeric_fields(payload)
+            if numeric_error:
+                plan.append(
+                    {
+                        "line": line,
+                        "username": username,
+                        "action": "invalid",
+                        "valid": False,
+                        "reason": numeric_error,
+                        "existing_account_id": None,
+                        "payload": {},
+                    }
+                )
+                continue
+
+            normalized_payload = self._normalize_import_account_payload(payload)
+            existing_account = existing_lookup.get(username_key)
+            if existing_account is not None:
+                plan.append(
+                    {
+                        "line": line,
+                        "username": username,
+                        "action": "update",
+                        "valid": True,
+                        "reason": "账号已存在，可覆盖更新",
+                        "existing_account_id": existing_account.id,
+                        "payload": normalized_payload,
+                    }
+                )
+                continue
+
+            plan.append(
+                {
+                    "line": line,
+                    "username": username,
+                    "action": "create",
+                    "valid": True,
+                    "reason": "账号不存在，将创建新账号",
+                    "existing_account_id": None,
+                    "payload": normalized_payload,
+                }
+            )
+
+        return plan
+
+    def _parse_account_import_rows(
+        self,
+        content: str,
+        *,
+        delimiter: str = ",",
+        has_header: bool = True,
+    ) -> list[dict[str, Any]]:
+        raw_text = str(content or "").strip()
+        if not raw_text:
+            raise ValueError("导入内容不能为空")
+
+        normalized_delimiter = (delimiter or ",")[0]
+        reader = csv.reader(io.StringIO(raw_text), delimiter=normalized_delimiter)
+        rows = list(reader)
+        if not rows:
+            raise ValueError("导入内容不能为空")
+
+        header: list[str]
+        data_rows: list[list[str]]
+        data_start_line = 1
+
+        if has_header:
+            header = [self._normalize_account_import_header(col) for col in rows[0]]
+            data_rows = rows[1:]
+            data_start_line = 2
+        else:
+            header = list(_ACCOUNT_IMPORT_DEFAULT_COLUMNS)
+            data_rows = rows
+
+        parsed: list[dict[str, Any]] = []
+        for index, columns in enumerate(data_rows):
+            line_number = data_start_line + index
+            if not any(str(col or "").strip() for col in columns):
+                continue
+
+            payload: dict[str, Any] = {}
+            for column_index, raw_value in enumerate(columns):
+                key = header[column_index] if column_index < len(header) else ""
+                if not key:
+                    continue
+                value = str(raw_value or "").strip()
+                if value == "":
+                    continue
+                payload[key] = value
+            parsed.append({"line": line_number, "payload": payload})
+
+        if not parsed:
+            raise ValueError("导入内容没有可解析的数据行")
+        return parsed
+
+    def _normalize_account_import_header(self, header: str) -> str:
+        normalized = str(header or "").strip().lower().replace("-", "_").replace(" ", "_")
+        if not normalized:
+            return ""
+        for canonical, aliases in _ACCOUNT_IMPORT_HEADER_ALIASES.items():
+            if normalized == canonical or normalized in aliases:
+                return canonical
+        return ""
+
+    def _validate_import_numeric_fields(self, payload: dict[str, Any]) -> str | None:
+        for field_name, label in [("followers", "粉丝数"), ("group_id", "分组 ID"), ("device_id", "设备 ID")]:
+            raw_value = payload.get(field_name)
+            if raw_value in (None, ""):
+                continue
+            try:
+                parsed = int(str(raw_value))
+            except ValueError:
+                return f"{label} 必须是整数"
+            if field_name == "followers" and parsed < 0:
+                return "粉丝数不能为负数"
+        return None
+
+    def _normalize_import_account_payload(self, payload: dict[str, Any]) -> dict[str, Any]:
+        normalized: dict[str, Any] = {
+            "username": str(payload.get("username") or "").strip(),
+            "platform": str(payload.get("platform") or "tiktok").strip() or "tiktok",
+            "region": str(payload.get("region") or "US").strip() or "US",
+            "status": str(payload.get("status") or "active").strip() or "active",
+            "risk_status": str(payload.get("risk_status") or "normal").strip() or "normal",
+            "cookie_status": str(payload.get("cookie_status") or "unknown").strip() or "unknown",
+        }
+
+        if "followers" in payload and str(payload.get("followers")).strip():
+            normalized["followers"] = max(0, int(str(payload["followers"]).strip()))
+        else:
+            normalized["followers"] = 0
+
+        for optional_int_field in ("group_id", "device_id"):
+            raw_value = str(payload.get(optional_int_field) or "").strip()
+            if raw_value:
+                normalized[optional_int_field] = int(raw_value)
+
+        for optional_text_field in ("notes", "tags"):
+            raw_value = str(payload.get(optional_text_field) or "").strip()
+            if raw_value:
+                normalized[optional_text_field] = raw_value
+
+        return normalized
+
+    def _load_existing_accounts_by_username(self) -> dict[str, Account]:
+        accounts = self.list_accounts(include_archived=True)
+        lookup: dict[str, Account] = {}
+        for account in accounts:
+            key = str(account.username or "").strip().lower()
+            if key and key not in lookup:
+                lookup[key] = account
+        return lookup
 
     def _resolve_system_status(self, account: Account) -> str:
         login_status = str(account.last_login_check_status or "unknown")

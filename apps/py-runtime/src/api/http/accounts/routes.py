@@ -46,6 +46,20 @@ class AccountArchivePayload(BaseModel):
     reason: str | None = Field(default=None)
 
 
+class AccountLifecyclePayload(BaseModel):
+    action: str = Field(min_length=1, max_length=40)
+    reason: str | None = Field(default=None)
+
+
+class AccountImportPayload(BaseModel):
+    content: str = Field(min_length=1)
+    delimiter: str = Field(default=",", min_length=1, max_length=1)
+    has_header: bool = Field(default=True, alias="hasHeader")
+    update_existing: bool = Field(default=False, alias="updateExisting")
+
+    model_config = {"populate_by_name": True}
+
+
 def _not_found(message: str) -> JSONResponse:
     return JSONResponse(status_code=404, content=err("resource.not_found", message))
 
@@ -107,7 +121,13 @@ def build_accounts_router(container: RuntimeContainer) -> APIRouter:
             repo.reset_session()
 
     @router.get("/{account_id}/activity", response_model=None)
-    def list_account_activity(account_id: int, limit: int = 20):
+    def list_account_activity(
+        account_id: int,
+        limit: int = 20,
+        query: str | None = None,
+        category: str | None = None,
+        severity: str | None = None,
+    ):
         normalized_limit = max(1, min(int(limit), 100))
 
         repo = Repository()
@@ -116,13 +136,24 @@ def build_accounts_router(container: RuntimeContainer) -> APIRouter:
             detail = service.get_account_detail(account_id)
             if detail is None:
                 return _not_found("账号不存在，无法查看活动记录")
-            items = service.list_account_activity_summary(account_id, limit=normalized_limit)
+            items = service.list_account_activity_summary(
+                account_id,
+                limit=normalized_limit,
+                query=query,
+                category=category,
+                severity=severity,
+            )
             return ok(
                 {
                     "accountId": account_id,
                     "items": items,
                     "total": len(items),
                     "limit": normalized_limit,
+                    "filters": {
+                        "query": query or "",
+                        "category": category or "",
+                        "severity": severity or "",
+                    },
                 }
             )
         finally:
@@ -140,6 +171,41 @@ def build_accounts_router(container: RuntimeContainer) -> APIRouter:
             service = AccountService(repo)
             account = service.create_account(username, **payload_data)
             return ok(serialize_account(account))
+        finally:
+            repo.reset_session()
+
+    @router.post("/import/preview", response_model=None)
+    def preview_account_import(payload: AccountImportPayload):
+        repo = Repository()
+        try:
+            service = AccountService(repo)
+            try:
+                preview = service.preview_account_import(
+                    payload.content,
+                    delimiter=payload.delimiter,
+                    has_header=payload.has_header,
+                )
+            except ValueError as exc:
+                return _bad_request(str(exc))
+            return ok(preview)
+        finally:
+            repo.reset_session()
+
+    @router.post("/import/apply", response_model=None)
+    def apply_account_import(payload: AccountImportPayload):
+        repo = Repository()
+        try:
+            service = AccountService(repo)
+            try:
+                result = service.apply_account_import(
+                    payload.content,
+                    delimiter=payload.delimiter,
+                    has_header=payload.has_header,
+                    update_existing=payload.update_existing,
+                )
+            except ValueError as exc:
+                return _bad_request(str(exc))
+            return ok(result)
         finally:
             repo.reset_session()
 
@@ -184,11 +250,12 @@ def build_accounts_router(container: RuntimeContainer) -> APIRouter:
             repo.reset_session()
 
     @router.post("/{account_id}/archive", response_model=None)
-    def archive_account(account_id: int, payload: AccountArchivePayload):
+    def archive_account(account_id: int, payload: AccountArchivePayload | None = None):
         repo = Repository()
         try:
             service = AccountService(repo)
-            result = service.archive_account(account_id, reason=payload.reason)
+            reason = payload.reason if payload is not None else None
+            result = service.archive_account(account_id, reason=reason)
             if result is None:
                 return _not_found("账号不存在，无法归档")
             return ok(result)
@@ -203,6 +270,21 @@ def build_accounts_router(container: RuntimeContainer) -> APIRouter:
             result = service.unarchive_account(account_id)
             if result is None:
                 return _not_found("账号不存在，无法取消归档")
+            return ok(result)
+        finally:
+            repo.reset_session()
+
+    @router.post("/{account_id}/lifecycle", response_model=None)
+    def apply_account_lifecycle(account_id: int, payload: AccountLifecyclePayload):
+        repo = Repository()
+        try:
+            service = AccountService(repo)
+            try:
+                result = service.apply_lifecycle_action(account_id, action=payload.action, reason=payload.reason)
+            except ValueError as exc:
+                return _bad_request(str(exc))
+            if result is None:
+                return _not_found("账号不存在，生命周期动作未执行")
             return ok(result)
         finally:
             repo.reset_session()

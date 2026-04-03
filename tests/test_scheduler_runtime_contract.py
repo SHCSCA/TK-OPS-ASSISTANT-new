@@ -4,7 +4,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-ROUTES_TS = ROOT / "apps" / "desktop" / "src" / "app" / "router" / "routes.ts"
+ROUTE_MANIFEST_TS = ROOT / "apps" / "desktop" / "src" / "app" / "router" / "routeManifest.ts"
 SIDEBAR_VUE = ROOT / "apps" / "desktop" / "src" / "layouts" / "Sidebar.vue"
 RUNTIME_API_TS = ROOT / "apps" / "desktop" / "src" / "modules" / "runtime" / "runtimeApi.ts"
 RUNTIME_TYPES_TS = ROOT / "apps" / "desktop" / "src" / "modules" / "runtime" / "types.ts"
@@ -15,17 +15,20 @@ BUILD_DESKTOP_SCRIPT = ROOT / "scripts" / "build-desktop.ps1"
 BUILD_RUNTIME_SCRIPT = ROOT / "scripts" / "build-runtime.ps1"
 
 
-def test_new_desktop_routes_cover_scheduler_page() -> None:
-    text = ROUTES_TS.read_text(encoding="utf-8")
+def test_new_desktop_manifest_covers_scheduler_page_and_alias() -> None:
+    text = ROUTE_MANIFEST_TS.read_text(encoding="utf-8")
 
-    assert "path: '/scheduler'" in text
-    assert "name: 'scheduler'" in text
+    assert "path: '/task-scheduler'" in text
+    assert "aliases: ['/scheduler']" in text
+    assert "name: 'task-scheduler'" in text
 
 
 def test_sidebar_exposes_scheduler_navigation_entry() -> None:
     text = SIDEBAR_VUE.read_text(encoding="utf-8")
+    manifest_text = ROUTE_MANIFEST_TS.read_text(encoding="utf-8")
 
-    assert "'/scheduler'" in text
+    assert "shellRouteManifest" in text
+    assert "title: '任务调度'" in manifest_text
 
 
 def test_runtime_api_and_types_expose_scheduler_overview() -> None:

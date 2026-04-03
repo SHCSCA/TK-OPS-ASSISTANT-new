@@ -104,8 +104,14 @@ export interface LicenseStatus {
 }
 
 export interface AccountActivitySummaryItem {
+  id?: number;
+  category?: string;
+  severity?: 'info' | 'success' | 'warning' | 'error';
   title: string;
   summary: string;
+  reason?: string | null;
+  entityType?: string | null;
+  entityId?: number | null;
   occurredAt: string | null;
 }
 
@@ -147,6 +153,75 @@ export interface AccountDetail extends AccountItem {
   activitySummary: AccountActivitySummaryItem[];
 }
 
+export interface AccountActivityListResponse {
+  accountId: number;
+  items: AccountActivitySummaryItem[];
+  total: number;
+  limit: number;
+  filters?: {
+    query: string;
+    category: string;
+    severity: string;
+  };
+}
+
+export interface AccountImportPayload {
+  content: string;
+  delimiter?: string;
+  hasHeader?: boolean;
+  updateExisting?: boolean;
+}
+
+export interface AccountImportPreviewItem {
+  line: number;
+  username: string;
+  action: 'create' | 'update' | 'invalid';
+  valid: boolean;
+  reason: string;
+  existingAccountId: number | null;
+}
+
+export interface AccountImportPreviewResult {
+  total: number;
+  valid: number;
+  invalid: number;
+  create: number;
+  update: number;
+  items: AccountImportPreviewItem[];
+}
+
+export interface AccountImportApplyItem {
+  line: number;
+  username: string;
+  status: 'created' | 'updated' | 'skipped' | 'invalid';
+  message: string;
+}
+
+export interface AccountImportApplyResult {
+  total: number;
+  created: number;
+  updated: number;
+  skipped: number;
+  invalid: number;
+  updateExisting: boolean;
+  items: AccountImportApplyItem[];
+}
+
+export type AccountLifecycleActionType = 'suspend' | 'archive' | 'restore' | 'delete';
+
+export interface AccountLifecyclePayload {
+  action: AccountLifecycleActionType;
+  reason?: string | null;
+}
+
+export interface AccountLifecycleResult {
+  deleted?: boolean;
+  accountId: number;
+  manualStatus?: string;
+  archived?: boolean;
+  archiveReason?: string | null;
+}
+
 export interface AccountUpsertPayload {
   username: string;
   platform: string;
@@ -167,7 +242,15 @@ export interface AccountUpsertPayload {
   tags?: string | null;
 }
 
-export type AccountBulkActionType = 'manual_status' | 'risk_status' | 'group' | 'test' | 'archive' | 'unarchive';
+export type AccountBulkActionType =
+  | 'manual_status'
+  | 'risk_status'
+  | 'group'
+  | 'test'
+  | 'archive'
+  | 'unarchive'
+  | 'suspend'
+  | 'restore';
 
 export interface AccountBulkActionPayload {
   accountIds: number[];
@@ -176,6 +259,7 @@ export interface AccountBulkActionPayload {
   riskStatus?: string;
   groupId?: number | null;
   groupName?: string | null;
+  archiveReason?: string | null;
 }
 
 export interface AccountBulkActionResult {
@@ -224,6 +308,31 @@ export interface DashboardMetric {
 export interface DashboardBucket {
   key: string;
   count: number;
+}
+
+export interface DashboardTrendItem {
+  label: string;
+  created: number;
+  completed: number;
+  failed: number;
+}
+
+export interface DashboardActivityItem {
+  title: string;
+  entity: string;
+  category: string;
+  status: string;
+  time: string;
+}
+
+export type DashboardSystemTone = 'success' | 'warning' | 'error' | 'info';
+
+export interface DashboardSystemItem {
+  key: string;
+  title: string;
+  status: string;
+  tone: DashboardSystemTone;
+  summary: string;
 }
 
 export interface TaskItem {
@@ -310,6 +419,51 @@ export interface RuntimeSettingsPayload {
   message?: string;
 }
 
+export interface RuntimeNotificationItem {
+  id: string;
+  title: string;
+  body: string;
+  tone: 'info' | 'success' | 'warning' | 'error';
+  createdAt: string;
+  source: string;
+  read?: boolean;
+}
+
+export interface RuntimeVersionCurrent {
+  version: string;
+}
+
+export interface RuntimeVersionCheck {
+  hasUpdate: boolean;
+  state?: 'latest' | 'available' | 'error';
+  current: string;
+  latest?: string;
+  tag?: string;
+  downloadUrl?: string;
+  htmlUrl?: string;
+  releaseNotes?: string;
+  assetName?: string;
+  assetSize?: number;
+}
+
+export interface ShellAssistantAction {
+  id: string;
+  label: string;
+  action: string;
+  payload?: Record<string, unknown>;
+}
+
+export interface ShellAssistantResponse {
+  answer: string;
+  source: 'model' | 'fallback';
+  suggestions: ShellAssistantAction[];
+  model?: string;
+  provider?: string;
+  elapsedMs?: number;
+  error?: string;
+  contextEcho?: Record<string, unknown>;
+}
+
 export interface SchedulerTaskItem {
   id: number;
   title: string;
@@ -348,11 +502,15 @@ export interface CreateSchedulePayload {
 
 export interface DashboardOverview {
   generatedAt: string;
+  range?: 'today' | '7d' | '30d';
   metrics: DashboardMetric[];
   accountStatus: DashboardBucket[];
   taskStatus: DashboardBucket[];
   regions: DashboardBucket[];
   recentTasks: TaskItem[];
+  trend?: DashboardTrendItem[];
+  activity?: DashboardActivityItem[];
+  systems?: DashboardSystemItem[];
   activeProvider: ProviderItem | null;
   settingsSummary: {
     theme: string;
