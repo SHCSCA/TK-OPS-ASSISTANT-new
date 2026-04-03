@@ -238,6 +238,9 @@ def test_runtime_health_and_resources_return_envelopes() -> None:
     assert health.json()["data"]["version"] == "test"
     assert health.json()["data"]["environment"] == "test"
     assert health.json()["data"]["logLevel"] == "INFO"
+    assert health.json()["data"]["protocol"]["version"] == "2026-04-01"
+    assert health.json()["data"]["protocol"]["auth"]["header"] == "X-TKOPS-Token"
+    assert health.json()["data"]["protocol"]["auth"]["wsQuery"] == "token"
 
     assert license_status.json()["data"]["activated"] is True
     assert license_status.json()["data"]["tier"] == "pro"
@@ -259,8 +262,13 @@ def test_runtime_status_websocket_emits_ready_event() -> None:
     client = _build_client()
 
     with client.websocket_connect("/ws/runtime-status?token=test") as websocket:
+        handshake = websocket.receive_json()
         payload = websocket.receive_json()
 
+    assert handshake["type"] == "runtime.handshake"
+    assert handshake["payload"]["channel"] == "runtime-status"
+    assert handshake["payload"]["protocolVersion"] == "2026-04-01"
+    assert handshake["payload"]["auth"]["scheme"] == "session_token"
     assert payload["type"] == "runtime.status"
     assert payload["payload"]["status"] == "ready"
     assert payload["payload"]["version"] == "test"
@@ -270,10 +278,13 @@ def test_copywriter_websocket_streams_delta_and_done_events() -> None:
     client = _build_client()
 
     with client.websocket_connect("/ws/copywriter-stream?token=test") as websocket:
+        handshake = websocket.receive_json()
         websocket.send_json({"prompt": "生成一段护肤产品短视频文案", "preset": "copywriter"})
         first = websocket.receive_json()
         second = websocket.receive_json()
 
+    assert handshake["type"] == "runtime.handshake"
+    assert handshake["payload"]["channel"] == "copywriter-stream"
     assert first["type"] == "ai.stream.delta"
     assert first["payload"]["delta"] == "第一段"
     assert second["type"] == "ai.stream.done"
@@ -437,6 +448,23 @@ def test_runtime_accounts_support_create_update_delete_and_connection_test(monke
                 ],
             }
 
+        def list_account_activity_summary(self, account_id: int, *, limit: int = 5) -> list[dict[str, object]]:
+            if account_id != 2:
+                return []
+            base = [
+                {
+                    "id": "activity-1",
+                    "title": "账号检测完成",
+                    "createdAt": "2026-04-01T12:00:00",
+                },
+                {
+                    "id": "activity-2",
+                    "title": "账号已归档",
+                    "createdAt": "2026-04-01T13:00:00",
+                },
+            ]
+            return base[:limit]
+
         def bulk_update_accounts(
             self,
             account_ids: list[int],
@@ -510,6 +538,7 @@ def test_runtime_accounts_support_create_update_delete_and_connection_test(monke
     )
     archive = client.post("/accounts/2/archive", json={"reason": "批量收口"})
     unarchive = client.post("/accounts/2/unarchive")
+    activity = client.get("/accounts/2/activity?limit=1")
     test_result = client.post("/accounts/2/test")
     delete = client.delete("/accounts/2")
 
@@ -527,6 +556,10 @@ def test_runtime_accounts_support_create_update_delete_and_connection_test(monke
     assert archive.json()["data"]["archived"] is True
     assert unarchive.status_code == 200
     assert unarchive.json()["data"]["archived"] is False
+    assert activity.status_code == 200
+    assert activity.json()["data"]["accountId"] == 2
+    assert activity.json()["data"]["total"] == 1
+    assert activity.json()["data"]["items"][0]["title"] == "账号检测完成"
     assert test_result.status_code == 200
     assert test_result.json()["data"]["ok"] is True
     assert delete.status_code == 200
