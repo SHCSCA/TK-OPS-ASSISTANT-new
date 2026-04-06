@@ -9,15 +9,63 @@ $tauriRoot = Join-Path $repoRoot "apps\desktop\src-tauri"
 $defaultExePath = Join-Path $tauriRoot "target\debug\tk_ops_desktop.exe"
 $exePath = if ($ExecutablePath) { $ExecutablePath } else { $defaultExePath }
 $runtimeLog = Join-Path $env:APPDATA "TK-OPS-ASSISTANT\logs\runtime.log"
-$vsDevCmd = "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\Common7\Tools\VsDevCmd.bat"
-$cargo = Join-Path $env:USERPROFILE ".cargo\bin\cargo.exe"
 
-if (-not (Test-Path $vsDevCmd)) {
-    throw "VsDevCmd.bat not found: $vsDevCmd"
+function Find-VsDevCmd {
+    $candidates = @(
+        "F:\VS\BuildTools\Common7\Tools\VsDevCmd.bat",
+        "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\Common7\Tools\VsDevCmd.bat",
+        "C:\Program Files\Microsoft Visual Studio\2022\BuildTools\Common7\Tools\VsDevCmd.bat",
+        "C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\Tools\VsDevCmd.bat"
+    )
+
+    foreach ($candidate in $candidates) {
+        if (Test-Path $candidate) {
+            return $candidate
+        }
+    }
+
+    $vswhere = "C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe"
+    if (Test-Path $vswhere) {
+        $installationPath = & $vswhere -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -latest -property installationPath 2>$null
+        if ($installationPath) {
+            $detected = Join-Path $installationPath "Common7\Tools\VsDevCmd.bat"
+            if (Test-Path $detected) {
+                return $detected
+            }
+        }
+    }
+
+    return $null
 }
 
-if (-not (Test-Path $cargo)) {
-    throw "cargo.exe not found: $cargo"
+function Find-CargoExe {
+    $candidates = @()
+    if ($env:CARGO_HOME) {
+        $candidates += (Join-Path $env:CARGO_HOME "bin\cargo.exe")
+    }
+    $candidates += @(
+        "F:\rust\cargo\bin\cargo.exe",
+        (Join-Path $env:USERPROFILE ".cargo\bin\cargo.exe")
+    )
+
+    foreach ($candidate in $candidates) {
+        if ($candidate -and (Test-Path $candidate)) {
+            return $candidate
+        }
+    }
+
+    return $null
+}
+
+$vsDevCmd = Find-VsDevCmd
+$cargo = Find-CargoExe
+
+if (-not $vsDevCmd) {
+    throw "VsDevCmd.bat not found in known locations."
+}
+
+if (-not $cargo) {
+    throw "cargo.exe not found in CARGO_HOME/known locations."
 }
 
 function Get-RuntimeProcesses {

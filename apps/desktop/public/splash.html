@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
@@ -34,9 +34,13 @@
         place-items: center;
         background: rgba(7, 17, 28, 0.88);
         box-shadow: 0 20px 50px rgba(0, 0, 0, 0.28), inset 0 0 0 1px rgba(255, 255, 255, 0.05);
-        font-size: 34px;
-        font-weight: 800;
-        letter-spacing: 0.06em;
+        overflow: hidden;
+      }
+      .logo img {
+        width: 78%;
+        height: 78%;
+        object-fit: contain;
+        display: block;
       }
       h1 {
         margin: 0;
@@ -59,11 +63,12 @@
   </head>
   <body>
     <div class="splash-root">
-      <div class="logo">TK</div>
+      <div class="logo">
+        <img src="/tkops.ico" alt="TK-OPS 图标" />
+      </div>
       <h1>TK-OPS 运营助手</h1>
       <p>正在启动，请稍候...</p>
       <small>Starting UI...</small>
     </div>
   </body>
 </html>
-

@@ -498,7 +498,7 @@ def test_runtime_websocket_requires_valid_token() -> None:
         raise AssertionError("Expected websocket auth failure")
 
 
-def test_runtime_accounts_support_create_update_delete_and_connection_test(monkeypatch) -> None:
+def test_runtime_accounts_environment_login_proxy_binding_and_crud_support(monkeypatch) -> None:
     import api.http.accounts.routes as accounts_routes
 
     class _FakeRepository:
@@ -506,10 +506,45 @@ def test_runtime_accounts_support_create_update_delete_and_connection_test(monke
             return None
 
     class _FakeAccountService:
+        _bound_device_id = 11
+        _devices = {
+            11: SimpleNamespace(
+                id=11,
+                device_code="DEV-US-11",
+                name="US Relay 11",
+                region="US",
+                proxy_ip="10.10.10.11:18080",
+                status="healthy",
+                proxy_status="online",
+                fingerprint_status="ok",
+            ),
+            12: SimpleNamespace(
+                id=12,
+                device_code="DEV-DE-12",
+                name="DE Relay 12",
+                region="DE",
+                proxy_ip="10.10.10.12:28080",
+                status="warning",
+                proxy_status="online",
+                fingerprint_status="drifted",
+            ),
+        }
+
         def __init__(self, repo: object) -> None:
             self._repo = repo
 
+        @classmethod
+        def _current_account(cls) -> SimpleNamespace:
+            device = cls._devices.get(cls._bound_device_id)
+            return SimpleNamespace(
+                id=2,
+                username="demo-renamed",
+                device_id=cls._bound_device_id,
+                device=device,
+            )
+
         def create_account(self, username: str, **payload: object) -> object:
+            device = self._devices.get(self.__class__._bound_device_id)
             return SimpleNamespace(
                 id=2,
                 username=username,
@@ -519,16 +554,22 @@ def test_runtime_accounts_support_create_update_delete_and_connection_test(monke
                 risk_status=payload.get("risk_status", "normal"),
                 followers=payload.get("followers", 0),
                 group=None,
-                device=None,
+                device=device,
                 group_id=payload.get("group_id"),
-                device_id=payload.get("device_id"),
+                device_id=payload.get("device_id", self.__class__._bound_device_id),
                 cookie_status=payload.get("cookie_status", "unknown"),
+                cookie_content=payload.get("cookie_content"),
+                cookie_updated_at=None,
+                isolation_enabled=bool(payload.get("isolation_enabled", False)),
+                last_login_at=None,
                 last_connection_checked_at=None,
                 last_login_check_status="unknown",
                 last_login_check_at=None,
                 last_login_check_message=None,
                 last_connection_status=payload.get("last_connection_status", "unknown"),
                 last_connection_message=payload.get("last_connection_message"),
+                tags=payload.get("tags"),
+                notes=payload.get("notes"),
                 archived_at=None,
                 archived_reason=None,
                 created_at=None,
@@ -538,6 +579,7 @@ def test_runtime_accounts_support_create_update_delete_and_connection_test(monke
         def update_account(self, account_id: int, **payload: object) -> object | None:
             if account_id != 2:
                 return None
+            device = self._devices.get(self.__class__._bound_device_id)
             return SimpleNamespace(
                 id=account_id,
                 username=payload.get("username", "demo-new"),
@@ -547,16 +589,22 @@ def test_runtime_accounts_support_create_update_delete_and_connection_test(monke
                 risk_status=payload.get("risk_status", "watch"),
                 followers=payload.get("followers", 0),
                 group=None,
-                device=None,
+                device=device,
                 group_id=payload.get("group_id"),
-                device_id=payload.get("device_id"),
+                device_id=payload.get("device_id", self.__class__._bound_device_id),
                 cookie_status=payload.get("cookie_status", "unknown"),
+                cookie_content=payload.get("cookie_content"),
+                cookie_updated_at=None,
+                isolation_enabled=bool(payload.get("isolation_enabled", False)),
+                last_login_at=None,
                 last_connection_checked_at=None,
                 last_login_check_status="unknown",
                 last_login_check_at=None,
                 last_login_check_message=None,
                 last_connection_status=payload.get("last_connection_status", "unknown"),
                 last_connection_message=payload.get("last_connection_message"),
+                tags=payload.get("tags"),
+                notes=payload.get("notes"),
                 archived_at=None,
                 archived_reason=None,
                 created_at=None,
@@ -741,6 +789,76 @@ def test_runtime_accounts_support_create_update_delete_and_connection_test(monke
         def test_account_connection(self, account_id: int) -> dict[str, object]:
             return {"ok": True, "accountId": account_id, "status": "reachable", "latencyMs": 12}
 
+        def get_account(self, account_id: int) -> object | None:
+            if account_id != 2:
+                return None
+            return self.__class__._current_account()
+
+        def list_devices(self, *, status: str | None = None) -> list[object]:
+            _ = status
+            return list(self.__class__._devices.values())
+
+        def bind_device(self, account_id: int, device_id: int) -> object | None:
+            if account_id != 2:
+                return None
+            if device_id not in self.__class__._devices:
+                return None
+            self.__class__._bound_device_id = device_id
+            return self.__class__._current_account()
+
+        def update_device(self, pk: int, **fields: object) -> object | None:
+            target = self.__class__._devices.get(pk)
+            if target is None:
+                return None
+            if "proxy_ip" in fields:
+                target.proxy_ip = fields.get("proxy_ip")
+            if "region" in fields and fields.get("region") is not None:
+                target.region = str(fields.get("region"))
+            return target
+
+        def validate_account_login(self, pk: int, *, timeout: float = 10.0) -> dict[str, object]:
+            _ = timeout
+            if pk != 2:
+                raise ValueError("账号不存在")
+            return {
+                "account_id": 2,
+                "username": "demo-renamed",
+                "status": "valid",
+                "label": "已通过",
+                "message": "登录态有效",
+                "checked_at": "2026-04-01T13:30:00",
+                "platform": "tiktok",
+                "target": "www.tiktok.com",
+                "http_status": 200,
+                "via_proxy": True,
+                "cookie_status": "valid",
+            }
+
+        def open_account_environment(self, pk: int) -> dict[str, object]:
+            if pk != 2:
+                raise ValueError("账号不存在")
+            return {
+                "account_id": 2,
+                "account_username": "demo-renamed",
+                "device_id": self.__class__._bound_device_id,
+                "device_code": "DEV-US-11",
+                "name": "US Relay 11",
+                "browser_path": "C:/Program Files/Chrome/chrome.exe",
+                "profile_dir": "C:/profiles/account-2",
+                "extension_dir": "C:/profiles/account-2/ext",
+                "extension_name": "TKOPS Login Helper",
+                "extension_ready": True,
+                "extension_install_required": False,
+                "extension_install_hint": "",
+                "proxy_server": "127.0.0.1:19080",
+                "browser_proxy": "127.0.0.1:19080",
+                "upstream_proxy": "10.10.10.11:18080",
+                "pid": 4567,
+                "url": "https://www.tiktok.com/",
+                "cookie_count": 16,
+                "validation": {"ok": True, "message": "代理可用", "detail": ""},
+            }
+
     monkeypatch.setattr(accounts_routes, "Repository", _FakeRepository)
     monkeypatch.setattr(accounts_routes, "AccountService", _FakeAccountService)
 
@@ -800,6 +918,19 @@ def test_runtime_accounts_support_create_update_delete_and_connection_test(monke
         },
     )
     test_result = client.post("/accounts/2/test")
+    open_environment = client.post("/accounts/2/environment/open")
+    login_validation = client.post("/accounts/2/login/validate")
+    proxy_binding_get = client.get("/accounts/2/proxy-binding")
+    proxy_binding_post = client.post(
+        "/accounts/2/proxy-binding",
+        json={
+            "deviceId": 12,
+            "proxyIp": "10.10.10.99:39080",
+            "region": "de",
+            "validateAfterSave": True,
+        },
+    )
+    proxy_binding_bad_device = client.post("/accounts/2/proxy-binding", json={"deviceId": 9999})
     delete = client.delete("/accounts/2")
     lifecycle_delete = client.post("/accounts/2/lifecycle", json={"action": "delete"})
 
@@ -839,6 +970,21 @@ def test_runtime_accounts_support_create_update_delete_and_connection_test(monke
     assert import_apply.json()["data"]["updateExisting"] is True
     assert test_result.status_code == 200
     assert test_result.json()["data"]["ok"] is True
+    assert open_environment.status_code == 200
+    assert open_environment.json()["data"]["accountId"] == 2
+    assert open_environment.json()["data"]["pid"] == 4567
+    assert login_validation.status_code == 200
+    assert login_validation.json()["data"]["status"] == "valid"
+    assert login_validation.json()["data"]["viaProxy"] is True
+    assert proxy_binding_get.status_code == 200
+    assert proxy_binding_get.json()["data"]["boundDeviceId"] == 11
+    assert len(proxy_binding_get.json()["data"]["availableDevices"]) == 2
+    assert proxy_binding_post.status_code == 200
+    assert proxy_binding_post.json()["data"]["boundDeviceId"] == 12
+    assert proxy_binding_post.json()["data"]["region"] == "DE"
+    assert proxy_binding_post.json()["data"]["validation"]["status"] == "valid"
+    assert proxy_binding_bad_device.status_code == 400
+    assert proxy_binding_bad_device.json()["ok"] is False
     assert delete.status_code == 200
     assert delete.json()["data"]["deleted"] is True
     assert lifecycle_delete.status_code == 200

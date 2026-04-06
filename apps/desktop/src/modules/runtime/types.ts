@@ -137,6 +137,7 @@ export interface AccountItem {
   groupName: string | null;
   deviceId: number | null;
   deviceName: string | null;
+  proxyIp?: string | null;
   cookieStatus: string;
   boundEnvironment: string | null;
   recentError: string | null;
@@ -145,6 +146,17 @@ export interface AccountItem {
   archivedAt: string | null;
   lastConnectionStatus: string;
   lastConnectionMessage: string | null;
+  lastConnectionCheckedAt?: string | null;
+  lastLoginAt?: string | null;
+  lastLoginCheckStatus?: string | null;
+  lastLoginCheckAt?: string | null;
+  lastLoginCheckMessage?: string | null;
+  cookieContent?: string | null;
+  cookieUpdatedAt?: string | null;
+  isolationEnabled?: boolean;
+  archivedReason?: string | null;
+  notes?: string | null;
+  tags?: string | null;
   createdAt: string | null;
   updatedAt: string | null;
 }
@@ -284,6 +296,72 @@ export interface AccountConnectionTestResult {
   deviceStatus?: string;
   proxyStatus?: string;
   status?: string;
+}
+
+export interface AccountEnvironmentOpenResult {
+  accountId: number;
+  accountUsername: string;
+  deviceId: number;
+  deviceCode: string;
+  deviceName: string;
+  browserPath: string;
+  profileDir: string;
+  extensionDir: string;
+  extensionName: string;
+  extensionReady: boolean;
+  extensionInstallRequired: boolean;
+  extensionInstallHint: string;
+  proxyServer: string;
+  browserProxy: string;
+  upstreamProxy: string;
+  pid: number;
+  url: string;
+  cookieCount: number;
+  validation: {
+    ok: boolean;
+    message: string;
+    detail: string;
+  };
+}
+
+export interface AccountLoginValidationResult {
+  accountId: number;
+  username: string;
+  status: string;
+  label: string;
+  message: string;
+  checkedAt: string | null;
+  platform: string;
+  target: string;
+  httpStatus: number | null;
+  viaProxy: boolean;
+  cookieStatus: string;
+}
+
+export interface AccountProxyBindingDeviceSnapshot {
+  id: number;
+  deviceCode: string;
+  name: string;
+  region: string;
+  proxyIp: string | null;
+  status: string;
+  proxyStatus: string;
+  fingerprintStatus: string;
+}
+
+export interface AccountProxyBindingSnapshot {
+  accountId: number;
+  accountUsername: string;
+  boundDeviceId: number | null;
+  boundDeviceName: string | null;
+  proxyIp: string | null;
+  region: string | null;
+  status: string | null;
+  availableDevices: AccountProxyBindingDeviceSnapshot[];
+}
+
+export interface AccountProxyBindingUpdateResult extends AccountProxyBindingSnapshot {
+  validation: AccountLoginValidationResult | null;
 }
 
 export interface RuntimeListResponse<T> {

@@ -6,12 +6,16 @@ import type {
   AccountBulkActionPayload,
   AccountBulkActionResult,
   AccountConnectionTestResult,
+  AccountEnvironmentOpenResult,
+  AccountLoginValidationResult,
   AccountDetail,
   AccountImportApplyResult,
   AccountImportPayload,
   AccountImportPreviewResult,
   AccountItem,
   AccountListQuery,
+  AccountProxyBindingSnapshot,
+  AccountProxyBindingUpdateResult,
   AccountUpsertPayload,
   CopywriterBootstrap,
   CreateSchedulePayload,
@@ -145,6 +149,26 @@ export const runtimeApi = {
   },
   testAccountConnection(accountId: number): Promise<AccountConnectionTestResult> {
     return httpClient.post(`/accounts/${accountId}/test`);
+  },
+  openAccountEnvironment(accountId: number): Promise<AccountEnvironmentOpenResult> {
+    return httpClient.post(`/accounts/${accountId}/environment/open`);
+  },
+  validateAccountLogin(accountId: number): Promise<AccountLoginValidationResult> {
+    return httpClient.post(`/accounts/${accountId}/login/validate`);
+  },
+  getAccountProxyBinding(accountId: number): Promise<AccountProxyBindingSnapshot> {
+    return httpClient.get(`/accounts/${accountId}/proxy-binding`);
+  },
+  updateAccountProxyBinding(
+    accountId: number,
+    payload: {
+      deviceId?: number | null;
+      proxyIp?: string | null;
+      region?: string | null;
+      validateAfterSave?: boolean;
+    },
+  ): Promise<AccountProxyBindingUpdateResult> {
+    return httpClient.post(`/accounts/${accountId}/proxy-binding`, payload);
   },
   listTasks(status?: string): Promise<RuntimeListResponse<TaskItem>> {
     const query = status ? `?status=${encodeURIComponent(status)}` : '';

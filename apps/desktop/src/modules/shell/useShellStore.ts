@@ -5,6 +5,7 @@ import { router } from '../../app/router';
 import { shellRouteManifest } from '../../app/router/routeManifest';
 import { loadHostShellInfo, notifyAppShellReady, type HostShellInfo } from '../host/hostCommands';
 import { runtimeApi } from '../runtime/runtimeApi';
+import { mapRuntimeStatus, mapThemeMode } from '../runtime/runtimePresentation';
 import type {
   DashboardActivityItem,
   DashboardOverview,
@@ -55,6 +56,62 @@ interface WorkspaceIdentity {
   name: string;
   subtitle: string;
   initials: string;
+}
+
+type DashboardDetailKind = 'default' | 'activity' | 'system' | 'quick-action';
+
+interface DashboardDetailItem {
+  label: string;
+  value: string;
+}
+
+interface DashboardDetailState {
+  kind: DashboardDetailKind;
+  title: string;
+  subtitle: string;
+  statusLabel: string;
+  statusTone: StatusChipItem['tone'];
+  items: DashboardDetailItem[];
+}
+
+type AccountDetailKind = 'default' | 'selected' | 'advice';
+
+interface AccountDetailPoint {
+  label: string;
+  value: string;
+}
+
+interface AccountDetailItem {
+  label: string;
+  value: string;
+  stacked?: boolean;
+}
+
+interface AccountAdviceItem {
+  title: string;
+  copy: string;
+  badge: string;
+  tone: StatusChipItem['tone'];
+}
+
+interface AccountDutySummary {
+  title: string;
+  copy: string;
+  badge: string;
+  tone: StatusChipItem['tone'];
+}
+
+interface AccountDetailState {
+  kind: AccountDetailKind;
+  accountId: number | null;
+  title: string;
+  subtitle: string;
+  statusLabel: string;
+  statusTone: StatusChipItem['tone'];
+  dataPoints: AccountDetailPoint[];
+  detailItems: AccountDetailItem[];
+  dutySummary: AccountDutySummary;
+  adviceItems: AccountAdviceItem[];
 }
 
 const THEME_STORAGE_KEY = 'tkops.shell.theme';
@@ -166,21 +223,49 @@ function resolveShellScale(layoutViewportWidth: number): number {
   return clamp(layoutViewportWidth / SHELL_SCALE_BASE_WIDTH, SHELL_SCALE_MIN, 1);
 }
 
-function inferRuntimeTone(status: string): RuntimeChip['tone'] {
-  const normalized = status.trim().toLowerCase();
-  if (!normalized) {
-    return 'info';
-  }
-  if (normalized.includes('error') || normalized.includes('failed') || normalized.includes('异常')) {
-    return 'error';
-  }
-  if (normalized.includes('warn') || normalized.includes('degraded') || normalized.includes('fallback')) {
-    return 'warning';
-  }
-  if (normalized.includes('ok') || normalized.includes('ready') || normalized.includes('healthy')) {
-    return 'success';
-  }
-  return 'info';
+function createDefaultDashboardDetailState(): DashboardDetailState {
+  return {
+    kind: 'default',
+    title: '概览页说明',
+    subtitle: '选中右侧状态项或活动流后，这里会显示对应运行时详情。',
+    statusLabel: '概览详情',
+    statusTone: 'info',
+    items: [
+      { label: '当前模式', value: 'dashboard 运行时聚合' },
+      { label: '趋势图', value: 'X 轴为时间，Y 轴为任务数量' },
+      { label: '活动流', value: '来自任务与活动日志' },
+    ],
+  };
+}
+
+function createDefaultAccountDetailState(): AccountDetailState {
+  return {
+    kind: 'default',
+    accountId: null,
+    title: '账号详情',
+    subtitle: '选中左侧账号后，这里会固定展示环境、Cookie、连接检测和处置建议。',
+    statusLabel: '待选择',
+    statusTone: 'info',
+    dataPoints: [
+      { label: 'Cookie 状态', value: '--' },
+      { label: '登录态校验', value: '--' },
+      { label: '隔离环境', value: '--' },
+      { label: 'Cookie 更新', value: '--' },
+      { label: '最近登录', value: '--' },
+      { label: '代理检测', value: '--' },
+    ],
+    detailItems: [
+      { label: '当前状态', value: '尚未选择账号' },
+      { label: '建议', value: '先从异常账号开始排查' },
+    ],
+    dutySummary: {
+      title: '账号值班建议',
+      copy: '先从异常账号开始排查',
+      badge: '待选择',
+      tone: 'info',
+    },
+    adviceItems: [],
+  };
 }
 
 export const useShellStore = defineStore('shell', () => {
@@ -227,6 +312,8 @@ export const useShellStore = defineStore('shell', () => {
   const dashboardRange = ref<'today' | '7d' | '30d'>('today');
   const selectedActivity = ref<DashboardActivityItem | null>(null);
   const selectedSystem = ref<DashboardSystemItem | null>(null);
+  const dashboardDetailState = ref<DashboardDetailState>(createDefaultDashboardDetailState());
+  const accountDetailState = ref<AccountDetailState>(createDefaultAccountDetailState());
 
   const assistantInput = ref('');
   const assistantMessages = ref<AssistantMessage[]>([]);
@@ -302,11 +389,13 @@ export const useShellStore = defineStore('shell', () => {
 
   const unreadNotificationCount = computed(() => notifications.value.filter((item) => item.read !== true).length);
 
+  const runtimeRawStatus = computed(() => hostInfo.value?.runtimeStatus || runtimeHealth.value?.status || 'unknown');
+
   const runtimeChip = computed<RuntimeChip>(() => {
-    const runtimeStatus = hostInfo.value?.runtimeStatus || runtimeHealth.value?.status || 'unknown';
+    const runtimeStatus = mapRuntimeStatus(runtimeRawStatus.value);
     return {
-      label: runtimeStatus,
-      tone: inferRuntimeTone(runtimeStatus),
+      label: runtimeStatus.label,
+      tone: runtimeStatus.tone,
     };
   });
 
@@ -342,7 +431,7 @@ export const useShellStore = defineStore('shell', () => {
   }));
 
   const runtimeStatusChip = computed<StatusChipItem>(() => ({
-    text: `Runtime ${runtimeChip.value.label}`,
+    text: `运行时 ${runtimeChip.value.label}`,
     tone: runtimeChip.value.tone,
   }));
 
@@ -353,7 +442,7 @@ export const useShellStore = defineStore('shell', () => {
     if (isMinimumMode.value) {
       return [routeLabel];
     }
-    const chips = [routeLabel, `Runtime: ${runtimeChip.value.label}`];
+    const chips = [routeLabel, `运行时：${runtimeChip.value.label}`];
     if (currentRouteName.value === 'dashboard') {
       if (selectedSystem.value?.title) {
         chips.push(`系统: ${selectedSystem.value.title}`);
@@ -369,6 +458,13 @@ export const useShellStore = defineStore('shell', () => {
   const quickThemeLabel = computed(() => {
     const nextTheme = resolvedTheme.value === 'dark' ? 'light' : 'dark';
     return nextTheme === 'dark' ? '\u5207\u6362\u5230\u6df1\u8272' : '\u5207\u6362\u5230\u6d45\u8272';
+  });
+
+  const themeDisplayLabel = computed(() => {
+    if (themePreference.value === 'system') {
+      return `跟随系统（当前${mapThemeMode(resolvedTheme.value)}）`;
+    }
+    return mapThemeMode(themePreference.value);
   });
 
   function applyTheme(theme: ThemePreference, persistToLocalStorage = true): void {
@@ -650,6 +746,75 @@ export const useShellStore = defineStore('shell', () => {
     selectedSystem.value = item;
   }
 
+  function setDashboardDetailState(payload: DashboardDetailState): void {
+    dashboardDetailState.value = {
+      kind: payload.kind,
+      title: payload.title || '概览详情',
+      subtitle: payload.subtitle || '暂无说明',
+      statusLabel: payload.statusLabel || '概览详情',
+      statusTone: payload.statusTone || 'info',
+      items: Array.isArray(payload.items) && payload.items.length > 0
+        ? payload.items.map((item) => ({
+          label: item.label || '--',
+          value: item.value || '--',
+        }))
+        : [{ label: '暂无数据', value: '--' }],
+    };
+  }
+
+  function resetDashboardDetailState(): void {
+    dashboardDetailState.value = createDefaultDashboardDetailState();
+  }
+
+  function setAccountDetailState(payload: AccountDetailState): void {
+    accountDetailState.value = {
+      kind: payload.kind,
+      accountId: typeof payload.accountId === 'number' ? payload.accountId : null,
+      title: payload.title || '账号详情',
+      subtitle: payload.subtitle || '暂无说明',
+      statusLabel: payload.statusLabel || '账号详情',
+      statusTone: payload.statusTone || 'info',
+      dataPoints: Array.isArray(payload.dataPoints) && payload.dataPoints.length > 0
+        ? payload.dataPoints.map((item) => ({
+          label: item.label || '--',
+          value: item.value || '--',
+        }))
+        : [
+          { label: 'Cookie 状态', value: '--' },
+          { label: '登录态校验', value: '--' },
+          { label: '隔离环境', value: '--' },
+          { label: 'Cookie 更新', value: '--' },
+          { label: '最近登录', value: '--' },
+          { label: '代理检测', value: '--' },
+        ],
+      detailItems: Array.isArray(payload.detailItems) && payload.detailItems.length > 0
+        ? payload.detailItems.map((item) => ({
+          label: item.label || '--',
+          value: item.value || '--',
+          stacked: Boolean(item.stacked),
+        }))
+        : [{ label: '暂无数据', value: '--' }],
+      dutySummary: {
+        title: payload.dutySummary?.title || '账号值班建议',
+        copy: payload.dutySummary?.copy || '--',
+        badge: payload.dutySummary?.badge || '--',
+        tone: payload.dutySummary?.tone || 'info',
+      },
+      adviceItems: Array.isArray(payload.adviceItems)
+        ? payload.adviceItems.map((item) => ({
+          title: item.title || '--',
+          copy: item.copy || '--',
+          badge: item.badge || '--',
+          tone: item.tone || 'info',
+        }))
+        : [],
+    };
+  }
+
+  function resetAccountDetailState(): void {
+    accountDetailState.value = createDefaultAccountDetailState();
+  }
+
   function defaultAssistantSuggestions(): ShellAssistantAction[] {
     return [
       { id: 'goto-settings', label: '打开系统设置', action: 'navigate', payload: { routeName: 'system-settings' } },
@@ -845,6 +1010,8 @@ export const useShellStore = defineStore('shell', () => {
     licenseStatus,
     dashboardOverview,
     dashboardRange,
+    dashboardDetailState,
+    accountDetailState,
     selectedActivity,
     selectedSystem,
     versionCurrent,
@@ -852,6 +1019,7 @@ export const useShellStore = defineStore('shell', () => {
     notifications,
     unreadNotificationCount,
     runtimeChip,
+    runtimeRawStatus,
     statusLeftChips,
     statusRightChips,
     statusBarCompactChips,
@@ -861,6 +1029,7 @@ export const useShellStore = defineStore('shell', () => {
     currentRouteSummary,
     currentEyebrow,
     quickThemeLabel,
+    themeDisplayLabel,
     searchQuery,
     searchPanelVisible,
     searchResults,
@@ -889,6 +1058,10 @@ export const useShellStore = defineStore('shell', () => {
     setDashboardRange,
     setSelectedActivity,
     setSelectedSystem,
+    setDashboardDetailState,
+    resetDashboardDetailState,
+    setAccountDetailState,
+    resetAccountDetailState,
     sendAssistantMessage,
     runShellAction,
   };

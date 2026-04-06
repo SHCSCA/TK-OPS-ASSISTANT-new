@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <section class="resource-page">
     <div class="resource-header">
       <div>
@@ -13,8 +13,8 @@
     <div class="resource-summary-grid resource-summary-grid-triple">
       <article class="metric-card">
         <p class="eyebrow">迁移状态</p>
-        <strong>待迁移</strong>
-        <span>已完成菜单注册与路由占位</span>
+        <strong>{{ `待迁移（全局 ${migrationSnapshot.implementedCount}/${migrationSnapshot.totalCount}）` }}</strong>
+        <span>{{ migrationSnapshot.stageTitle }}</span>
       </article>
       <article class="metric-card">
         <p class="eyebrow">旧页面键</p>
@@ -23,8 +23,8 @@
       </article>
       <article class="metric-card">
         <p class="eyebrow">当前阶段</p>
-        <strong>菜单先行</strong>
-        <span>下一步进入该页真实迁移</span>
+        <strong>{{ migrationSnapshot.stageTitle }}</strong>
+        <span>{{ migrationSnapshot.stageDescription }}</span>
       </article>
     </div>
 
@@ -50,7 +50,10 @@
 import { computed } from 'vue';
 import { useRoute } from 'vue-router';
 
+import { useMigrationProgress } from '../../app/router/migrationProgress';
+
 const route = useRoute();
+const { snapshot: migrationSnapshot } = useMigrationProgress();
 
 const title = computed(() => String(route.meta.title || '迁移占位页'));
 const eyebrow = computed(() => String(route.meta.eyebrow || '迁移中'));

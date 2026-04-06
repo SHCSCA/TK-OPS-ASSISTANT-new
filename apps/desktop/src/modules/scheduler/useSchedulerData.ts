@@ -96,9 +96,9 @@ export function useSchedulerData() {
     }),
     toggleSchedule,
     windows: computed(() => resource.data.value?.windows || {
-      quietHours: '23:00-07:00',
-      timezone: 'Asia/Shanghai',
-      defaultWorkflow: '内容创作',
+      quietHours: '--',
+      timezone: '--',
+      defaultWorkflow: '--',
     }),
   };
 }

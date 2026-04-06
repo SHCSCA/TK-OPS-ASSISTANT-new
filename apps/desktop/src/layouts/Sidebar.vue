@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <aside class="sidebar">
     <div class="sidebar__content">
       <section v-for="group in navGroups" :key="group.title" class="sidebar__section">
@@ -17,9 +17,9 @@
     </div>
     <div class="sidebar__footer">
       <div class="eyebrow">当前阶段</div>
-      <strong>新桌面壳全局能力补齐</strong>
+      <strong>{{ `${migrationSnapshot.implementedCount} / ${migrationSnapshot.totalCount} 页面已迁移` }}</strong>
       <p class="sidebar__footer-copy">
-        完成壳层能力后继续按菜单顺序逐页迁移功能，保证结构稳定、进度可追踪。
+        {{ migrationSnapshot.stageTitle }}。{{ migrationSnapshot.stageDescription }}
       </p>
     </div>
   </aside>
@@ -30,9 +30,11 @@ import { computed } from 'vue';
 import { RouterLink } from 'vue-router';
 
 import { shellNavGroups, shellRouteManifest } from '../app/router/routeManifest';
+import { useMigrationProgress } from '../app/router/migrationProgress';
 import { useShellStore } from '../modules/shell/useShellStore';
 
 const shell = useShellStore();
+const { snapshot: migrationSnapshot } = useMigrationProgress();
 
 const currentRouteName = computed(() => shell.currentRouteName);
 

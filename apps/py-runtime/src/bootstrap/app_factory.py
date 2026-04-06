@@ -13,6 +13,7 @@ from api.http.common.auth import request_has_valid_token, unauthorized_response
 from api.http.accounts.routes import build_accounts_router
 from api.http.copywriter.routes import build_copywriter_router
 from api.http.dashboard.routes import build_dashboard_router
+from api.http.devices.routes import build_devices_router
 from api.http.health.routes import build_health_router
 from api.http.license.routes import build_license_router
 from api.http.notifications.routes import build_notifications_router
@@ -99,6 +100,7 @@ def build_app(container: RuntimeContainer) -> FastAPI:
     app.include_router(build_tasks_router(container))
     app.include_router(build_scheduler_router(container))
     app.include_router(build_dashboard_router(container))
+    app.include_router(build_devices_router(container))
     app.include_router(build_copywriter_router(container))
     app.include_router(build_notifications_router(container))
     app.include_router(build_version_router(container))

@@ -4,91 +4,137 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-TK-OPS is a Windows desktop application for TikTok Shop operations teams. It uses a Python backend with PySide6/QtWebEngine for the desktop shell, SQLite for persistence, and a web-based frontend that communicates with Python via QWebChannel bridge.
+TK-OPS is a Windows desktop application for TikTok Shop operations teams. It has migrated from the original PySide6/QtWebEngine architecture to a new single-shell architecture:
 
-Current version: 1.2.3
+- **Tauri Desktop Host** (`apps/desktop/`): Modern desktop shell using Tauri 2 + Vue 3 + TypeScript
+- **Python Sidecar Runtime** (`apps/py-runtime/`): Business logic runtime using Python + FastAPI
+- **Legacy Reference** (`desktop_app/`): Preserved for migration reference and runtime code reuse, no longer the default entry point
 
-## Architecture
+Current version: 1.3.2
 
-### Three-Layer Design
+## Current Architecture
 
-1. **Python Backend** (`desktop_app/`)
-   - Services layer: Business logic (account, task, AI, asset, analytics, etc.)
-   - Repository layer: Database access via SQLAlchemy ORM
-   - Bridge layer: QWebChannel slots exposing services to frontend
+### Three-Component Design
 
-2. **QWebChannel Bridge** (`desktop_app/ui/bridge.py`)
-   - All slots return JSON envelopes: `{ok: bool, data: any, error: string}`
-   - `@_safe` decorator catches exceptions and returns error envelopes
-   - `dataChanged` signal pushes mutations to frontend for reactive updates
-   - Never crashes - all errors are caught and returned as JSON
+1. **Tauri Desktop Host** (`apps/desktop/`)
+   - Built with Tauri 2 for secure, high-performance desktop shell
+   - Frontend: Vue 3 + TypeScript + Vite + Pinia + Vue Router
+   - Communicates with Python runtime via HTTP/WebSocket
+   - Provides native window management, system tray, auto-updates
 
-3. **Web Frontend** (`desktop_app/assets/`)
-   - HTML/CSS/JS pages loaded in QtWebEngine
-   - `data.js`: Bridge API wrapper with caching and error handling
-   - `routes.js`: Route metadata and page factories
-   - `page-loaders.js`: Data loading and behavior binding per page
-   - `bindings.js`: Shared interaction handlers
+2. **Python Sidecar Runtime** (`apps/py-runtime/`)
+   - FastAPI-based HTTP/WebSocket server (default: `127.0.0.1:8765`)
+   - Business logic services (account, task, AI, asset, analytics, etc.)
+   - Repository layer: Database access via SQLAlchemy ORM (same as legacy)
+   - Legacy facade adapter for gradual migration from `desktop_app/`
+   - All endpoints return JSON envelopes: `{ok: bool, data: any, error: string}`
+
+3. **Legacy Desktop App** (`desktop_app/`)
+   - Preserved for reference and runtime code reuse
+   - Not the default development or runtime entry point
+   - Contains database models, migrations, and some service logic
 
 ### Key Communication Pattern
 
 ```
-Frontend (JS) → data.js → QWebChannel → bridge.py → Service → Repository → SQLite
+Frontend (Vue) → runtimeApi.ts → HTTP/WebSocket → FastAPI → Services → Repository → SQLite
                                     ↓
-Frontend (JS) ← dataChanged signal ← bridge.py (reactive updates)
+Frontend (Vue) ← WebSocket events ← FastAPI (real-time updates)
 ```
 
 ## Development Commands
 
-### Setup
+### Environment Setup
 ```powershell
+# Create and activate Python virtual environment
 python -m venv venv
 venv\Scripts\Activate.ps1
 pip install -r requirements.txt
+
+# Install frontend dependencies
+cd apps\desktop
+npm install
+cd ..\..
 ```
 
 ### Run Application
 ```powershell
-venv\Scripts\python.exe desktop_app\main.py
+# Default development (starts both desktop and runtime)
+scripts\dev.ps1
+
+# Runtime only
+scripts\dev.ps1 -RuntimeOnly
+
+# Desktop only (connects to existing runtime)
+scripts\dev.ps1 -DesktopOnly
 ```
 
-### Run Tests
+### Build Commands
 ```powershell
-# All tests
-venv\Scripts\python.exe -m pytest tests/ -v
+# Build Python runtime only
+scripts\build-runtime.ps1
 
-# Specific test file
-venv\Scripts\python.exe -m pytest tests/test_bridge_runtime_contract.py -v
+# Build desktop frontend with runtime smoke test
+scripts\build-desktop.ps1 -SmokeRuntime
 
-# Key integration tests
-venv\Scripts\python.exe -m pytest tests/test_notification_runtime_truthfulness.py tests/test_analyst_page_backend_driven.py tests/test_dev_seed_service.py -v
+# Generate Alpha release artifacts
+scripts\release.ps1
+```
+
+### Testing
+```powershell
+# Python tests (including new runtime tests)
+venv\Scripts\python.exe -m pytest tests -q
+
+# Python compilation check
+venv\Scripts\python.exe -m compileall apps\py-runtime\src desktop_app
+
+# Frontend type checking and build
+cd apps\desktop
+npm run typecheck
+npm run build
+
+# Tauri managed runtime smoke test
+scripts\smoke-tauri-runtime.ps1 -SkipBuild
+```
+
+### Pre-flight Gates (Release Quality)
+```powershell
+# Quick check for daily development
+scripts\preflight-gate.ps1 -Quick
+
+# Full check before release
+scripts\preflight-gate.ps1 -Full
 ```
 
 ### Database Migrations
 ```powershell
-# Create new migration
+# Create new migration (still uses desktop_app models)
 venv\Scripts\python.exe -m alembic revision --autogenerate -m "description"
 
-# Apply migrations (auto-runs on app startup)
+# Apply migrations (auto-runs on runtime startup)
 venv\Scripts\python.exe -m alembic upgrade head
 ```
 
 ### Build Executable
 ```powershell
-.\build_exe.bat --clean
+# Build Alpha release (output: dist-alpha\TK-OPS-Alpha\)
+scripts\release.ps1
+
+# Create Inno Setup installer (requires Inno Setup)
+iscc installer.iss
 ```
-Output: `dist\TK-OPS\TK-OPS.exe`
 
 ## Database
 
 - **Location**: `%APPDATA%/TK-OPS-ASSISTANT/tk_ops.db` (production)
 - **Override**: Set `TK_OPS_DATA_DIR` environment variable for custom location
-- **Migrations**: Alembic auto-runs on startup via `desktop_app/app.py`
+- **Migrations**: Alembic auto-runs on runtime startup
 - **ORM**: SQLAlchemy 2.x with typed `Mapped` columns
 - **Sample DB**: `sample_data/tk_ops_test_seed.db` (test data for UI verification)
 
-### Core Models
-- `Account`: TikTok accounts with status, cookies, device/group associations
+### Core Models (Same as Legacy)
+- `Account`: TikTok accounts with dual status (manual + system), risk status, device/group associations
 - `Group`: Account grouping with color coding
 - `Device`: Proxy devices with fingerprint tracking
 - `Task`: Async operations (publish, scrape, analytics, etc.)
@@ -97,90 +143,132 @@ Output: `dist\TK-OPS\TK-OPS.exe`
 - `VideoSequence`, `VideoClip`, `VideoSubtitle`: Video editor data models
 - `AnalysisSnapshot`, `ReportRun`, `WorkflowDefinition`, `ExperimentProject`: Analytics/workflow persistence
 
-## Frontend Architecture
+## Frontend Architecture (New)
 
-### Page Loading Flow
-1. User navigates → `routes.js` matches route → calls page factory
-2. Factory creates DOM structure → `page-loaders.js` loads data via `data.js`
-3. Data fetched from bridge → page rendered → bindings attached via `bindings.js`
-4. Runtime updates via `runtimeSummaryHandlers` (dynamic sidebar content)
+### Technology Stack
+- **Framework**: Vue 3 + TypeScript
+- **Build Tool**: Vite
+- **State Management**: Pinia
+- **Routing**: Vue Router
+- **UI Components**: Custom CSS with Tailwind-like utilities
+- **Communication**: HTTP client + WebSocket for real-time updates
 
 ### Key Frontend Files
-- `app_shell.html`: Main desktop shell with sidebar navigation
-- `routes.js`: Route definitions and page factory functions
-- `page-loaders.js`: Per-page data loading and initialization
-- `bindings.js`: Shared button handlers and interactions
-- `data.js`: Bridge API wrapper with caching (`window.api.*`)
-- `state.js`: Client-side state management
-- `ui-notifications.js`: Real-time notification rendering
+- `apps/desktop/src/main.ts`: Application entry point
+- `apps/desktop/src/App.vue`: Root component
+- `apps/desktop/src/layouts/`: Layout components (AppShell, Sidebar, TitleBar, etc.)
+- `apps/desktop/src/pages/`: Page components (Dashboard, Accounts, etc.)
+- `apps/desktop/src/modules/`: Feature modules with composables and API clients
+- `apps/desktop/src/modules/runtime/`: Runtime communication (httpClient.ts, runtimeApi.ts, runtimeSocket.ts)
+- `apps/desktop/src/app/router/`: Routing configuration and route manifest
 
 ### Frontend Conventions
-- Pages load real data from backend, not hardcoded examples
-- Use `api.*` methods from `data.js` for all backend calls
-- Runtime summaries populated via `runtimeSummaryHandlers[pageKey]`
+- Use `runtimeApi` from `modules/runtime/runtimeApi.ts` for all backend calls
+- Use composables (e.g., `useAccountsData.ts`) for reactive data fetching
+- Pages load real data from runtime, not hardcoded examples
+- Empty states shown when no data exists (no fake data)
 - Task-backed actions create `Task` records and show progress
-- Empty states show when no data exists (no fake data)
+- Real-time updates via WebSocket connections
 
 ## Testing Strategy
 
 ### Test Categories
-1. **Bridge Contract** (`test_bridge_runtime_contract.py`): Verify all bridge slots return valid JSON envelopes
-2. **CRUD Interaction** (`test_crud_interaction_matrix.py`): Test create/read/update/delete flows
-3. **Page Audits** (`test_page_interaction_audit.py`): Verify pages load without hardcoded data
-4. **Backend-Driven** (`test_analyst_page_backend_driven.py`): Ensure analyst pages use real aggregates
-5. **Notification Truthfulness** (`test_notification_runtime_truthfulness.py`): Verify notifications come from real data
-6. **Task-Backed Actions** (`test_task_backed_actions.py`): Test async operations create Task records
-7. **Dev Seed** (`test_dev_seed_service.py`): Verify development data seeding
+1. **Runtime API Tests** (`test_runtime_api.py`): Verify FastAPI endpoints return valid JSON envelopes
+2. **Bridge Contract** (`test_bridge_runtime_contract.py`): Legacy bridge compatibility tests
+3. **CRUD Interaction** (`test_crud_interaction_matrix.py`): Test create/read/update/delete flows
+4. **Page Audits** (`test_page_interaction_audit.py`): Verify pages load without hardcoded data
+5. **Backend-Driven** (`test_analyst_page_backend_driven.py`): Ensure analyst pages use real aggregates
+6. **Notification Truthfulness** (`test_notification_runtime_truthfulness.py`): Verify notifications come from real data
+7. **Task-Backed Actions** (`test_task_backed_actions.py`): Test async operations create Task records
+8. **Dev Seed** (`test_dev_seed_service.py`): Verify development data seeding
 
 ### Testing Patterns
 - Use `Repository()` with in-memory SQLite for isolated tests
 - Mock external HTTP calls with `httpx` responses
-- Test both service layer and bridge layer
+- Test both service layer and API layer
 - Verify JSON envelope structure: `{ok, data, error}`
 
 ## Development Workflow
 
-### Adding New Features
-1. Define models in `desktop_app/database/models.py`
-2. Create migration: `alembic revision --autogenerate -m "add_feature"`
-3. Implement service in `desktop_app/services/`
-4. Add bridge slots in `desktop_app/ui/bridge.py` with `@_safe` decorator
-5. Create frontend API in `data.js` (e.g., `api.feature.*`)
-6. Add page factory in `routes.js` and loader in `page-loaders.js`
-7. Write tests covering bridge contract, CRUD, and page behavior
+### Adding New Features (New Architecture)
+1. **Define/Update models** in `desktop_app/database/models.py` (shared with legacy)
+2. **Create migration**: `alembic revision --autogenerate -m "add_feature"`
+3. **Implement service** in `apps/py-runtime/src/` (new) or `desktop_app/services/` (reuse)
+4. **Add FastAPI endpoints** in `apps/py-runtime/src/api/http/{feature}/routes.py`
+5. **Create frontend API** in `apps/desktop/src/modules/{feature}/` with composable
+6. **Add to runtimeApi.ts** if needed for shared API client
+7. **Create page component** in `apps/desktop/src/pages/{feature}/`
+8. **Add route** in `apps/desktop/src/app/router/routes.ts` and `routeManifest.ts`
+9. **Write tests** covering API contract, CRUD, and page behavior
 
-### Bridge Slot Pattern
+### FastAPI Endpoint Pattern
 ```python
-@Slot(result=str)
-@_safe
-def methodName(self, arg1: str, arg2: int) -> str:
+@router.get("/endpoint")
+async def get_data() -> dict[str, Any]:
     """Docstring."""
-    result = self._service.do_something(arg1, arg2)
-    return _ok(result)  # Returns {"ok": true, "data": result}
+    try:
+        result = service.get_data()
+        return {"ok": True, "data": result}
+    except Exception as e:
+        logger.exception("Failed to get data")
+        return {"ok": False, "error": str(e)}
 ```
 
 ### Frontend API Pattern
-```javascript
-// In data.js
-api.feature = {
-    doSomething: function(arg1, arg2) {
-        return callBackend('methodName', arg1, arg2);
-    }
-};
+```typescript
+// In apps/desktop/src/modules/feature/useFeatureData.ts
+export function useFeatureData() {
+  const fetchData = async () => {
+    return await runtimeApi.getFeatureData();
+  };
+  
+  return { fetchData };
+}
 ```
+
+## Current Migration Status & Roadmap
+
+### Current Progress (as of 2026-04-06)
+- **New single-shell architecture**: Tauri host + Python sidecar runtime is production-ready
+- **Development tooling**: Complete (dev, build, smoke test, release scripts)
+- **Migrated pages**: 8 of 44 pages fully migrated to new architecture:
+  - Dashboard
+  - Account Management (production-ready phase 1)
+  - AI Provider Management
+  - Task Queue
+  - Task Scheduler
+  - AI Copywriter
+  - Setup Wizard
+  - System Settings
+- **Menu baseline**: All 44 pages have placeholder routes to prevent missing pages
+- **Account management phase 1**: Dual status model, risk states, archiving, bulk operations, activity summaries
+
+### Next Phase Priorities
+1. **Global framework consolidation**: Unify menu, routing, title, detail panel, and placeholder pages
+2. **Page-by-page migration**: Start from `device-management`, migrate entire menu in order
+3. **Runtime stability**: Enhance sidecar lifecycle, failure recovery, user-friendly error reporting
+4. **Release quality**: Installation regression, upgrade coverage, data directory compatibility
+
+### Migration Constraints
+- New features MUST target `apps/desktop` and `apps/py-runtime`
+- `desktop_app/` is for reference only—no new desktop shell features
+- "Page opens" is NOT completion criteria—must have real data flows and error feedback
+- Follow the gated superpowers workflow for non-trivial tasks
 
 ## Important Constraints
 
 ### What NOT to Do
-- Don't hardcode business data in frontend factories (accounts, tasks, metrics)
+- Don't hardcode business data in frontend (accounts, tasks, metrics)
 - Don't fake metrics that can't be calculated from real data
-- Don't create "silent no-op" buttons (if no backend support, show disabled state)
-- Don't skip bridge contract tests for new slots
-- Don't bypass `@_safe` decorator on bridge slots
-- Don't commit without running tests: `pytest tests/ -v`
+- Don't create "silent no-op" buttons (show disabled state if no backend support)
+- Don't skip API contract tests for new endpoints
+- Don't bypass error handling in FastAPI endpoints
+- Don't commit without running tests: `pytest tests -q`
+- Don't add features to `desktop_app/` desktop shell
 
 ### What IS Supported
 - Account/group/device/task management with real CRUD
+- Dual status model (manual + system) with risk states
 - Asset library with video poster generation
 - AI provider configuration and chat
 - Analytics aggregates from real activity data
@@ -196,15 +284,16 @@ api.feature = {
 ## Debugging
 
 ### Logs
-- Application logs: Check console output or `desktop_app/logging_config.py` for log file location
-- Bridge errors: All exceptions caught by `@_safe` and logged
-- Frontend errors: Check browser DevTools console (F12 in QtWebEngine)
+- **Runtime logs**: Check console output or `logs/runtime.log` (configurable via settings)
+- **Frontend logs**: Browser DevTools in Tauri (right-click → Inspect Element)
+- **Tauri logs**: Check console output during `npm run tauri dev`
 
 ### Common Issues
-- **Bridge method not found**: Check slot is registered in `bridge.py` and exposed via QWebChannel
-- **JSON parse error**: Verify slot returns `_ok(data)` or `_err(msg)`, not raw values
+- **Runtime not starting**: Check port 8765 availability, Python venv activation
+- **HTTP 401 errors**: Verify `X-TKOPS-Token` header matches runtime token
+- **WebSocket connection failed**: Check runtime is running, token parameter in URL
 - **Database locked**: Ensure `repo.reset_session()` called after operations
-- **Migration conflicts**: Check `alembic_version` table and resolve with `alembic stamp head`
+- **Migration conflicts**: Check `alembic_version` table, resolve with `alembic stamp head`
 
 ## Superpowers Plugin
 

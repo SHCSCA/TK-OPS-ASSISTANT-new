@@ -16,6 +16,17 @@ OPERATIONS_JS = ROOT / "desktop_app" / "assets" / "js" / "factories" / "operatio
 GENERATION_JS = ROOT / "desktop_app" / "assets" / "js" / "factories" / "generation.js"
 MAIN_JS = ROOT / "desktop_app" / "assets" / "js" / "main.js"
 STATE_JS = ROOT / "desktop_app" / "assets" / "js" / "state.js"
+DESKTOP_APP_MODULES = [
+    ROOT / "apps" / "desktop" / "src" / "modules" / "dashboard" / "useDashboardData.ts",
+    ROOT / "apps" / "desktop" / "src" / "modules" / "accounts" / "useAccountsData.ts",
+    ROOT / "apps" / "desktop" / "src" / "modules" / "providers" / "useProvidersData.ts",
+    ROOT / "apps" / "desktop" / "src" / "modules" / "tasks" / "useTasksData.ts",
+    ROOT / "apps" / "desktop" / "src" / "modules" / "scheduler" / "useSchedulerData.ts",
+    ROOT / "apps" / "desktop" / "src" / "modules" / "copywriter" / "useCopywriterData.ts",
+    ROOT / "apps" / "desktop" / "src" / "modules" / "setup" / "useSetupWizardData.ts",
+    ROOT / "apps" / "desktop" / "src" / "modules" / "settings" / "useSettingsData.ts",
+]
+DETAIL_PANEL_VUE = ROOT / "apps" / "desktop" / "src" / "layouts" / "DetailPanel.vue"
 
 
 PRIMARY_RUNTIME_PAGES = [
@@ -202,3 +213,35 @@ def test_main_js_builds_shell_runtime_summary_from_real_sources() -> None:
     ]
     for snippet in required_snippets:
         assert snippet in text, snippet
+
+
+def test_migrated_vue_modules_use_runtime_api_sources() -> None:
+    for module_path in DESKTOP_APP_MODULES:
+        text = module_path.read_text(encoding="utf-8")
+        assert "runtimeApi." in text, module_path.name
+
+
+def test_scheduler_module_uses_neutral_fallback_for_window_summary() -> None:
+    text = (ROOT / "apps" / "desktop" / "src" / "modules" / "scheduler" / "useSchedulerData.ts").read_text(encoding="utf-8")
+
+    assert "quietHours: '--'" in text
+    assert "timezone: '--'" in text
+    assert "defaultWorkflow: '--'" in text
+
+
+def test_dashboard_module_fetches_scheduler_overview_for_quick_action_detail_cards() -> None:
+    text = (ROOT / "apps" / "desktop" / "src" / "modules" / "dashboard" / "useDashboardData.ts").read_text(encoding="utf-8")
+
+    assert "runtimeApi.getSchedulerOverview()" in text
+    assert "selectQuickAction" in text
+    assert "dashboard-quick-1" in text
+    assert "dashboard-quick-4" in text
+
+
+def test_dashboard_detail_panel_supports_default_activity_system_quick_action_kinds() -> None:
+    text = DETAIL_PANEL_VUE.read_text(encoding="utf-8")
+
+    assert "dashboardDetailState.kind" in text
+    assert "quick-action" in text
+    assert "activity" in text
+    assert "system" in text

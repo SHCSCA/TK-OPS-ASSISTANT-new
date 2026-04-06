@@ -3,6 +3,7 @@ import type { RouteRecordRaw } from 'vue-router';
 import AccountsPage from '../../pages/accounts/AccountsPage.vue';
 import CopywriterPage from '../../pages/copywriter/CopywriterPage.vue';
 import DashboardPage from '../../pages/dashboard/DashboardPage.vue';
+import DeviceManagementPage from '../../pages/devices/DeviceManagementPage.vue';
 import ProvidersPage from '../../pages/providers/ProvidersPage.vue';
 import SchedulerPage from '../../pages/scheduler/SchedulerPage.vue';
 import SettingsPage from '../../pages/settings/SettingsPage.vue';
@@ -14,6 +15,7 @@ import { shellRouteManifest } from './routeManifest';
 const pageComponents = {
   dashboard: DashboardPage,
   accounts: AccountsPage,
+  deviceManagement: DeviceManagementPage,
   tasks: TasksPage,
   scheduler: SchedulerPage,
   copywriter: CopywriterPage,

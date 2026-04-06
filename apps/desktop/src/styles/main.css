@@ -432,13 +432,17 @@ th {
   position: absolute;
   top: calc(100% + 8px);
   right: 0;
-  width: 360px;
-  max-height: 460px;
+  width: min(360px, calc(100vw - 24px));
+  max-width: min(360px, calc(100vw - 24px));
+  max-height: min(460px, calc(100vh - var(--titlebar-height) - var(--statusbar-height) - 36px));
   overflow-y: auto;
+  overscroll-behavior: contain;
   opacity: 0;
   transform: translateY(-6px);
   pointer-events: none;
   transition: opacity 0.15s ease, transform 0.15s ease;
+  z-index: calc(var(--z-popover) + 2);
+  overflow-x: hidden;
 }
 
 .notification-panel.is-open {
@@ -448,8 +452,38 @@ th {
 }
 
 .status-summary-panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: min(320px, calc(100vw - 24px));
+  max-width: min(320px, calc(100vw - 24px));
+  max-height: min(460px, calc(100vh - var(--titlebar-height) - var(--statusbar-height) - 36px));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  z-index: calc(var(--z-popover) + 2);
   opacity: 1;
   transform: translateY(0);
+}
+
+/* Keep notification center visually aligned with legacy shell (1:1). */
+.notification-panel__list {
+  overflow-x: hidden;
+}
+
+.notification-item {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  text-align: left;
+}
+
+.notification-item__body,
+.notification-item__body strong,
+.notification-item__body .subtle {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  word-break: break-word;
 }
 
 .ai-chat-overlay {
@@ -549,6 +583,7 @@ th {
 /* Shell responsive hardening (1180 / 860 / 640) */
 .title-bar {
   flex-wrap: nowrap;
+  overflow: visible;
 }
 
 .title-bar__cluster {
@@ -560,6 +595,13 @@ th {
   flex: 0 1 auto;
   min-width: 0;
   white-space: nowrap;
+  overflow: visible;
+}
+
+.logo-mark img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
 }
 
 .brand-stack {
@@ -831,11 +873,13 @@ th {
   }
 
   .notification-panel {
-    width: min(320px, 92vw);
+    width: min(320px, calc(100vw - 20px));
+    max-width: min(320px, calc(100vw - 20px));
   }
 
   .status-summary-panel {
-    width: min(280px, 88vw);
+    width: min(300px, calc(100vw - 20px));
+    max-width: min(300px, calc(100vw - 20px));
   }
 
   .search-panel {
@@ -1020,6 +1064,14 @@ th {
   text-overflow: ellipsis;
 }
 
+.shell-canvas .notification-item__body,
+.shell-canvas .notification-item__body strong,
+.shell-canvas .notification-item__body .subtle {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+}
+
 .shell-canvas .brand-stack .eyebrow {
   display: block;
 }
@@ -1093,11 +1145,19 @@ th {
 .shell-canvas .metric-value,
 .shell-canvas .metric-nowrap,
 .shell-canvas .dashboard-trend-metric__value,
-.shell-canvas .detail-item strong,
 .shell-canvas .stat-card__delta strong {
   white-space: nowrap;
   word-break: normal;
   overflow-wrap: normal;
+}
+
+.shell-canvas [data-account-detail-kind] .detail-item strong,
+.shell-canvas [data-account-detail-kind] .data-point strong {
+  font-size: calc(13px * var(--shell-scale));
+  line-height: 1.45;
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .shell-canvas .dashboard-workbench .stat-grid {

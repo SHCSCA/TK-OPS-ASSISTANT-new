@@ -1,6 +1,7 @@
 export type RoutePageKind =
   | 'dashboard'
   | 'accounts'
+  | 'deviceManagement'
   | 'tasks'
   | 'scheduler'
   | 'copywriter'
@@ -78,11 +79,11 @@ export const shellRouteManifest: ShellRouteManifestItem[] = [
   {
     path: '/device-management',
     name: 'device-management',
-    pageKind: 'placeholder',
+    pageKind: 'deviceManagement',
     navGroup: 'ops',
     navOrder: 30,
     legacyRouteKey: 'device-management',
-    migrationStatus: 'placeholder',
+    migrationStatus: 'implemented',
     title: '设备管理',
     eyebrow: '环境治理',
     summary: '统一查看浏览器隔离环境、代理、指纹和设备账号绑定关系。',

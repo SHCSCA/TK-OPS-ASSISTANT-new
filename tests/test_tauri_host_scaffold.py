@@ -19,6 +19,7 @@ BUILD_RS = ROOT / "apps" / "desktop" / "src-tauri" / "build.rs"
 DEV_SCRIPT = ROOT / "scripts" / "dev.ps1"
 SMOKE_SCRIPT = ROOT / "scripts" / "smoke-tauri-runtime.ps1"
 TAURI_CARGO = ROOT / "apps" / "desktop" / "src-tauri" / "Cargo.toml"
+SPLASH_HTML = ROOT / "apps" / "desktop" / "public" / "splash.html"
 
 
 def test_tauri_main_registers_runtime_commands() -> None:
@@ -61,6 +62,13 @@ def test_tauri_config_declares_main_and_splash_windows() -> None:
     assert "\"visible\": false" in text
     assert "\"label\": \"splash\"" in text
     assert "\"url\": \"/splash.html\"" in text
+
+
+def test_splash_html_uses_tkops_icon_asset() -> None:
+    text = SPLASH_HTML.read_text(encoding="utf-8")
+
+    assert "src=\"/tkops.ico\"" in text
+    assert "<div class=\"logo\">TK</div>" not in text
 
 
 def test_runtime_manager_scaffold_exposes_named_state() -> None:

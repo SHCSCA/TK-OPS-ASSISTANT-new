@@ -6,6 +6,7 @@ import AppShell from './layouts/AppShell.vue';
 import '../../../desktop_app/assets/css/variables.css';
 import '../../../desktop_app/assets/css/shell.css';
 import '../../../desktop_app/assets/css/components.css';
+import '../../../desktop_app/assets/css/interactions.css';
 import './styles/main.css';
 import './styles/copywriter.css';
 

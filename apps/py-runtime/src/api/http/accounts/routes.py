@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 from api.http.common.envelope import err, ok
 from bootstrap.container import RuntimeContainer
 from desktop_app.database.repository import Repository
-from desktop_app.services.account_service import AccountService
+from desktop_app.services.account_service import AccountEnvironmentError, AccountService
 from legacy_adapter.serializers import serialize_account
 
 
@@ -60,6 +60,15 @@ class AccountImportPayload(BaseModel):
     model_config = {"populate_by_name": True}
 
 
+class AccountProxyBindingPayload(BaseModel):
+    device_id: int | None = Field(default=None, alias="deviceId")
+    proxy_ip: str | None = Field(default=None, alias="proxyIp")
+    region: str | None = Field(default=None, alias="region")
+    validate_after_save: bool = Field(default=False, alias="validateAfterSave")
+
+    model_config = {"populate_by_name": True}
+
+
 def _not_found(message: str) -> JSONResponse:
     return JSONResponse(status_code=404, content=err("resource.not_found", message))
 
@@ -80,6 +89,79 @@ def _account_summary(items: list[dict[str, object]]) -> dict[str, int]:
         if str(item.get("riskStatus") or "normal") in {"watch", "high_risk", "frozen"}:
             risky += 1
     return {"total": len(items), "active": active, "archived": archived, "risky": risky}
+
+
+def _serialize_proxy_device(device: object) -> dict[str, object]:
+    return {
+        "id": int(getattr(device, "id")),
+        "deviceCode": str(getattr(device, "device_code", "") or ""),
+        "name": str(getattr(device, "name", "") or ""),
+        "region": str(getattr(device, "region", "") or ""),
+        "proxyIp": getattr(device, "proxy_ip", None),
+        "status": str(getattr(device, "status", "") or ""),
+        "proxyStatus": str(getattr(device, "proxy_status", "") or ""),
+        "fingerprintStatus": str(getattr(device, "fingerprint_status", "") or ""),
+    }
+
+
+def _serialize_proxy_binding_snapshot(account: object, devices: list[object]) -> dict[str, object]:
+    bound_device = getattr(account, "device", None)
+    return {
+        "accountId": int(getattr(account, "id")),
+        "accountUsername": str(getattr(account, "username", "") or ""),
+        "boundDeviceId": int(getattr(account, "device_id")) if getattr(account, "device_id", None) is not None else None,
+        "boundDeviceName": str(getattr(bound_device, "name", "") or "") if bound_device is not None else None,
+        "proxyIp": getattr(bound_device, "proxy_ip", None) if bound_device is not None else None,
+        "region": str(getattr(bound_device, "region", "") or "") if bound_device is not None else None,
+        "status": str(getattr(bound_device, "status", "") or "") if bound_device is not None else None,
+        "availableDevices": [_serialize_proxy_device(item) for item in devices],
+    }
+
+
+def _serialize_login_validation_result(result: dict[str, object]) -> dict[str, object]:
+    return {
+        "accountId": result.get("account_id"),
+        "username": result.get("username"),
+        "status": result.get("status"),
+        "label": result.get("label"),
+        "message": result.get("message"),
+        "checkedAt": result.get("checked_at"),
+        "platform": result.get("platform"),
+        "target": result.get("target"),
+        "httpStatus": result.get("http_status"),
+        "viaProxy": bool(result.get("via_proxy")),
+        "cookieStatus": result.get("cookie_status"),
+    }
+
+
+def _serialize_account_environment_result(result: dict[str, object]) -> dict[str, object]:
+    validation = result.get("validation")
+    validation_payload = validation if isinstance(validation, dict) else {}
+    return {
+        "accountId": result.get("account_id"),
+        "accountUsername": result.get("account_username"),
+        "deviceId": result.get("device_id"),
+        "deviceCode": result.get("device_code"),
+        "deviceName": result.get("name"),
+        "browserPath": result.get("browser_path"),
+        "profileDir": result.get("profile_dir"),
+        "extensionDir": result.get("extension_dir"),
+        "extensionName": result.get("extension_name"),
+        "extensionReady": bool(result.get("extension_ready")),
+        "extensionInstallRequired": bool(result.get("extension_install_required")),
+        "extensionInstallHint": result.get("extension_install_hint") or "",
+        "proxyServer": result.get("proxy_server") or "",
+        "browserProxy": result.get("browser_proxy") or "",
+        "upstreamProxy": result.get("upstream_proxy") or "",
+        "pid": int(result.get("pid") or 0),
+        "url": result.get("url") or "",
+        "cookieCount": int(result.get("cookie_count") or 0),
+        "validation": {
+            "ok": bool(validation_payload.get("ok")),
+            "message": str(validation_payload.get("message") or ""),
+            "detail": str(validation_payload.get("detail") or ""),
+        },
+    }
 
 
 def build_accounts_router(container: RuntimeContainer) -> APIRouter:
@@ -317,6 +399,102 @@ def build_accounts_router(container: RuntimeContainer) -> APIRouter:
                     content=err("account.test_failed", message, details=result),
                 )
             return ok(result)
+        finally:
+            repo.reset_session()
+
+    @router.post("/{account_id}/environment/open", response_model=None)
+    def open_account_environment(account_id: int):
+        repo = Repository()
+        try:
+            service = AccountService(repo)
+            try:
+                result = service.open_account_environment(account_id)
+            except AccountEnvironmentError as exc:
+                return JSONResponse(
+                    status_code=400,
+                    content=err("account.environment_failed", str(exc), details={"code": exc.code}),
+                )
+            except ValueError as exc:
+                return _bad_request(str(exc))
+            return ok(_serialize_account_environment_result(result))
+        finally:
+            repo.reset_session()
+
+    @router.post("/{account_id}/login/validate", response_model=None)
+    def validate_account_login(account_id: int):
+        repo = Repository()
+        try:
+            service = AccountService(repo)
+            try:
+                result = service.validate_account_login(account_id)
+            except ValueError as exc:
+                return _bad_request(str(exc))
+            return ok(_serialize_login_validation_result(result))
+        finally:
+            repo.reset_session()
+
+    @router.get("/{account_id}/proxy-binding", response_model=None)
+    def get_account_proxy_binding(account_id: int):
+        repo = Repository()
+        try:
+            service = AccountService(repo)
+            account = service.get_account(account_id)
+            if account is None:
+                return _not_found("账号不存在，无法查看绑定信息")
+            devices = list(service.list_devices())
+            return ok(_serialize_proxy_binding_snapshot(account, devices))
+        finally:
+            repo.reset_session()
+
+    @router.post("/{account_id}/proxy-binding", response_model=None)
+    def update_account_proxy_binding(account_id: int, payload: AccountProxyBindingPayload):
+        repo = Repository()
+        try:
+            service = AccountService(repo)
+            account = service.get_account(account_id)
+            if account is None:
+                return _not_found("账号不存在，无法更新绑定信息")
+
+            if payload.device_id is not None:
+                account = service.bind_device(account_id, payload.device_id)
+                if account is None:
+                    return _bad_request("目标设备不存在，无法完成重绑")
+
+            account = service.get_account(account_id)
+            if account is None:
+                return _not_found("账号不存在，无法更新绑定信息")
+
+            target_device_id = getattr(account, "device_id", None)
+            update_fields: dict[str, object] = {}
+            if payload.proxy_ip is not None:
+                normalized_proxy = str(payload.proxy_ip).strip()
+                update_fields["proxy_ip"] = normalized_proxy if normalized_proxy else None
+            if payload.region is not None:
+                normalized_region = str(payload.region).strip().upper()
+                if normalized_region:
+                    update_fields["region"] = normalized_region
+
+            if update_fields:
+                if target_device_id is None:
+                    return _bad_request("当前账号未绑定设备，无法更新代理配置")
+                updated_device = service.update_device(int(target_device_id), **update_fields)
+                if updated_device is None:
+                    return _bad_request("目标设备不存在，无法更新代理配置")
+
+            validation_payload: dict[str, object] | None = None
+            if payload.validate_after_save:
+                try:
+                    validation_payload = _serialize_login_validation_result(service.validate_account_login(account_id))
+                except ValueError as exc:
+                    return _bad_request(str(exc))
+
+            account = service.get_account(account_id)
+            if account is None:
+                return _not_found("账号不存在，无法更新绑定信息")
+            devices = list(service.list_devices())
+            snapshot = _serialize_proxy_binding_snapshot(account, devices)
+            snapshot["validation"] = validation_payload
+            return ok(snapshot)
         finally:
             repo.reset_session()
 

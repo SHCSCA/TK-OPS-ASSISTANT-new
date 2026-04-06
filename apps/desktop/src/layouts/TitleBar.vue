@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <header class="title-bar">
     <div class="title-bar__cluster">
       <button id="menuToggle" type="button" class="icon-button" aria-label="折叠菜单" @click="shell.toggleSidebar">
@@ -6,7 +6,7 @@
       </button>
 
       <div class="logo-mark">
-        <span class="shell-icon shell-icon--strong">TK</span>
+        <img src="/tkops.ico" alt="TK-OPS 图标" />
       </div>
 
       <div class="brand-stack">
@@ -87,10 +87,9 @@
         <div class="notification-panel__list">
           <div v-if="!shell.notifications.length" class="notification-empty">暂无通知</div>
           <template v-else>
-            <button
+            <div
               v-for="item in shell.notifications"
               :key="item.id"
-              type="button"
               class="notification-item"
               :class="{ 'is-unread': item.read !== true }"
             >
@@ -99,7 +98,7 @@
                 <strong>{{ item.title }}</strong>
                 <span class="subtle">{{ item.body }}</span>
               </span>
-            </button>
+            </div>
           </template>
         </div>
       </div>
@@ -138,12 +137,12 @@
         </div>
         <div class="detail-list">
           <div class="detail-item">
-            <span class="subtle">Runtime</span>
+            <span class="subtle">运行时</span>
             <strong>{{ shell.runtimeChip.label }}</strong>
           </div>
           <div class="detail-item">
             <span class="subtle">主题</span>
-            <strong>{{ shell.resolvedTheme }}</strong>
+            <strong>{{ shell.themeDisplayLabel }}</strong>
           </div>
           <div class="detail-item">
             <span class="subtle">通知</span>
