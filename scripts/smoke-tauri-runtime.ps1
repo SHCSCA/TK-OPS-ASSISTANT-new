@@ -11,19 +11,7 @@ $exePath = if ($ExecutablePath) { $ExecutablePath } else { $defaultExePath }
 $runtimeLog = Join-Path $env:APPDATA "TK-OPS-ASSISTANT\logs\runtime.log"
 
 function Find-VsDevCmd {
-    $candidates = @(
-        "F:\VS\BuildTools\Common7\Tools\VsDevCmd.bat",
-        "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\Common7\Tools\VsDevCmd.bat",
-        "C:\Program Files\Microsoft Visual Studio\2022\BuildTools\Common7\Tools\VsDevCmd.bat",
-        "C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\Tools\VsDevCmd.bat"
-    )
-
-    foreach ($candidate in $candidates) {
-        if (Test-Path $candidate) {
-            return $candidate
-        }
-    }
-
+    # Use vswhere to detect Visual Studio installation (most reliable)
     $vswhere = "C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe"
     if (Test-Path $vswhere) {
         $installationPath = & $vswhere -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -latest -property installationPath 2>$null
@@ -35,18 +23,37 @@ function Find-VsDevCmd {
         }
     }
 
+    # Fallback candidates (in order of likelihood)
+    $candidates = @(
+        "C:\Program Files\Microsoft Visual Studio\2022\BuildTools\Common7\Tools\VsDevCmd.bat",
+        "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\Common7\Tools\VsDevCmd.bat",
+        "C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\Tools\VsDevCmd.bat",
+        "C:\Program Files\Microsoft Visual Studio\2019\BuildTools\Common7\Tools\VsDevCmd.bat"
+    )
+
+    foreach ($candidate in $candidates) {
+        if (Test-Path $candidate) {
+            return $candidate
+        }
+    }
+
     return $null
 }
 
 function Find-CargoExe {
     $candidates = @()
+
+    # Respect CARGO_HOME environment variable if set
     if ($env:CARGO_HOME) {
         $candidates += (Join-Path $env:CARGO_HOME "bin\cargo.exe")
     }
-    $candidates += @(
-        "F:\rust\cargo\bin\cargo.exe",
-        (Join-Path $env:USERPROFILE ".cargo\bin\cargo.exe")
-    )
+
+    # Standard user-level Rust installation
+    $candidates += (Join-Path $env:USERPROFILE ".cargo\bin\cargo.exe")
+
+    # System-level Rust installation (common locations)
+    $candidates += "C:\Program Files\Rust\.cargo\bin\cargo.exe"
+    $candidates += "C:\Rust\.cargo\bin\cargo.exe"
 
     foreach ($candidate in $candidates) {
         if ($candidate -and (Test-Path $candidate)) {
@@ -69,14 +76,24 @@ if (-not $cargo) {
 }
 
 function Get-RuntimeProcesses {
+    # Default runtime port to help identify the correct process
+    $defaultPort = "8765"
+
     Get-CimInstance Win32_Process |
         Where-Object {
             $_.Name -like "python*.exe" -and
-            $_.CommandLine -like "*main.py*" -and
+            $_.CommandLine -like "*main.py*"
+        } |
+        Where-Object {
+            $cmd = $_.CommandLine
+            # Match by path patterns (case-insensitive via -clike would need -like with wildcards)
+            $cmdLower = $cmd.ToLower()
             (
-                $_.CommandLine -like "*py-runtime*" -or
-                $_.CommandLine -like "*\\runtime\\src\\*" -or
-                $_.CommandLine -like "*/runtime/src/*"
+                $cmdLower -like "*py-runtime*" -or
+                $cmdLower -like "*\runtime\src\*" -or
+                $cmdLower -like "*/runtime/src/*" -or
+                $cmd -like "*:$defaultPort*" -or
+                $cmd -like "*localhost:$defaultPort*"
             )
         } |
         Select-Object ProcessId, Name, CommandLine

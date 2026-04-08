@@ -332,6 +332,10 @@
             dataSources: ['listAccounts', 'listAssets', 'listTasks', 'listExperimentProjects'],
             interactions: ['persist', 'compare', 'detail', 'handoff'],
         },
+        'ai-content-factory': {
+            dataSources: ['listAssets', 'listTasks', 'listProviders', 'listWorkflowDefinitions', 'listWorkflowRuns'],
+            interactions: ['persist', 'run', 'batch', 'detail'],
+        },
         'viral-title': {
             dataSources: ['listProviders', 'getAiUsageToday'],
             interactions: ['generate', 'compare', 'select', 'copy'],

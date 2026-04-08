@@ -3,7 +3,22 @@ from __future__ import annotations
 import datetime as dt
 from typing import Any
 
-from desktop_app.database.models import AIProvider, Account, Task
+from desktop_app.database.models import (
+    AIProvider,
+    Account,
+    ActivityLog,
+    ExperimentProject,
+    ExperimentView,
+    Task,
+    VideoClip,
+    VideoExport,
+    VideoProject,
+    VideoSequence,
+    VideoSnapshot,
+    VideoSubtitle,
+    WorkflowDefinition,
+    WorkflowRun,
+)
 
 
 def to_iso(value: dt.datetime | None) -> str | None:
@@ -90,4 +105,151 @@ def serialize_task(task: Task) -> dict[str, Any]:
         "finishedAt": to_iso(task.finished_at),
         "resultSummary": task.result_summary,
         "createdAt": to_iso(task.created_at),
+    }
+
+
+def serialize_experiment_project(project: ExperimentProject) -> dict[str, Any]:
+    return {
+        "id": project.id,
+        "name": project.name,
+        "goal": project.goal,
+        "status": project.status,
+        "configJson": project.config_json,
+        "createdAt": to_iso(project.created_at),
+        "updatedAt": to_iso(project.updated_at),
+    }
+
+
+def serialize_experiment_view(view: ExperimentView) -> dict[str, Any]:
+    return {
+        "id": view.id,
+        "experimentProjectId": view.experiment_project_id,
+        "name": view.name,
+        "layoutJson": view.layout_json,
+        "createdAt": to_iso(view.created_at),
+        "updatedAt": to_iso(view.updated_at),
+    }
+
+
+def serialize_activity_log(item: ActivityLog) -> dict[str, Any]:
+    return {
+        "id": item.id,
+        "category": item.category,
+        "title": item.title,
+        "payloadJson": item.payload_json,
+        "relatedEntityType": item.related_entity_type,
+        "relatedEntityId": item.related_entity_id,
+        "createdAt": to_iso(item.created_at),
+    }
+
+
+def serialize_workflow_definition(item: WorkflowDefinition) -> dict[str, Any]:
+    return {
+        "id": item.id,
+        "name": item.name,
+        "status": item.status,
+        "description": item.description,
+        "configJson": item.config_json,
+        "createdAt": to_iso(item.created_at),
+        "updatedAt": to_iso(item.updated_at),
+    }
+
+
+def serialize_workflow_run(item: WorkflowRun) -> dict[str, Any]:
+    return {
+        "id": item.id,
+        "workflowDefinitionId": item.workflow_definition_id,
+        "status": item.status,
+        "inputJson": item.input_json,
+        "resultJson": item.result_json,
+        "startedAt": to_iso(item.started_at),
+        "finishedAt": to_iso(item.finished_at),
+        "createdAt": to_iso(item.created_at),
+    }
+
+
+def serialize_video_project(item: VideoProject) -> dict[str, Any]:
+    return {
+        "id": item.id,
+        "name": item.name,
+        "description": item.description,
+        "activeSequenceId": item.active_sequence_id,
+        "metaJson": item.meta_json,
+        "createdAt": to_iso(item.created_at),
+        "updatedAt": to_iso(item.updated_at),
+    }
+
+
+def serialize_video_sequence(item: VideoSequence) -> dict[str, Any]:
+    return {
+        "id": item.id,
+        "projectId": item.project_id,
+        "name": item.name,
+        "durationMs": int(item.duration_ms or 0),
+        "fps": float(item.fps or 0),
+        "width": int(item.width or 0),
+        "height": int(item.height or 0),
+        "metaJson": item.meta_json,
+        "isActive": bool(item.project and item.project.active_sequence_id == item.id),
+        "createdAt": to_iso(item.created_at),
+        "updatedAt": to_iso(item.updated_at),
+    }
+
+
+def serialize_video_clip(item: VideoClip) -> dict[str, Any]:
+    return {
+        "id": item.id,
+        "sequenceId": item.sequence_id,
+        "assetId": item.asset_id,
+        "trackType": item.track_type,
+        "trackIndex": int(item.track_index or 0),
+        "sortOrder": int(item.sort_order or 0),
+        "startMs": int(item.start_ms or 0),
+        "sourceInMs": int(item.source_in_ms or 0),
+        "sourceOutMs": int(item.source_out_ms or 0),
+        "durationMs": int(item.duration_ms or 0),
+        "speed": float(item.speed or 0),
+        "volume": float(item.volume or 0),
+        "metaJson": item.meta_json,
+        "createdAt": to_iso(item.created_at),
+        "updatedAt": to_iso(item.updated_at),
+    }
+
+
+def serialize_video_subtitle(item: VideoSubtitle) -> dict[str, Any]:
+    return {
+        "id": item.id,
+        "sequenceId": item.sequence_id,
+        "startMs": int(item.start_ms or 0),
+        "endMs": int(item.end_ms or 0),
+        "text": item.text,
+        "styleJson": item.style_json,
+        "createdAt": to_iso(item.created_at),
+        "updatedAt": to_iso(item.updated_at),
+    }
+
+
+def serialize_video_export(item: VideoExport) -> dict[str, Any]:
+    return {
+        "id": item.id,
+        "projectId": item.project_id,
+        "sequenceId": item.sequence_id,
+        "preset": item.preset,
+        "status": item.status,
+        "outputPath": item.output_path,
+        "ffmpegCommand": item.ffmpeg_command,
+        "errorMessage": item.error_message,
+        "progress": int(item.progress or 0),
+        "startedAt": to_iso(item.started_at),
+        "finishedAt": to_iso(item.finished_at),
+        "createdAt": to_iso(item.created_at),
+    }
+
+
+def serialize_video_snapshot(item: VideoSnapshot) -> dict[str, Any]:
+    return {
+        "id": item.id,
+        "projectId": item.project_id,
+        "title": item.title,
+        "createdAt": to_iso(item.created_at),
     }

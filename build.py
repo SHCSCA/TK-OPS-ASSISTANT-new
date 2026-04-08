@@ -127,6 +127,27 @@ def _version_sync_plan(version: str, root: Path = ROOT) -> dict[Path, tuple[Vers
                 "bridge stub 更新版本",
             ),
         ),
+        root / "apps" / "desktop" / "package.json": (
+            VersionReplacement(
+                r'"version": "[0-9]+\.[0-9]+\.[0-9]+",',
+                f'"version": "{version}",',
+                "desktop package 版本",
+            ),
+        ),
+        root / "apps" / "desktop" / "src-tauri" / "tauri.conf.json": (
+            VersionReplacement(
+                r'"version": "[0-9]+\.[0-9]+\.[0-9]+",',
+                f'"version": "{version}",',
+                "tauri 配置版本",
+            ),
+        ),
+        root / "apps" / "desktop" / "src-tauri" / "Cargo.toml": (
+            VersionReplacement(
+                r'^version = "[0-9]+\.[0-9]+\.[0-9]+"$',
+                f'version = "{version}"',
+                "cargo 包版本",
+            ),
+        ),
     }
 
 

@@ -8,12 +8,15 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from api.common.session import is_public_http_path
-from api.http.assistant.routes import build_assistant_router
+from api.http.assets.routes import build_assets_router
+from api.http.activity.routes import build_activity_router
 from api.http.common.auth import request_has_valid_token, unauthorized_response
+from api.http.assistant.routes import build_assistant_router
 from api.http.accounts.routes import build_accounts_router
 from api.http.copywriter.routes import build_copywriter_router
 from api.http.dashboard.routes import build_dashboard_router
 from api.http.devices.routes import build_devices_router
+from api.http.experiments.routes import build_experiments_router
 from api.http.health.routes import build_health_router
 from api.http.license.routes import build_license_router
 from api.http.notifications.routes import build_notifications_router
@@ -21,7 +24,9 @@ from api.http.providers.routes import build_providers_router
 from api.http.scheduler.routes import build_scheduler_router
 from api.http.settings.routes import build_settings_router
 from api.http.tasks.routes import build_tasks_router
+from api.http.video_editor.routes import build_video_editor_router
 from api.http.version.routes import build_version_router
+from api.http.workflows.routes import build_workflows_router
 from api.ws.copywriter import build_copywriter_stream_router
 from api.ws.runtime_status import build_runtime_status_router
 from bootstrap.container import RuntimeContainer
@@ -101,6 +106,11 @@ def build_app(container: RuntimeContainer) -> FastAPI:
     app.include_router(build_scheduler_router(container))
     app.include_router(build_dashboard_router(container))
     app.include_router(build_devices_router(container))
+    app.include_router(build_assets_router(container))
+    app.include_router(build_video_editor_router(container))
+    app.include_router(build_experiments_router(container))
+    app.include_router(build_activity_router(container))
+    app.include_router(build_workflows_router(container))
     app.include_router(build_copywriter_router(container))
     app.include_router(build_notifications_router(container))
     app.include_router(build_version_router(container))

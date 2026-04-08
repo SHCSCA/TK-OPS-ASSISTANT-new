@@ -1,0 +1,179 @@
+.scheduled-publish-page .publish-form-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.scheduled-publish-page .publish-form-grid__full {
+  grid-column: 1 / -1;
+}
+
+.scheduled-publish-page .scheduled-publish-actions {
+  justify-content: space-between;
+  align-items: center;
+}
+
+.scheduled-publish-page .scheduled-publish-tabs {
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.scheduled-publish-page .filter-pill {
+  border: 1px solid var(--border-subtle);
+  background: var(--surface-raised);
+  color: var(--text-primary);
+  border-radius: 999px;
+  padding: 8px 12px;
+  font: inherit;
+  cursor: pointer;
+}
+
+.scheduled-publish-page .filter-pill.is-active {
+  background: color-mix(in srgb, var(--brand-primary) 14%, var(--surface-raised));
+  border-color: color-mix(in srgb, var(--brand-primary) 38%, var(--border-subtle));
+  color: var(--brand-primary);
+}
+
+.scheduled-publish-page .scheduled-publish-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 0.95fr) minmax(360px, 1.15fr);
+  gap: 16px;
+}
+
+.scheduled-publish-page .publish-task-item {
+  cursor: pointer;
+}
+
+.scheduled-publish-page .scheduled-publish-side {
+  display: grid;
+  gap: 16px;
+}
+
+.scheduled-publish-page .publish-view-switch {
+  display: inline-flex;
+  gap: 8px;
+}
+
+.scheduled-publish-page .calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.scheduled-publish-page .calendar-day {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-xl);
+  background: var(--surface-muted);
+  padding: 14px;
+  display: grid;
+  gap: 12px;
+}
+
+.scheduled-publish-page .calendar-day.is-today {
+  border-color: color-mix(in srgb, var(--brand-primary) 40%, var(--border-subtle));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--brand-primary) 18%, transparent);
+}
+
+.scheduled-publish-page .calendar-day__header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+}
+
+.scheduled-publish-page .calendar-slot-list {
+  display: grid;
+  gap: 8px;
+}
+
+.scheduled-publish-page .calendar-slot {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  padding: 10px 12px;
+  text-align: left;
+  background: var(--surface-raised);
+  cursor: pointer;
+  display: grid;
+  gap: 4px;
+}
+
+.scheduled-publish-page .calendar-slot--info {
+  border-color: color-mix(in srgb, var(--brand-primary) 26%, var(--border-subtle));
+}
+
+.scheduled-publish-page .calendar-slot--success {
+  border-color: color-mix(in srgb, var(--status-success) 34%, var(--border-subtle));
+}
+
+.scheduled-publish-page .calendar-slot--warning {
+  border-color: color-mix(in srgb, var(--status-warning) 34%, var(--border-subtle));
+}
+
+.scheduled-publish-page .calendar-slot--error {
+  border-color: color-mix(in srgb, var(--status-error) 34%, var(--border-subtle));
+}
+
+.scheduled-publish-page .calendar-day__empty {
+  min-height: 56px;
+  display: flex;
+  align-items: center;
+}
+
+.scheduled-publish-page .publish-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.scheduled-publish-page .publish-table th,
+.scheduled-publish-page .publish-table td {
+  padding: 12px 10px;
+  border-bottom: 1px solid var(--border-subtle);
+  text-align: left;
+  vertical-align: top;
+}
+
+.scheduled-publish-page .publish-table tbody tr {
+  cursor: pointer;
+}
+
+.scheduled-publish-page .publish-table tbody tr.is-selected {
+  background: color-mix(in srgb, var(--brand-primary) 8%, transparent);
+}
+
+.scheduled-publish-page .publish-table__actions {
+  display: inline-flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.scheduled-publish-page .publish-summary-panel .detail-list {
+  display: grid;
+  gap: 10px;
+}
+
+.shell-canvas [data-scheduled-publish-detail-kind] .detail-list,
+.shell-canvas [data-scheduled-publish-detail-kind] .board-list {
+  display: grid;
+  gap: 10px;
+}
+
+.shell-canvas [data-scheduled-publish-detail-kind] .detail-item strong,
+.shell-canvas [data-scheduled-publish-detail-kind] .board-card strong,
+.shell-canvas [data-scheduled-publish-detail-kind] .board-card .subtle {
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 1260px) {
+  .scheduled-publish-page .publish-form-grid,
+  .scheduled-publish-page .scheduled-publish-layout,
+  .scheduled-publish-page .calendar-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .scheduled-publish-page .scheduled-publish-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}

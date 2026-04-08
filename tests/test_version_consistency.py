@@ -29,6 +29,15 @@ def test_version_file_matches_runtime_and_release_artifacts() -> None:
     assert f"getAppVersion: () => ok({{ version: '{version}' }})," in bridge_text
     assert f"checkForUpdate: () => ok({{ hasUpdate: false, current: '{version}' }})," in bridge_text
 
+    package_text = _read(ROOT / "apps" / "desktop" / "package.json")
+    assert f'"version": "{version}"' in package_text
+
+    tauri_text = _read(ROOT / "apps" / "desktop" / "src-tauri" / "tauri.conf.json")
+    assert f'"version": "{version}"' in tauri_text
+
+    cargo_text = _read(ROOT / "apps" / "desktop" / "src-tauri" / "Cargo.toml")
+    assert f'version = "{version}"' in cargo_text
+
 
 def test_file_version_info_matches_version_file() -> None:
     version = _read(ROOT / "VERSION").strip()
@@ -51,6 +60,9 @@ def test_collect_version_metadata_updates_detects_drift_without_writing_files(
         "installer.iss",
         "file_version_info.txt",
         Path("desktop_app") / "assets" / "js" / "bridge.js",
+        Path("apps") / "desktop" / "package.json",
+        Path("apps") / "desktop" / "src-tauri" / "tauri.conf.json",
+        Path("apps") / "desktop" / "src-tauri" / "Cargo.toml",
     ):
         source_path = ROOT / relative_path
         target_path = tmp_path / relative_path

@@ -34,6 +34,22 @@ def test_variables_css_defines_core_theme_tokens() -> None:
         assert token in css
 
 
+def test_variables_css_uses_compact_shell_density_tokens() -> None:
+    css = (ROOT / "desktop_app" / "assets" / "css" / "variables.css").read_text(encoding="utf-8")
+
+    for token in [
+        "--sidebar-width: 272px;",
+        "--detail-width: 296px;",
+        "--titlebar-height: 64px;",
+        "--statusbar-height: 40px;",
+        "--page-gutter: 22px;",
+        "--page-section-gap: 18px;",
+        "--panel-padding: 16px;",
+        "--content-max-width: 1400px;",
+    ]:
+        assert token in css
+
+
 def test_core_css_defines_shell_and_component_basics() -> None:
     shell_css = (ROOT / "desktop_app" / "assets" / "css" / "shell.css").read_text(encoding="utf-8")
     component_css = (ROOT / "desktop_app" / "assets" / "css" / "components.css").read_text(encoding="utf-8")
@@ -134,6 +150,25 @@ def test_shell_css_contains_status_bar_layout_for_richer_runtime_chips() -> None
 
     for selector in required_selectors:
         assert selector in shell_css
+
+
+def test_vue_shell_scale_and_font_tokens_are_tuned_for_denser_desktop_layout() -> None:
+    shell_store = (ROOT / "apps" / "desktop" / "src" / "modules" / "shell" / "useShellStore.ts").read_text(encoding="utf-8")
+    main_css = (ROOT / "apps" / "desktop" / "src" / "styles" / "main.css").read_text(encoding="utf-8")
+
+    for snippet in [
+        "const SHELL_SCALE_BASE_WIDTH = 1500;",
+        "const SHELL_SCALE_MIN = 0.85;",
+        "const SHELL_SCALE_MAX = 0.96;",
+        "return clamp(layoutViewportWidth / SHELL_SCALE_BASE_WIDTH, SHELL_SCALE_MIN, SHELL_SCALE_MAX);",
+        "--shell-font-body: 12px;",
+        "--shell-font-subtle: 11px;",
+        "--shell-font-h1: 28px;",
+        "--shell-font-h1-compact: 18px;",
+        "--shell-font-stat: 26px;",
+        "--shell-font-stat-compact: 20px;",
+    ]:
+        assert snippet in shell_store + "\n" + main_css
 
 
 def test_video_timeline_styles_follow_theme_tokens() -> None:

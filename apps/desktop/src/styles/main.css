@@ -1,11 +1,11 @@
 :root {
   --content-max-width: 100%;
-  --shell-font-body: 13px;
-  --shell-font-subtle: 12px;
-  --shell-font-h1: 32px;
-  --shell-font-h1-compact: 20px;
-  --shell-font-stat: 30px;
-  --shell-font-stat-compact: 22px;
+  --shell-font-body: 12px;
+  --shell-font-subtle: 11px;
+  --shell-font-h1: 28px;
+  --shell-font-h1-compact: 18px;
+  --shell-font-stat: 26px;
+  --shell-font-stat-compact: 20px;
 }
 
 html,
@@ -46,28 +46,28 @@ th {
 .dashboard-workbench {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 14px;
 }
 
 .resource-page,
 .setup-page {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 14px;
 }
 
 .resource-header {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  gap: 20px;
+  gap: 16px;
 }
 
 .resource-header h2,
 .resource-page h2,
 .setup-page h2 {
   margin: 6px 0 10px;
-  font-size: 30px;
+  font-size: 26px;
   line-height: 1.15;
 }
 
@@ -86,7 +86,7 @@ th {
 .setup-kv-grid,
 .copywriter-form {
   display: grid;
-  gap: 16px;
+  gap: 14px;
 }
 
 .resource-summary-grid {
@@ -122,7 +122,7 @@ th {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  gap: 12px;
+  gap: 10px;
   flex-wrap: wrap;
 }
 
@@ -141,12 +141,12 @@ th {
 .copywriter-field {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
   min-width: 0;
 }
 
 .copywriter-field span {
-  font-size: 12px;
+  font-size: 11px;
   color: var(--text-secondary);
   font-weight: 700;
 }
@@ -159,7 +159,7 @@ th {
 
 .dashboard-banner {
   margin: 0;
-  padding: 14px 16px;
+  padding: 12px 14px;
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-lg);
   background: color-mix(in srgb, var(--surface-secondary) 98%, transparent);
@@ -176,8 +176,8 @@ th {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 40px;
-  padding: 0 14px;
+  min-height: 38px;
+  padding: 0 12px;
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);
   background: color-mix(in srgb, var(--surface-primary) 94%, transparent);
@@ -206,7 +206,7 @@ th {
 }
 
 .dashboard-kv-item {
-  padding: 14px 16px;
+  padding: 12px 14px;
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);
   background: color-mix(in srgb, var(--surface-primary) 92%, transparent);
@@ -215,13 +215,13 @@ th {
 .dashboard-kv-item span {
   display: block;
   color: var(--text-tertiary);
-  font-size: 12px;
-  margin-bottom: 8px;
+  font-size: 11px;
+  margin-bottom: 6px;
 }
 
 .dashboard-kv-item strong {
   display: block;
-  font-size: 16px;
+  font-size: 15px;
   line-height: 1.4;
 }
 
@@ -235,7 +235,7 @@ th {
   display: flex;
   justify-content: space-between;
   gap: 12px;
-  padding: 14px 16px;
+  padding: 12px 14px;
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);
   background: color-mix(in srgb, var(--surface-primary) 94%, transparent);
@@ -405,6 +405,99 @@ th {
   opacity: 0;
   transform: translateX(16px);
   pointer-events: none;
+}
+
+.device-management-shell .device-env-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px;
+}
+
+.device-management-shell .device-env-grid.list-mode {
+  grid-template-columns: 1fr;
+}
+
+.device-management-shell .device-env-card {
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  background: var(--surface-primary);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+}
+
+.device-management-shell .device-env-card.is-selected {
+  border-color: color-mix(in srgb, var(--brand-primary) 34%, var(--border-default));
+  box-shadow: var(--shadow-md);
+}
+
+.device-management-shell .device-env-card__head,
+.device-management-shell .device-card__actions,
+.device-management-shell .device-binding-tags,
+.device-management-shell .coverage-labels,
+.device-management-shell .device-pool-summary {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.device-management-shell .device-env-card__head {
+  align-items: center;
+}
+
+.device-management-shell .device-env-card__head strong {
+  flex: 1;
+}
+
+.device-management-shell .device-env-card__meta {
+  display: grid;
+  gap: 8px;
+}
+
+.device-management-shell .device-empty-state,
+.device-management-shell .device-table-empty {
+  padding: 32px;
+  text-align: center;
+}
+
+.device-management-shell .analytics-two-column {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(280px, 1fr);
+  gap: 16px;
+}
+
+.device-management-shell .coverage-track {
+  width: 100%;
+  height: 12px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface-secondary) 92%, transparent);
+  overflow: hidden;
+  margin-bottom: 12px;
+}
+
+.device-management-shell .coverage-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--brand-primary), color-mix(in srgb, var(--brand-primary) 56%, var(--status-success)));
+}
+
+.device-management-shell .device-pool-summary {
+  display: grid;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.device-log-item .subtle {
+  word-break: break-word;
+}
+
+@media (max-width: 1180px) {
+  .device-management-shell .analytics-two-column {
+    grid-template-columns: 1fr;
+  }
 }
 
 #notificationToggle {
@@ -1113,7 +1206,7 @@ th {
 .shell-canvas .status-chip,
 .shell-canvas .eyebrow,
 .shell-canvas th {
-  font-size: calc(12px * var(--shell-scale));
+  font-size: calc(11px * var(--shell-scale));
 }
 
 .shell-canvas .nav-link__label,
@@ -1121,25 +1214,25 @@ th {
 .shell-canvas .page-header p,
 .shell-canvas tbody td,
 .shell-canvas .dashboard-system-card__summary {
-  font-size: calc(13px * var(--shell-scale));
+  font-size: calc(12px * var(--shell-scale));
 }
 
 .shell-canvas .page-header h1 {
-  font-size: calc(32px * var(--shell-scale));
+  font-size: calc(28px * var(--shell-scale));
   line-height: 1.15;
 }
 
 .shell-canvas .stat-card__value {
-  font-size: calc(30px * var(--shell-scale));
+  font-size: calc(26px * var(--shell-scale));
   line-height: 1.08;
 }
 
 .shell-canvas .app-shell.layout-compact .page-header h1 {
-  font-size: calc(20px * var(--shell-scale));
+  font-size: calc(18px * var(--shell-scale));
 }
 
 .shell-canvas .app-shell.layout-compact .stat-card__value {
-  font-size: calc(22px * var(--shell-scale));
+  font-size: calc(20px * var(--shell-scale));
 }
 
 .shell-canvas .metric-value,
@@ -1152,9 +1245,100 @@ th {
 }
 
 .shell-canvas [data-account-detail-kind] .detail-item strong,
-.shell-canvas [data-account-detail-kind] .data-point strong {
-  font-size: calc(13px * var(--shell-scale));
+.shell-canvas [data-account-detail-kind] .data-point strong,
+.shell-canvas [data-device-detail-kind] .detail-item strong,
+.shell-canvas [data-device-detail-kind] .data-point strong {
+  font-size: calc(12px * var(--shell-scale));
   line-height: 1.45;
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.shell-canvas [data-account-detail-kind] .data-points,
+.shell-canvas [data-device-detail-kind] .data-points {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.shell-canvas [data-account-detail-kind] .data-point,
+.shell-canvas [data-device-detail-kind] .data-point,
+.shell-canvas [data-account-detail-kind] .detail-item,
+.shell-canvas [data-device-detail-kind] .detail-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--surface-primary) 94%, transparent);
+}
+
+.shell-canvas [data-account-detail-kind] .detail-list,
+.shell-canvas [data-device-detail-kind] .detail-list,
+.shell-canvas [data-account-detail-kind] .audit-list,
+.shell-canvas [data-device-detail-kind] .audit-list {
+  display: grid;
+  gap: 10px;
+}
+
+.shell-canvas [data-account-detail-kind] .detail-item--stacked strong,
+.shell-canvas [data-device-detail-kind] .detail-item--stacked strong,
+.shell-canvas [data-account-detail-kind] .audit-item__copy,
+.shell-canvas [data-device-detail-kind] .audit-item__copy {
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.shell-canvas [data-account-detail-kind] .account-detail__actions,
+.shell-canvas [data-device-detail-kind] .account-detail__actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.shell-canvas [data-account-detail-kind] .account-detail__actions > button,
+.shell-canvas [data-device-detail-kind] .account-detail__actions > button {
+  width: 100%;
+  min-width: 0;
+}
+
+.shell-canvas [data-account-detail-kind] .audit-item,
+.shell-canvas [data-device-detail-kind] .audit-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  min-width: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--surface-primary) 94%, transparent);
+}
+
+.binding-account-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.binding-account-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--surface-primary) 94%, transparent);
+}
+
+.binding-account-card strong,
+.binding-account-card .subtle {
   white-space: normal;
   word-break: break-word;
   overflow-wrap: anywhere;
@@ -1200,4 +1384,14 @@ th {
 
 .shell-canvas .app-shell.sidebar-collapsed .sidebar__section {
   align-items: center;
+}
+
+@media (max-width: 1180px) {
+  .shell-canvas [data-account-detail-kind] .data-points,
+  .shell-canvas [data-device-detail-kind] .data-points,
+  .shell-canvas [data-account-detail-kind] .account-detail__actions,
+  .shell-canvas [data-device-detail-kind] .account-detail__actions,
+  .binding-account-grid {
+    grid-template-columns: 1fr;
+  }
 }

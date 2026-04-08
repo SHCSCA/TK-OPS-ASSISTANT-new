@@ -1,5 +1,6 @@
-   Batch 6 — generation-studio 家族样式
-   ═══════════════════════════════════════════════ */
+/* ═══════════════════════════════════════════════
+    Batch 6 — generation-studio 家族样式
+    ═══════════════════════════════════════════════ */
 .generation-studio-shell {
     display: grid;
     grid-template-columns: 380px 1fr;

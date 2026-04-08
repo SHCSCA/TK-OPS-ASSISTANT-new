@@ -17,10 +17,22 @@ import type {
   AccountProxyBindingSnapshot,
   AccountProxyBindingUpdateResult,
   AccountUpsertPayload,
+  ActivityLogCreatePayload,
+  ActivityLogItem,
   CopywriterBootstrap,
   CreateSchedulePayload,
   CreateTaskPayload,
   DashboardOverview,
+  DeviceEnvironmentOpenResult,
+  DeviceInspectionResult,
+  DeviceItem,
+  DeviceLogsResponse,
+  DeviceRepairResult,
+  DeviceUpsertPayload,
+  ExperimentProjectCreatePayload,
+  ExperimentProjectItem,
+  ExperimentViewCreatePayload,
+  ExperimentViewItem,
   LicenseStatus,
   MutationResult,
   ProviderItem,
@@ -35,6 +47,26 @@ import type {
   SchedulerOverview,
   ShellAssistantResponse,
   TaskItem,
+  WorkflowDefinitionCreatePayload,
+  WorkflowDefinitionItem,
+  WorkflowRunCreatePayload,
+  WorkflowRunItem,
+  VideoClipAppendPayload,
+  VideoClipItem,
+  VideoClipPatchPayload,
+  VideoClipReorderPayload,
+  VideoClipTrimPayload,
+  VideoExportCreatePayload,
+  VideoExportItem,
+  VideoProjectCreatePayload,
+  VideoProjectItem,
+  VideoSequenceCreatePayload,
+  VideoSequenceItem,
+  VideoSnapshotCreatePayload,
+  VideoSnapshotItem,
+  VideoSubtitleCreatePayload,
+  VideoSubtitleItem,
+  VideoSubtitlePatchPayload,
 } from './types';
 
 function buildAccountQueryString(params: AccountListQuery = {}): string {
@@ -170,6 +202,31 @@ export const runtimeApi = {
   ): Promise<AccountProxyBindingUpdateResult> {
     return httpClient.post(`/accounts/${accountId}/proxy-binding`, payload);
   },
+  listDevices(status?: string): Promise<RuntimeListResponse<DeviceItem>> {
+    const query = status ? `?status=${encodeURIComponent(status)}` : '';
+    return httpClient.get(`/devices${query}`);
+  },
+  createDevice(payload: DeviceUpsertPayload): Promise<DeviceItem> {
+    return httpClient.post('/devices', payload);
+  },
+  updateDevice(deviceId: number, payload: DeviceUpsertPayload): Promise<DeviceItem> {
+    return httpClient.put(`/devices/${deviceId}`, payload);
+  },
+  deleteDevice(deviceId: number): Promise<MutationResult> {
+    return httpClient.delete(`/devices/${deviceId}`);
+  },
+  inspectDevice(deviceId: number): Promise<DeviceInspectionResult> {
+    return httpClient.post(`/devices/${deviceId}/inspect`);
+  },
+  repairDevice(deviceId: number): Promise<DeviceRepairResult> {
+    return httpClient.post(`/devices/${deviceId}/repair`);
+  },
+  openDeviceEnvironment(deviceId: number): Promise<DeviceEnvironmentOpenResult> {
+    return httpClient.post(`/devices/${deviceId}/environment/open`);
+  },
+  getDeviceLogs(deviceId: number, limit = 20): Promise<DeviceLogsResponse> {
+    return httpClient.get(`/devices/${deviceId}/logs?limit=${encodeURIComponent(String(limit))}`);
+  },
   listTasks(status?: string): Promise<RuntimeListResponse<TaskItem>> {
     const query = status ? `?status=${encodeURIComponent(status)}` : '';
     return httpClient.get(`/tasks${query}`);
@@ -182,6 +239,106 @@ export const runtimeApi = {
   },
   deleteTask(taskId: number): Promise<MutationResult> {
     return httpClient.delete(`/tasks/${taskId}`);
+  },
+  listExperimentProjects(): Promise<RuntimeListResponse<ExperimentProjectItem>> {
+    return httpClient.get('/experiments/projects');
+  },
+  createExperimentProject(payload: ExperimentProjectCreatePayload): Promise<ExperimentProjectItem> {
+    return httpClient.post('/experiments/projects', payload);
+  },
+  listExperimentViews(projectId?: number): Promise<RuntimeListResponse<ExperimentViewItem>> {
+    const query = typeof projectId === 'number' ? `?projectId=${encodeURIComponent(String(projectId))}` : '';
+    return httpClient.get(`/experiments/views${query}`);
+  },
+  createExperimentView(payload: ExperimentViewCreatePayload): Promise<ExperimentViewItem> {
+    return httpClient.post('/experiments/views', payload);
+  },
+  listActivityLogs(limit = 20, category?: string): Promise<RuntimeListResponse<ActivityLogItem>> {
+    const searchParams = new URLSearchParams();
+    searchParams.set('limit', String(limit));
+    if (category?.trim()) {
+      searchParams.set('category', category.trim());
+    }
+    return httpClient.get(`/activity/logs?${searchParams.toString()}`);
+  },
+  createActivityLog(payload: ActivityLogCreatePayload): Promise<ActivityLogItem> {
+    return httpClient.post('/activity/logs', payload);
+  },
+  listWorkflowDefinitions(): Promise<RuntimeListResponse<WorkflowDefinitionItem>> {
+    return httpClient.get('/workflows/definitions');
+  },
+  createWorkflowDefinition(payload: WorkflowDefinitionCreatePayload): Promise<WorkflowDefinitionItem> {
+    return httpClient.post('/workflows/definitions', payload);
+  },
+  listWorkflowRuns(definitionId?: number): Promise<RuntimeListResponse<WorkflowRunItem>> {
+    const query = typeof definitionId === 'number' ? `?definitionId=${encodeURIComponent(String(definitionId))}` : '';
+    return httpClient.get(`/workflows/runs${query}`);
+  },
+  startWorkflowRun(payload: WorkflowRunCreatePayload): Promise<WorkflowRunItem> {
+    return httpClient.post('/workflows/runs', payload);
+  },
+  listVideoProjects(): Promise<RuntimeListResponse<VideoProjectItem>> {
+    return httpClient.get('/video-editor/projects');
+  },
+  createVideoProject(payload: VideoProjectCreatePayload): Promise<VideoProjectItem> {
+    return httpClient.post('/video-editor/projects', payload);
+  },
+  listVideoSequences(projectId: number): Promise<RuntimeListResponse<VideoSequenceItem>> {
+    return httpClient.get(`/video-editor/projects/${projectId}/sequences`);
+  },
+  createVideoSequence(payload: VideoSequenceCreatePayload): Promise<VideoSequenceItem> {
+    return httpClient.post('/video-editor/sequences', payload);
+  },
+  setActiveVideoSequence(projectId: number, sequenceId: number): Promise<VideoSequenceItem> {
+    return httpClient.post('/video-editor/sequences/activate', { projectId, sequenceId });
+  },
+  listVideoClips(sequenceId: number): Promise<RuntimeListResponse<VideoClipItem>> {
+    return httpClient.get(`/video-editor/sequences/${sequenceId}/clips`);
+  },
+  appendAssetsToSequence(sequenceId: number, payload: VideoClipAppendPayload): Promise<RuntimeListResponse<VideoClipItem>> {
+    return httpClient.post(`/video-editor/sequences/${sequenceId}/assets`, payload);
+  },
+  reorderVideoClips(payload: VideoClipReorderPayload): Promise<RuntimeListResponse<VideoClipItem>> {
+    return httpClient.post('/video-editor/clips/reorder', payload);
+  },
+  updateVideoClip(clipId: number, payload: VideoClipPatchPayload): Promise<VideoClipItem> {
+    return httpClient.put(`/video-editor/clips/${clipId}`, payload);
+  },
+  trimVideoClip(payload: VideoClipTrimPayload): Promise<VideoClipItem> {
+    return httpClient.post('/video-editor/clips/trim', payload);
+  },
+  deleteVideoClip(clipId: number): Promise<MutationResult> {
+    return httpClient.delete(`/video-editor/clips/${clipId}`);
+  },
+  listVideoSubtitles(sequenceId: number): Promise<RuntimeListResponse<VideoSubtitleItem>> {
+    return httpClient.get(`/video-editor/sequences/${sequenceId}/subtitles`);
+  },
+  createVideoSubtitle(payload: VideoSubtitleCreatePayload): Promise<VideoSubtitleItem> {
+    return httpClient.post('/video-editor/subtitles', payload);
+  },
+  updateVideoSubtitle(subtitleId: number, payload: VideoSubtitlePatchPayload): Promise<VideoSubtitleItem> {
+    return httpClient.put(`/video-editor/subtitles/${subtitleId}`, payload);
+  },
+  deleteVideoSubtitle(subtitleId: number): Promise<MutationResult> {
+    return httpClient.delete(`/video-editor/subtitles/${subtitleId}`);
+  },
+  listVideoExports(projectId: number): Promise<RuntimeListResponse<VideoExportItem>> {
+    return httpClient.get(`/video-editor/projects/${projectId}/exports`);
+  },
+  createVideoExport(payload: VideoExportCreatePayload): Promise<VideoExportItem> {
+    return httpClient.post('/video-editor/exports', payload);
+  },
+  runVideoExport(exportId: number): Promise<VideoExportItem> {
+    return httpClient.post(`/video-editor/exports/${exportId}/run`);
+  },
+  listVideoSnapshots(projectId: number): Promise<RuntimeListResponse<VideoSnapshotItem>> {
+    return httpClient.get(`/video-editor/projects/${projectId}/snapshots`);
+  },
+  createVideoSnapshot(payload: VideoSnapshotCreatePayload): Promise<VideoSnapshotItem> {
+    return httpClient.post('/video-editor/snapshots', payload);
+  },
+  restoreVideoSnapshot(snapshotId: number): Promise<VideoProjectItem> {
+    return httpClient.post(`/video-editor/snapshots/${snapshotId}/restore`);
   },
   getSchedulerOverview(): Promise<SchedulerOverview> {
     return httpClient.get('/scheduler');
@@ -232,5 +389,40 @@ export const runtimeApi = {
     completed: boolean;
   }): Promise<RuntimeSettingsPayload> {
     return httpClient.post('/settings/setup', payload);
+  },
+  // 素材管理
+  listAssets(params?: { asset_type?: string; query?: string }): Promise<{ items: any[]; total: number }> {
+    const searchParams = new URLSearchParams();
+    if (params?.asset_type) searchParams.set('asset_type', params.asset_type);
+    if (params?.query) searchParams.set('query', params.query);
+    const query = searchParams.toString();
+    return httpClient.get(`/assets${query ? `?${query}` : ''}`);
+  },
+  getAssetStats(): Promise<{ total: number; byType: Record<string, number> }> {
+    return httpClient.get('/assets/stats');
+  },
+  getAsset(id: number): Promise<any> {
+    return httpClient.get(`/assets/${id}`);
+  },
+  createAsset(payload: {
+    filename: string;
+    asset_type: string;
+    file_path: string;
+    tags?: string | null;
+    account_id?: number | null;
+  }): Promise<any> {
+    return httpClient.post('/assets', payload);
+  },
+  updateAsset(id: number, payload: {
+    filename?: string | null;
+    asset_type?: string | null;
+    file_path?: string | null;
+    tags?: string | null;
+    account_id?: number | null;
+  }): Promise<any> {
+    return httpClient.put(`/assets/${id}`, payload);
+  },
+  deleteAsset(id: number): Promise<{ deleted: boolean }> {
+    return httpClient.delete(`/assets/${id}`);
   },
 };

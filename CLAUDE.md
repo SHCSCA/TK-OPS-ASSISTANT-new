@@ -8,9 +8,18 @@ TK-OPS is a Windows desktop application for TikTok Shop operations teams. It has
 
 - **Tauri Desktop Host** (`apps/desktop/`): Modern desktop shell using Tauri 2 + Vue 3 + TypeScript
 - **Python Sidecar Runtime** (`apps/py-runtime/`): Business logic runtime using Python + FastAPI
-- **Legacy Reference** (`desktop_app/`): Preserved for migration reference and runtime code reuse, no longer the default entry point
+- **Legacy Reference** (`desktop_app/`): Preserved for migration reference and selective runtime code reuse, but forbidden from re-entering default run, integration, packaging, canary, or release paths
 
 Current version: 1.3.2
+
+## Non-Negotiable Constraints
+
+1. **No giant files**: Do not reintroduce single files with thousands of lines. Split by page, data/composable, helpers, types, styles, and tests.
+2. **No dual-shell runtime**: PySide6 and Tauri must not run as parallel product shells in any environment. `desktop_app/` is reference-only for migration and selective reuse.
+3. **Global consistency first**: All new work must follow the unified architecture, directory boundaries, runtime contract, and migration workflow.
+4. **Chinese comments only**: Any newly added comments must be in Chinese and should stay brief, explaining intent, boundaries, or non-obvious logic only.
+5. **Global error handling and logging**: Exceptions must be caught, logged, and surfaced through a consistent error contract. Do not leave silent failures.
+6. **Unified configuration bus**: New configuration must go through a single configuration entry/bus. Do not scatter config ownership across pages, services, and scripts.
 
 ## Current Architecture
 
@@ -26,12 +35,12 @@ Current version: 1.3.2
    - FastAPI-based HTTP/WebSocket server (default: `127.0.0.1:8765`)
    - Business logic services (account, task, AI, asset, analytics, etc.)
    - Repository layer: Database access via SQLAlchemy ORM (same as legacy)
-   - Legacy facade adapter for gradual migration from `desktop_app/`
+  - Legacy facade adapter for gradual migration from `desktop_app/`, but not for restoring the old shell as a supported runtime path
    - All endpoints return JSON envelopes: `{ok: bool, data: any, error: string}`
 
 3. **Legacy Desktop App** (`desktop_app/`)
-   - Preserved for reference and runtime code reuse
-   - Not the default development or runtime entry point
+  - Preserved for migration reference and selective shared logic reuse
+  - Not allowed as a default development, integration, packaging, or release entry point
    - Contains database models, migrations, and some service logic
 
 ### Key Communication Pattern
@@ -165,10 +174,12 @@ iscc installer.iss
 ### Frontend Conventions
 - Use `runtimeApi` from `modules/runtime/runtimeApi.ts` for all backend calls
 - Use composables (e.g., `useAccountsData.ts`) for reactive data fetching
+- Keep files small and responsibility-scoped; prefer page + composable + helpers + types + styles over monolithic components
 - Pages load real data from runtime, not hardcoded examples
 - Empty states shown when no data exists (no fake data)
 - Task-backed actions create `Task` records and show progress
 - Real-time updates via WebSocket connections
+- New comments should be in Chinese and only added where they clarify intent or boundaries
 
 ## Testing Strategy
 
@@ -231,7 +242,7 @@ export function useFeatureData() {
 ### Current Progress (as of 2026-04-06)
 - **New single-shell architecture**: Tauri host + Python sidecar runtime is production-ready
 - **Development tooling**: Complete (dev, build, smoke test, release scripts)
-- **Migrated pages**: 8 of 44 pages fully migrated to new architecture:
+- **Migrated pages**: 9 of 44 pages fully migrated to new architecture:
   - Dashboard
   - Account Management (production-ready phase 1)
   - AI Provider Management
@@ -251,9 +262,10 @@ export function useFeatureData() {
 
 ### Migration Constraints
 - New features MUST target `apps/desktop` and `apps/py-runtime`
-- `desktop_app/` is for reference only—no new desktop shell features
+- `desktop_app/` is for reference only—no new desktop shell features and no return to dual-shell runtime
 - "Page opens" is NOT completion criteria—must have real data flows and error feedback
 - Follow the gated superpowers workflow for non-trivial tasks
+- Future page migration must be 1:1 deep migration and code conversion from the legacy implementation, not a loose reinterpretation
 
 ## Important Constraints
 
@@ -263,8 +275,10 @@ export function useFeatureData() {
 - Don't create "silent no-op" buttons (show disabled state if no backend support)
 - Don't skip API contract tests for new endpoints
 - Don't bypass error handling in FastAPI endpoints
+- Don't let exceptions disappear without structured logging and user-visible feedback where applicable
 - Don't commit without running tests: `pytest tests -q`
 - Don't add features to `desktop_app/` desktop shell
+- Don't add new scattered configuration sources outside the shared configuration entry/bus
 
 ### What IS Supported
 - Account/group/device/task management with real CRUD

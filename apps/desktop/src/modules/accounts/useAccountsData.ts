@@ -832,9 +832,11 @@ export function useAccountsData() {
 
   onMounted(() => {
     window.addEventListener('tkops:account-detail-action', onDetailAction as EventListener);
+    window.addEventListener('tkops:accounts-refresh-requested', refreshAccounts as EventListener);
   });
   onBeforeUnmount(() => {
     window.removeEventListener('tkops:account-detail-action', onDetailAction as EventListener);
+    window.removeEventListener('tkops:accounts-refresh-requested', refreshAccounts as EventListener);
     shell.resetAccountDetailState();
   });
 

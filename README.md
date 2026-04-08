@@ -1,6 +1,6 @@
 # TK-OPS Desktop
 
-当前发布版本：`1.3.2`
+当前发布版本：`1.3.3`
 
 ## 项目现状
 
@@ -85,7 +85,7 @@ scripts\preflight-gate.ps1 -Full
 
 - [发布前门禁清单](docs/releases/preflight-checklist.md)
 - [发布回滚手册](docs/releases/rollback-playbook.md)
-- [v1.3.2 发布记录](docs/releases/2026-04-03-v1.3.2.md)
+- [v1.3.3 发布记录](docs/releases/2026-04-08-v1.3.3.md)
 
 产物默认输出到：
 
@@ -133,7 +133,8 @@ scripts\smoke-tauri-runtime.ps1 -SkipBuild
 
 - 新单壳桌面链路：`Tauri host + Python sidecar runtime`
 - 开发、构建、Alpha 组装和烟测脚本
-- `Dashboard / 账号管理 / Provider / 任务队列 / 任务调度 / AI 文案 / Setup Wizard / 设置` 新前端与 runtime 主链路
+- `Dashboard / 账号管理 / 设备管理 / 素材中心 / Provider / 任务队列 / 定时发布 / 数据采集助手 / 创意工坊 / AI 内容工厂 / 视频编辑 / AI 文案 / Setup Wizard / 设置` 新前端与 runtime 主链路
+- 自动化与内容域新增真实新链路页面后，当前新壳菜单为 `34` 个页面，已接入真实新链路页面为 `14` 个
 - 账号管理生产预备版第一阶段：
   - 双状态并排展示
   - 风险状态

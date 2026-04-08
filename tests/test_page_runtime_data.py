@@ -21,7 +21,11 @@ DESKTOP_APP_MODULES = [
     ROOT / "apps" / "desktop" / "src" / "modules" / "accounts" / "useAccountsData.ts",
     ROOT / "apps" / "desktop" / "src" / "modules" / "providers" / "useProvidersData.ts",
     ROOT / "apps" / "desktop" / "src" / "modules" / "tasks" / "useTasksData.ts",
-    ROOT / "apps" / "desktop" / "src" / "modules" / "scheduler" / "useSchedulerData.ts",
+    ROOT / "apps" / "desktop" / "src" / "modules" / "publish" / "useScheduledPublishData.ts",
+    ROOT / "apps" / "desktop" / "src" / "modules" / "collector" / "useDataCollectorData.ts",
+    ROOT / "apps" / "desktop" / "src" / "modules" / "content" / "useCreativeWorkshopData.ts",
+    ROOT / "apps" / "desktop" / "src" / "modules" / "content" / "useAiContentFactoryData.ts",
+    ROOT / "apps" / "desktop" / "src" / "modules" / "content" / "useVideoEditorData.ts",
     ROOT / "apps" / "desktop" / "src" / "modules" / "copywriter" / "useCopywriterData.ts",
     ROOT / "apps" / "desktop" / "src" / "modules" / "setup" / "useSetupWizardData.ts",
     ROOT / "apps" / "desktop" / "src" / "modules" / "settings" / "useSettingsData.ts",
@@ -128,6 +132,29 @@ def test_video_editor_runtime_uses_project_sequence_clip_language() -> None:
     assert "createVideoExport" in text
 
 
+def test_video_editor_module_uses_runtime_data_and_no_frozen_demo_copy() -> None:
+    text = (ROOT / "apps" / "desktop" / "src" / "modules" / "content" / "useVideoEditorData.ts").read_text(encoding="utf-8")
+    page_text = (ROOT / "apps" / "desktop" / "src" / "pages" / "content" / "VideoEditorPage.vue").read_text(encoding="utf-8")
+
+    for snippet in [
+        "runtimeApi.listVideoProjects()",
+        "runtimeApi.listVideoSequences(projectId)",
+        "runtimeApi.listVideoClips(sequenceId)",
+        "runtimeApi.listVideoSubtitles(sequenceId)",
+        "runtimeApi.listVideoExports(projectId)",
+        "runtimeApi.listVideoSnapshots(projectId)",
+        "runtimeApi.createVideoExport({",
+    ]:
+        assert snippet in text, snippet
+
+    for frozen_value in [
+        "混剪序列 #18",
+        "节日 B-roll_03",
+        "待导出批次 A",
+    ]:
+        assert frozen_value not in page_text, frozen_value
+
+
 def test_task_queue_loader_split_remains_registered_in_shell_chain() -> None:
     shell_text = (ROOT / "desktop_app" / "assets" / "app_shell.html").read_text(encoding="utf-8")
     task_text = TASK_QUEUE_MAIN_JS.read_text(encoding="utf-8")
@@ -221,14 +248,6 @@ def test_migrated_vue_modules_use_runtime_api_sources() -> None:
         assert "runtimeApi." in text, module_path.name
 
 
-def test_scheduler_module_uses_neutral_fallback_for_window_summary() -> None:
-    text = (ROOT / "apps" / "desktop" / "src" / "modules" / "scheduler" / "useSchedulerData.ts").read_text(encoding="utf-8")
-
-    assert "quietHours: '--'" in text
-    assert "timezone: '--'" in text
-    assert "defaultWorkflow: '--'" in text
-
-
 def test_dashboard_module_fetches_scheduler_overview_for_quick_action_detail_cards() -> None:
     text = (ROOT / "apps" / "desktop" / "src" / "modules" / "dashboard" / "useDashboardData.ts").read_text(encoding="utf-8")
 
@@ -245,3 +264,107 @@ def test_dashboard_detail_panel_supports_default_activity_system_quick_action_ki
     assert "quick-action" in text
     assert "activity" in text
     assert "system" in text
+
+
+def test_scheduled_publish_module_uses_runtime_data_and_no_frozen_demo_copy() -> None:
+    text = (ROOT / "apps" / "desktop" / "src" / "modules" / "publish" / "useScheduledPublishData.ts").read_text(encoding="utf-8")
+    page_text = (ROOT / "apps" / "desktop" / "src" / "pages" / "publish" / "ScheduledPublishPage.vue").read_text(encoding="utf-8")
+
+    for snippet in [
+        "runtimeApi.listTasks()",
+        "runtimeApi.listAccounts({ includeArchived: false })",
+        "runtimeApi.listAssets()",
+        "runtimeApi.createTask({",
+        "runtimeApi.startTask(taskId)",
+        "runtimeApi.deleteTask(taskId)",
+        "taskType: 'publish'",
+    ]:
+        assert snippet in text, snippet
+
+    for frozen_value in [
+        "今日计划 18 条",
+        "8 条待审核",
+        "中断 2 条",
+        "美国站直播预热",
+        "欧洲晚高峰补量",
+        "达人联投发布表",
+    ]:
+        assert frozen_value not in page_text, frozen_value
+
+
+def test_data_collector_module_uses_runtime_data_and_no_frozen_demo_copy() -> None:
+    text = (ROOT / "apps" / "desktop" / "src" / "modules" / "collector" / "useDataCollectorData.ts").read_text(encoding="utf-8")
+    page_text = (ROOT / "apps" / "desktop" / "src" / "pages" / "collector" / "DataCollectorPage.vue").read_text(encoding="utf-8")
+
+    for snippet in [
+        "runtimeApi.listTasks()",
+        "runtimeApi.listAccounts({ includeArchived: false })",
+        "runtimeApi.listAssets()",
+        "runtimeApi.listDevices()",
+        "runtimeApi.createTask({",
+        "runtimeApi.startTask(taskId)",
+        "runtimeApi.deleteTask(taskId)",
+        "taskType: 'scrape'",
+    ]:
+        assert snippet in text, snippet
+
+    for frozen_value in [
+        "采集站点 12 个",
+        "今日抓取 8 轮",
+        "代理池待接入",
+        "美区热视频补采",
+        "东南亚达人直播采样",
+    ]:
+        assert frozen_value not in page_text, frozen_value
+
+
+def test_creative_workshop_module_uses_runtime_data_and_no_frozen_demo_copy() -> None:
+    text = (ROOT / "apps" / "desktop" / "src" / "modules" / "content" / "useCreativeWorkshopData.ts").read_text(encoding="utf-8")
+    page_text = (ROOT / "apps" / "desktop" / "src" / "pages" / "content" / "CreativeWorkshopPage.vue").read_text(encoding="utf-8")
+
+    for snippet in [
+        "runtimeApi.listAccounts({ includeArchived: false })",
+        "runtimeApi.listAssets()",
+        "runtimeApi.listTasks()",
+        "runtimeApi.listExperimentProjects()",
+        "runtimeApi.listExperimentViews()",
+        "runtimeApi.listActivityLogs(24)",
+        "runtimeApi.createExperimentProject({",
+        "runtimeApi.createExperimentView({",
+        "runtimeApi.createActivityLog({",
+    ]:
+        assert snippet in text, snippet
+
+    for frozen_value in [
+        "东京少女通勤妆",
+        "美国站清仓短打",
+        "镜头 A 胜出",
+        "口播版本 B",
+    ]:
+        assert frozen_value not in page_text, frozen_value
+
+
+def test_ai_content_factory_module_uses_runtime_data_and_no_frozen_demo_copy() -> None:
+    text = (ROOT / "apps" / "desktop" / "src" / "modules" / "content" / "useAiContentFactoryData.ts").read_text(encoding="utf-8")
+    page_text = (ROOT / "apps" / "desktop" / "src" / "pages" / "content" / "AiContentFactoryPage.vue").read_text(encoding="utf-8")
+
+    for snippet in [
+        "runtimeApi.listAssets()",
+        "runtimeApi.listTasks()",
+        "runtimeApi.listProviders()",
+        "runtimeApi.listWorkflowDefinitions()",
+        "runtimeApi.listWorkflowRuns()",
+        "runtimeApi.createWorkflowDefinition({",
+        "runtimeApi.startWorkflowRun({",
+        "runtimeApi.createTask({",
+    ]:
+        assert snippet in text, snippet
+
+    for frozen_value in [
+        "BATCH_0312_01",
+        "短视频自动化",
+        "播客内容提取",
+        "GPU 加速 已开启",
+        "wf_20240523_001",
+    ]:
+        assert frozen_value not in page_text, frozen_value

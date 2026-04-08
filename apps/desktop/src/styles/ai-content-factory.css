@@ -1,0 +1,154 @@
+.ai-content-factory-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.ai-content-factory-header__actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.aicf-summary-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.aicf-shell {
+  display: grid;
+  grid-template-columns: minmax(240px, 0.85fr) minmax(0, 1.7fr) minmax(280px, 0.95fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.aicf-library-column,
+.aicf-canvas-column,
+.aicf-config-column {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+
+.aicf-node-palette,
+.aicf-project-list,
+.aicf-batch-grid,
+.aicf-config-list {
+  display: grid;
+  gap: 12px;
+}
+
+.aicf-node-palette__button,
+.aicf-project-item {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 14px 16px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--surface-secondary) 96%, transparent);
+  color: var(--text-primary);
+  cursor: pointer;
+  text-align: left;
+}
+
+.aicf-node-palette__button.is-selected,
+.aicf-project-item.is-selected {
+  border-color: color-mix(in srgb, var(--brand-primary) 45%, var(--border-subtle));
+  background: color-mix(in srgb, var(--brand-primary) 10%, var(--surface-secondary));
+}
+
+.ai-content-factory-toolbar__actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.ai-content-factory-draft-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr);
+  gap: 16px;
+}
+
+.ai-content-factory-draft-grid__wide {
+  grid-column: auto;
+}
+
+.aicf-workflow-canvas {
+  overflow-x: auto;
+}
+
+.aicf-workflow-row {
+  display: flex;
+  align-items: stretch;
+  gap: 12px;
+  min-width: max-content;
+}
+
+.workflow-stage-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 190px;
+  padding: 16px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--surface-primary) 94%, transparent);
+}
+
+.workflow-stage-card.is-active {
+  border-color: color-mix(in srgb, var(--brand-primary) 45%, var(--border-subtle));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--brand-primary) 22%, transparent);
+}
+
+.workflow-stage-card__head {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.workflow-arrow {
+  align-self: center;
+  color: var(--text-secondary);
+  font-size: 18px;
+}
+
+.aicf-config-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px 16px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--surface-primary) 95%, transparent);
+}
+
+@media (max-width: 1280px) {
+  .aicf-shell {
+    grid-template-columns: minmax(220px, 0.8fr) minmax(0, 1fr);
+  }
+
+  .aicf-config-column {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 960px) {
+  .aicf-summary-strip,
+  .ai-content-factory-draft-grid,
+  .aicf-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .aicf-workflow-row {
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  .workflow-arrow {
+    display: none;
+  }
+}

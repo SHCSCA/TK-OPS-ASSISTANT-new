@@ -364,6 +364,103 @@ export interface AccountProxyBindingUpdateResult extends AccountProxyBindingSnap
   validation: AccountLoginValidationResult | null;
 }
 
+export interface DeviceItem {
+  id: number;
+  deviceCode: string;
+  name: string;
+  proxyIp: string | null;
+  region: string;
+  status: string;
+  proxyStatus: string;
+  fingerprintStatus: string;
+  createdAt: string | null;
+  updatedAt: string | null;
+}
+
+export interface DeviceUpsertPayload {
+  deviceCode?: string;
+  name?: string;
+  proxyIp?: string | null;
+  region?: string;
+  status?: string;
+  proxyStatus?: string | null;
+  fingerprintStatus?: string | null;
+}
+
+export interface DeviceInspectionResult {
+  deviceId: number;
+  deviceCode: string;
+  name: string;
+  ok: boolean;
+  target: string | null;
+  latencyMs: number | null;
+  checkedAt: string | null;
+  message: string;
+  scope: string | null;
+  scopeLabel: string | null;
+  status: string;
+  proxyStatus: string;
+  fingerprintStatus: string;
+  boundAccounts: number;
+}
+
+export interface DeviceRepairResult {
+  deviceId: number;
+  deviceCode: string;
+  status: string;
+  proxyStatus: string;
+  profileDir: string;
+  actions: string[];
+  inspection: DeviceInspectionResult;
+}
+
+export interface DeviceEnvironmentOpenResult {
+  deviceId: number;
+  deviceCode: string;
+  name: string;
+  browserPath: string;
+  profileDir: string;
+  launcherPath: string;
+  launcherUrl: string;
+  configuredProxy: string;
+  configuredProxyDisplay: string;
+  upstreamProxy: string;
+  upstreamTransport: string;
+  browserProxy: string;
+  proxyServer: string;
+  proxyAuthPresent: boolean;
+  validation: {
+    ok: boolean;
+    message: string;
+    detail: string;
+  };
+  launchMode: string;
+  pid: number;
+  url: string;
+  autoOpenDelayMs: number;
+  monitorIntervalMs: number;
+  proxyProbeUrl: string;
+  extensionName: string;
+  extensionReady: boolean;
+  extensionInstallRequired: boolean;
+  extensionInstallHint: string;
+}
+
+export interface DeviceLogItem {
+  id: number;
+  category: string;
+  title: string;
+  message: string;
+  payload: Record<string, unknown>;
+  createdAt: string | null;
+}
+
+export interface DeviceLogsResponse {
+  items: DeviceLogItem[];
+  total: number;
+  limit: number;
+}
+
 export interface RuntimeListResponse<T> {
   items: T[];
   total: number;
@@ -372,6 +469,7 @@ export interface RuntimeListResponse<T> {
 export interface MutationResult {
   deleted?: boolean;
   accountId?: number;
+  deviceId?: number;
   taskId?: number;
   providerId?: number;
 }
@@ -428,6 +526,35 @@ export interface TaskItem {
   createdAt: string | null;
 }
 
+export interface ExperimentProjectItem {
+  id: number;
+  name: string;
+  goal: string | null;
+  status: string;
+  configJson: string | null;
+  createdAt: string | null;
+  updatedAt: string | null;
+}
+
+export interface ExperimentViewItem {
+  id: number;
+  experimentProjectId: number;
+  name: string;
+  layoutJson: string | null;
+  createdAt: string | null;
+  updatedAt: string | null;
+}
+
+export interface ActivityLogItem {
+  id: number;
+  category: string;
+  title: string;
+  payloadJson: string | null;
+  relatedEntityType: string | null;
+  relatedEntityId: number | null;
+  createdAt: string | null;
+}
+
 export interface CreateTaskPayload {
   title: string;
   taskType: string;
@@ -435,6 +562,201 @@ export interface CreateTaskPayload {
   accountId?: number | null;
   scheduledAt?: string | null;
   resultSummary?: string | null;
+}
+
+export interface ExperimentProjectCreatePayload {
+  name: string;
+  goal?: string | null;
+  status?: string;
+  configJson?: string | null;
+}
+
+export interface ExperimentViewCreatePayload {
+  experimentProjectId: number;
+  name: string;
+  layoutJson?: string | null;
+}
+
+export interface ActivityLogCreatePayload {
+  category: string;
+  title: string;
+  payloadJson?: string | null;
+  relatedEntityType?: string | null;
+  relatedEntityId?: number | null;
+}
+
+export interface WorkflowDefinitionItem {
+  id: number;
+  name: string;
+  status: string;
+  description: string | null;
+  configJson: string | null;
+  createdAt: string | null;
+  updatedAt: string | null;
+}
+
+export interface WorkflowRunItem {
+  id: number;
+  workflowDefinitionId: number;
+  status: string;
+  inputJson: string | null;
+  resultJson: string | null;
+  startedAt: string | null;
+  finishedAt: string | null;
+  createdAt: string | null;
+}
+
+export interface WorkflowDefinitionCreatePayload {
+  name: string;
+  status?: string;
+  description?: string | null;
+  configJson?: string | null;
+}
+
+export interface WorkflowRunCreatePayload {
+  workflowDefinitionId: number;
+  status?: string;
+  inputJson?: string | null;
+  resultJson?: string | null;
+}
+
+export interface VideoProjectItem {
+  id: number;
+  name: string;
+  description: string | null;
+  activeSequenceId: number | null;
+  metaJson: string | null;
+  createdAt: string | null;
+  updatedAt: string | null;
+}
+
+export interface VideoSequenceItem {
+  id: number;
+  projectId: number;
+  name: string;
+  durationMs: number;
+  fps: number;
+  width: number;
+  height: number;
+  metaJson: string | null;
+  isActive: boolean;
+  createdAt: string | null;
+  updatedAt: string | null;
+}
+
+export interface VideoClipItem {
+  id: number;
+  sequenceId: number;
+  assetId: number | null;
+  trackType: string;
+  trackIndex: number;
+  sortOrder: number;
+  startMs: number;
+  sourceInMs: number;
+  sourceOutMs: number;
+  durationMs: number;
+  speed: number;
+  volume: number;
+  metaJson: string | null;
+  createdAt: string | null;
+  updatedAt: string | null;
+}
+
+export interface VideoSubtitleItem {
+  id: number;
+  sequenceId: number;
+  startMs: number;
+  endMs: number;
+  text: string;
+  styleJson: string | null;
+  createdAt: string | null;
+  updatedAt: string | null;
+}
+
+export interface VideoExportItem {
+  id: number;
+  projectId: number;
+  sequenceId: number | null;
+  preset: string;
+  status: string;
+  outputPath: string | null;
+  ffmpegCommand: string | null;
+  errorMessage: string | null;
+  progress: number;
+  startedAt: string | null;
+  finishedAt: string | null;
+  createdAt: string | null;
+}
+
+export interface VideoSnapshotItem {
+  id: number;
+  projectId: number;
+  title: string;
+  createdAt: string | null;
+}
+
+export interface VideoProjectCreatePayload {
+  name: string;
+  description?: string | null;
+  metaJson?: string | null;
+}
+
+export interface VideoSequenceCreatePayload {
+  projectId: number;
+  name: string;
+  fps?: number;
+  width?: number;
+  height?: number;
+  metaJson?: string | null;
+}
+
+export interface VideoClipAppendPayload {
+  assetIds?: number[];
+  assetId?: number | null;
+}
+
+export interface VideoClipReorderPayload {
+  sequenceId: number;
+  clipIds: number[];
+}
+
+export interface VideoClipPatchPayload {
+  sourceInMs?: number;
+  sourceOutMs?: number;
+  volume?: number;
+  speed?: number;
+}
+
+export interface VideoClipTrimPayload {
+  clipId: number;
+  sourceInMs: number;
+  sourceOutMs: number;
+}
+
+export interface VideoSubtitleCreatePayload {
+  sequenceId: number;
+  startMs: number;
+  endMs: number;
+  text: string;
+  styleJson?: string | null;
+}
+
+export interface VideoSubtitlePatchPayload {
+  startMs?: number;
+  endMs?: number;
+  text?: string;
+  styleJson?: string | null;
+}
+
+export interface VideoExportCreatePayload {
+  projectId: number;
+  sequenceId: number;
+  preset?: string;
+}
+
+export interface VideoSnapshotCreatePayload {
+  projectId: number;
+  title: string;
 }
 
 export interface ProviderItem {

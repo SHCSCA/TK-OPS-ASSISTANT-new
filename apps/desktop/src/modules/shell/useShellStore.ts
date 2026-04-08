@@ -101,6 +101,176 @@ interface AccountDutySummary {
   tone: StatusChipItem['tone'];
 }
 
+type DeviceDetailKind = 'default' | 'selected';
+
+interface DeviceDetailPoint {
+  label: string;
+  value: string;
+}
+
+interface DeviceIssueItem {
+  title: string;
+  copy: string;
+  tone: StatusChipItem['tone'];
+}
+
+interface DeviceLogSummaryItem {
+  id: number;
+  title: string;
+  message: string;
+  category: string;
+  createdAt: string;
+}
+
+interface DeviceDetailState {
+  kind: DeviceDetailKind;
+  deviceId: number | null;
+  title: string;
+  subtitle: string;
+  statusLabel: string;
+  statusTone: StatusChipItem['tone'];
+  dataPoints: DeviceDetailPoint[];
+  issues: DeviceIssueItem[];
+  logs: DeviceLogSummaryItem[];
+  logsCollapsed: boolean;
+}
+
+type PublishDetailKind = 'default' | 'selected';
+
+interface PublishDetailItem {
+  label: string;
+  value: string;
+  stacked?: boolean;
+}
+
+interface PublishAdviceItem {
+  title: string;
+  copy: string;
+  badge: string;
+  tone: StatusChipItem['tone'];
+}
+
+interface PublishDetailState {
+  kind: PublishDetailKind;
+  planId: number | null;
+  title: string;
+  subtitle: string;
+  statusLabel: string;
+  statusTone: StatusChipItem['tone'];
+  detailItems: PublishDetailItem[];
+  adviceItems: PublishAdviceItem[];
+}
+
+type CollectorDetailKind = 'default' | 'selected';
+
+interface CollectorDetailItem {
+  label: string;
+  value: string;
+  stacked?: boolean;
+}
+
+interface CollectorAdviceItem {
+  title: string;
+  copy: string;
+  badge: string;
+  tone: StatusChipItem['tone'];
+}
+
+interface CollectorDetailState {
+  kind: CollectorDetailKind;
+  taskId: number | null;
+  title: string;
+  subtitle: string;
+  statusLabel: string;
+  statusTone: StatusChipItem['tone'];
+  detailItems: CollectorDetailItem[];
+  adviceItems: CollectorAdviceItem[];
+}
+
+type CreativeDetailKind = 'default' | 'selected';
+
+interface CreativeDetailItem {
+  label: string;
+  value: string;
+  stacked?: boolean;
+}
+
+interface CreativeAdviceItem {
+  title: string;
+  copy: string;
+  badge: string;
+  tone: StatusChipItem['tone'];
+}
+
+interface CreativeDetailState {
+  kind: CreativeDetailKind;
+  projectId: number | null;
+  title: string;
+  subtitle: string;
+  statusLabel: string;
+  statusTone: StatusChipItem['tone'];
+  detailItems: CreativeDetailItem[];
+  adviceItems: CreativeAdviceItem[];
+}
+
+type AiContentFactoryDetailKind = 'default' | 'selected';
+
+interface AiContentFactoryDetailItem {
+  label: string;
+  value: string;
+  stacked?: boolean;
+}
+
+interface AiContentFactoryAdviceItem {
+  title: string;
+  copy: string;
+  badge: string;
+  tone: StatusChipItem['tone'];
+}
+
+interface AiContentFactoryDetailState {
+  kind: AiContentFactoryDetailKind;
+  definitionId: number | null;
+  title: string;
+  subtitle: string;
+  statusLabel: string;
+  statusTone: StatusChipItem['tone'];
+  detailItems: AiContentFactoryDetailItem[];
+  adviceItems: AiContentFactoryAdviceItem[];
+}
+
+type VideoEditorDetailKind = 'default' | 'selected';
+
+interface VideoEditorDetailItem {
+  label: string;
+  value: string;
+  stacked?: boolean;
+}
+
+interface VideoEditorAdviceItem {
+  title: string;
+  copy: string;
+  badge: string;
+  tone: StatusChipItem['tone'];
+}
+
+interface VideoEditorDetailState {
+  kind: VideoEditorDetailKind;
+  projectId: number | null;
+  sequenceId: number | null;
+  title: string;
+  subtitle: string;
+  statusLabel: string;
+  statusTone: StatusChipItem['tone'];
+  detailItems: VideoEditorDetailItem[];
+  adviceItems: VideoEditorAdviceItem[];
+  canExportFinal: boolean;
+  canPreviewExport: boolean;
+  canSaveSnapshot: boolean;
+  canRestoreSnapshot: boolean;
+  canCreateSubtitle: boolean;
+}
+
 interface AccountDetailState {
   kind: AccountDetailKind;
   accountId: number | null;
@@ -124,8 +294,9 @@ const MAX_SEARCH_RESULTS = 10;
 
 const WIDTH_FULL = 1180;
 const WIDTH_MIN_LAYOUT = 960;
-const SHELL_SCALE_BASE_WIDTH = 1440;
-const SHELL_SCALE_MIN = 0.82;
+const SHELL_SCALE_BASE_WIDTH = 1500;
+const SHELL_SCALE_MIN = 0.85;
+const SHELL_SCALE_MAX = 0.96;
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
@@ -220,7 +391,7 @@ function resolveLayoutViewportWidth(width: number): number {
 }
 
 function resolveShellScale(layoutViewportWidth: number): number {
-  return clamp(layoutViewportWidth / SHELL_SCALE_BASE_WIDTH, SHELL_SCALE_MIN, 1);
+  return clamp(layoutViewportWidth / SHELL_SCALE_BASE_WIDTH, SHELL_SCALE_MIN, SHELL_SCALE_MAX);
 }
 
 function createDefaultDashboardDetailState(): DashboardDetailState {
@@ -265,6 +436,119 @@ function createDefaultAccountDetailState(): AccountDetailState {
       tone: 'info',
     },
     adviceItems: [],
+  };
+}
+
+function createDefaultDeviceDetailState(): DeviceDetailState {
+  return {
+    kind: 'default',
+    deviceId: null,
+    title: '设备详情',
+    subtitle: '选中左侧设备后，这里会固定展示代理、指纹、覆盖率与环境日志。',
+    statusLabel: '待选择',
+    statusTone: 'info',
+    dataPoints: [
+      { label: '代理状态', value: '--' },
+      { label: '指纹状态', value: '--' },
+      { label: '绑定账号', value: '--' },
+      { label: '隔离覆盖', value: '--' },
+      { label: '最近巡检', value: '--' },
+      { label: '地区', value: '--' },
+    ],
+    issues: [],
+    logs: [],
+    logsCollapsed: true,
+  };
+}
+
+function createDefaultPublishDetailState(): PublishDetailState {
+  return {
+    kind: 'default',
+    planId: null,
+    title: '定时发布详情',
+    subtitle: '选中左侧发布计划后，这里会固定显示排程状态、时间窗口和跟进建议。',
+    statusLabel: '待选择',
+    statusTone: 'info',
+    detailItems: [
+      { label: '当前状态', value: '请先选择发布计划' },
+      { label: '发布时间', value: '--' },
+      { label: '资源概览', value: '账号 -- / 素材 --' },
+    ],
+    adviceItems: [],
+  };
+}
+
+function createDefaultCollectorDetailState(): CollectorDetailState {
+  return {
+    kind: 'default',
+    taskId: null,
+    title: '数据采集详情',
+    subtitle: '选中采集任务后，这里会固定显示任务状态、区域、代理池摘要和补偿建议。',
+    statusLabel: '待选择',
+    statusTone: 'info',
+    detailItems: [
+      { label: '当前状态', value: '请先选择采集任务' },
+      { label: '任务类型', value: '数据采集' },
+      { label: '区域与资源', value: '账号 -- / 素材 -- / 代理 --' },
+    ],
+    adviceItems: [],
+  };
+}
+
+function createDefaultCreativeDetailState(): CreativeDetailState {
+  return {
+    kind: 'default',
+    projectId: null,
+    title: '创意工坊详情',
+    subtitle: '选中实验项目后，这里会固定显示实验状态、风险提醒和下一步建议。',
+    statusLabel: '待选择',
+    statusTone: 'info',
+    detailItems: [
+      { label: '当前实验状态', value: '请先选择实验项目' },
+      { label: '重点风险', value: '失败任务和素材缺口会在这里自动汇总' },
+      { label: '建议动作', value: '锁定方向后再进入视频编辑页继续加工' },
+    ],
+    adviceItems: [],
+  };
+}
+
+function createDefaultAiContentFactoryDetailState(): AiContentFactoryDetailState {
+  return {
+    kind: 'default',
+    definitionId: null,
+    title: 'AI 内容工厂详情',
+    subtitle: '选中工作流后，这里会固定显示当前批次、失败节点和下发建议。',
+    statusLabel: '待选择',
+    statusTone: 'info',
+    detailItems: [
+      { label: '当前工作流', value: '请先选择或保存工作流' },
+      { label: '当前批次', value: '运行工作流后自动回填' },
+      { label: '失败节点', value: '失败批次与阻塞任务会在这里汇总' },
+    ],
+    adviceItems: [],
+  };
+}
+
+function createDefaultVideoEditorDetailState(): VideoEditorDetailState {
+  return {
+    kind: 'default',
+    projectId: null,
+    sequenceId: null,
+    title: '视频编辑详情',
+    subtitle: '选中工程和序列后，这里会固定显示导出、快照和字幕动作。',
+    statusLabel: '待剪辑',
+    statusTone: 'info',
+    detailItems: [
+      { label: '当前工程', value: '请先进入或创建视频工程' },
+      { label: '当前序列', value: '切换剪辑序列后会同步到这里' },
+      { label: '最近快照', value: '保存快照后会显示最近可恢复版本', stacked: true },
+    ],
+    adviceItems: [],
+    canExportFinal: false,
+    canPreviewExport: false,
+    canSaveSnapshot: false,
+    canRestoreSnapshot: false,
+    canCreateSubtitle: false,
   };
 }
 
@@ -314,6 +598,12 @@ export const useShellStore = defineStore('shell', () => {
   const selectedSystem = ref<DashboardSystemItem | null>(null);
   const dashboardDetailState = ref<DashboardDetailState>(createDefaultDashboardDetailState());
   const accountDetailState = ref<AccountDetailState>(createDefaultAccountDetailState());
+  const deviceDetailState = ref<DeviceDetailState>(createDefaultDeviceDetailState());
+  const publishDetailState = ref<PublishDetailState>(createDefaultPublishDetailState());
+  const collectorDetailState = ref<CollectorDetailState>(createDefaultCollectorDetailState());
+  const creativeDetailState = ref<CreativeDetailState>(createDefaultCreativeDetailState());
+  const aiContentFactoryDetailState = ref<AiContentFactoryDetailState>(createDefaultAiContentFactoryDetailState());
+  const videoEditorDetailState = ref<VideoEditorDetailState>(createDefaultVideoEditorDetailState());
 
   const assistantInput = ref('');
   const assistantMessages = ref<AssistantMessage[]>([]);
@@ -815,6 +1105,200 @@ export const useShellStore = defineStore('shell', () => {
     accountDetailState.value = createDefaultAccountDetailState();
   }
 
+  function setDeviceDetailState(payload: DeviceDetailState): void {
+    deviceDetailState.value = {
+      kind: payload.kind,
+      deviceId: typeof payload.deviceId === 'number' ? payload.deviceId : null,
+      title: payload.title || '设备详情',
+      subtitle: payload.subtitle || '暂无说明',
+      statusLabel: payload.statusLabel || '设备详情',
+      statusTone: payload.statusTone || 'info',
+      dataPoints: Array.isArray(payload.dataPoints) && payload.dataPoints.length > 0
+        ? payload.dataPoints.map((item) => ({
+          label: item.label || '--',
+          value: item.value || '--',
+        }))
+        : createDefaultDeviceDetailState().dataPoints,
+      issues: Array.isArray(payload.issues)
+        ? payload.issues.map((item) => ({
+          title: item.title || '--',
+          copy: item.copy || '--',
+          tone: item.tone || 'info',
+        }))
+        : [],
+      logs: Array.isArray(payload.logs)
+        ? payload.logs.map((item) => ({
+          id: Number.isFinite(Number(item.id)) ? Math.trunc(Number(item.id)) : 0,
+          title: item.title || '--',
+          message: item.message || '--',
+          category: item.category || 'log',
+          createdAt: item.createdAt || '--',
+        }))
+        : [],
+      logsCollapsed: payload.logsCollapsed !== false,
+    };
+  }
+
+  function resetDeviceDetailState(): void {
+    deviceDetailState.value = createDefaultDeviceDetailState();
+  }
+
+  function setPublishDetailState(payload: PublishDetailState): void {
+    publishDetailState.value = {
+      kind: payload.kind,
+      planId: typeof payload.planId === 'number' ? payload.planId : null,
+      title: payload.title || '定时发布详情',
+      subtitle: payload.subtitle || '暂无说明',
+      statusLabel: payload.statusLabel || '发布详情',
+      statusTone: payload.statusTone || 'info',
+      detailItems: Array.isArray(payload.detailItems) && payload.detailItems.length > 0
+        ? payload.detailItems.map((item) => ({
+          label: item.label || '--',
+          value: item.value || '--',
+          stacked: Boolean(item.stacked),
+        }))
+        : createDefaultPublishDetailState().detailItems,
+      adviceItems: Array.isArray(payload.adviceItems)
+        ? payload.adviceItems.map((item) => ({
+          title: item.title || '--',
+          copy: item.copy || '--',
+          badge: item.badge || '--',
+          tone: item.tone || 'info',
+        }))
+        : [],
+    };
+  }
+
+  function resetPublishDetailState(): void {
+    publishDetailState.value = createDefaultPublishDetailState();
+  }
+
+  function setCollectorDetailState(payload: CollectorDetailState): void {
+    collectorDetailState.value = {
+      kind: payload.kind,
+      taskId: typeof payload.taskId === 'number' ? payload.taskId : null,
+      title: payload.title || '数据采集详情',
+      subtitle: payload.subtitle || '暂无说明',
+      statusLabel: payload.statusLabel || '采集详情',
+      statusTone: payload.statusTone || 'info',
+      detailItems: Array.isArray(payload.detailItems) && payload.detailItems.length > 0
+        ? payload.detailItems.map((item) => ({
+          label: item.label || '--',
+          value: item.value || '--',
+          stacked: Boolean(item.stacked),
+        }))
+        : createDefaultCollectorDetailState().detailItems,
+      adviceItems: Array.isArray(payload.adviceItems)
+        ? payload.adviceItems.map((item) => ({
+          title: item.title || '--',
+          copy: item.copy || '--',
+          badge: item.badge || '--',
+          tone: item.tone || 'info',
+        }))
+        : [],
+    };
+  }
+
+  function resetCollectorDetailState(): void {
+    collectorDetailState.value = createDefaultCollectorDetailState();
+  }
+
+  function setCreativeDetailState(payload: CreativeDetailState): void {
+    creativeDetailState.value = {
+      kind: payload.kind,
+      projectId: typeof payload.projectId === 'number' ? payload.projectId : null,
+      title: payload.title || '创意工坊详情',
+      subtitle: payload.subtitle || '暂无说明',
+      statusLabel: payload.statusLabel || '创意详情',
+      statusTone: payload.statusTone || 'info',
+      detailItems: Array.isArray(payload.detailItems) && payload.detailItems.length > 0
+        ? payload.detailItems.map((item) => ({
+          label: item.label || '--',
+          value: item.value || '--',
+          stacked: Boolean(item.stacked),
+        }))
+        : createDefaultCreativeDetailState().detailItems,
+      adviceItems: Array.isArray(payload.adviceItems)
+        ? payload.adviceItems.map((item) => ({
+          title: item.title || '--',
+          copy: item.copy || '--',
+          badge: item.badge || '--',
+          tone: item.tone || 'info',
+        }))
+        : [],
+    };
+  }
+
+  function resetCreativeDetailState(): void {
+    creativeDetailState.value = createDefaultCreativeDetailState();
+  }
+
+  function setAiContentFactoryDetailState(payload: AiContentFactoryDetailState): void {
+    aiContentFactoryDetailState.value = {
+      kind: payload.kind,
+      definitionId: typeof payload.definitionId === 'number' ? payload.definitionId : null,
+      title: payload.title || 'AI 内容工厂详情',
+      subtitle: payload.subtitle || '暂无说明',
+      statusLabel: payload.statusLabel || '工作流详情',
+      statusTone: payload.statusTone || 'info',
+      detailItems: Array.isArray(payload.detailItems) && payload.detailItems.length > 0
+        ? payload.detailItems.map((item) => ({
+          label: item.label || '--',
+          value: item.value || '--',
+          stacked: Boolean(item.stacked),
+        }))
+        : createDefaultAiContentFactoryDetailState().detailItems,
+      adviceItems: Array.isArray(payload.adviceItems)
+        ? payload.adviceItems.map((item) => ({
+          title: item.title || '--',
+          copy: item.copy || '--',
+          badge: item.badge || '--',
+          tone: item.tone || 'info',
+        }))
+        : [],
+    };
+  }
+
+  function resetAiContentFactoryDetailState(): void {
+    aiContentFactoryDetailState.value = createDefaultAiContentFactoryDetailState();
+  }
+
+  function setVideoEditorDetailState(payload: VideoEditorDetailState): void {
+    videoEditorDetailState.value = {
+      kind: payload.kind,
+      projectId: typeof payload.projectId === 'number' ? payload.projectId : null,
+      sequenceId: typeof payload.sequenceId === 'number' ? payload.sequenceId : null,
+      title: payload.title || '视频编辑详情',
+      subtitle: payload.subtitle || '暂无说明',
+      statusLabel: payload.statusLabel || '视频编辑',
+      statusTone: payload.statusTone || 'info',
+      detailItems: Array.isArray(payload.detailItems) && payload.detailItems.length > 0
+        ? payload.detailItems.map((item) => ({
+          label: item.label || '--',
+          value: item.value || '--',
+          stacked: Boolean(item.stacked),
+        }))
+        : createDefaultVideoEditorDetailState().detailItems,
+      adviceItems: Array.isArray(payload.adviceItems)
+        ? payload.adviceItems.map((item) => ({
+          title: item.title || '--',
+          copy: item.copy || '--',
+          badge: item.badge || '--',
+          tone: item.tone || 'info',
+        }))
+        : [],
+      canExportFinal: Boolean(payload.canExportFinal),
+      canPreviewExport: Boolean(payload.canPreviewExport),
+      canSaveSnapshot: Boolean(payload.canSaveSnapshot),
+      canRestoreSnapshot: Boolean(payload.canRestoreSnapshot),
+      canCreateSubtitle: Boolean(payload.canCreateSubtitle),
+    };
+  }
+
+  function resetVideoEditorDetailState(): void {
+    videoEditorDetailState.value = createDefaultVideoEditorDetailState();
+  }
+
   function defaultAssistantSuggestions(): ShellAssistantAction[] {
     return [
       { id: 'goto-settings', label: '打开系统设置', action: 'navigate', payload: { routeName: 'system-settings' } },
@@ -1012,6 +1496,12 @@ export const useShellStore = defineStore('shell', () => {
     dashboardRange,
     dashboardDetailState,
     accountDetailState,
+    deviceDetailState,
+    publishDetailState,
+    collectorDetailState,
+    creativeDetailState,
+    aiContentFactoryDetailState,
+    videoEditorDetailState,
     selectedActivity,
     selectedSystem,
     versionCurrent,
@@ -1062,6 +1552,18 @@ export const useShellStore = defineStore('shell', () => {
     resetDashboardDetailState,
     setAccountDetailState,
     resetAccountDetailState,
+    setDeviceDetailState,
+    resetDeviceDetailState,
+    setPublishDetailState,
+    resetPublishDetailState,
+    setCollectorDetailState,
+    resetCollectorDetailState,
+    setCreativeDetailState,
+    resetCreativeDetailState,
+    setAiContentFactoryDetailState,
+    resetAiContentFactoryDetailState,
+    setVideoEditorDetailState,
+    resetVideoEditorDetailState,
     sendAssistantMessage,
     runShellAction,
   };

@@ -1,5 +1,6 @@
-   Batch 5 — analytics-board 家族样式
-   ═══════════════════════════════════════════════ */
+/* ═══════════════════════════════════════════════
+    Batch 5 — analytics-board 家族样式
+    ═══════════════════════════════════════════════ */
 .analytics-board-shell {
     display: flex;
     flex-direction: column;
