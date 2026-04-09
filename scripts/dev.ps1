@@ -7,6 +7,46 @@ param(
     [string]$RuntimeToken = "dev-token"
 )
 
+function Test-TcpPortAvailable {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$ListenHost,
+        [Parameter(Mandatory = $true)]
+        [int]$Port
+    )
+
+    $listener = $null
+    try {
+        $listener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Parse($ListenHost), $Port)
+        $listener.Start()
+        return $true
+    }
+    catch {
+        return $false
+    }
+    finally {
+        if ($listener) {
+            $listener.Stop()
+        }
+    }
+}
+
+function Get-FreeTcpPort {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$ListenHost
+    )
+
+    $listener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Parse($ListenHost), 0)
+    try {
+        $listener.Start()
+        return $listener.LocalEndpoint.Port
+    }
+    finally {
+        $listener.Stop()
+    }
+}
+
 function Find-VsDevCmd {
     $candidates = @(
         "F:\VS\BuildTools\Common7\Tools\VsDevCmd.bat",
@@ -138,11 +178,21 @@ Push-Location $repoRoot
 try {
     $runRuntimeOnly = $RuntimeOnly
     $runBrowserOnly = $BrowserOnly
+    $resolvedRuntimePort = $RuntimePort
+
+    if (-not (Test-TcpPortAvailable -ListenHost $RuntimeHost -Port $resolvedRuntimePort)) {
+        if ($runRuntimeOnly) {
+            throw "Runtime port $resolvedRuntimePort is already in use. Use -RuntimePort to provide a free port."
+        }
+
+        $resolvedRuntimePort = Get-FreeTcpPort -ListenHost $RuntimeHost
+        Write-Host "Runtime port $RuntimePort is occupied, switching to available port $resolvedRuntimePort"
+    }
 
     if ($runRuntimeOnly) {
         Write-Host "Starting runtime only..."
         $env:TKOPS_RUNTIME_HOST = $RuntimeHost
-        $env:TKOPS_RUNTIME_PORT = "$RuntimePort"
+        $env:TKOPS_RUNTIME_PORT = "$resolvedRuntimePort"
         $env:TKOPS_RUNTIME_TOKEN = $RuntimeToken
         $env:TKOPS_RUNTIME_MANAGED = "0"
         & $python "apps\py-runtime\src\main.py"
@@ -152,7 +202,7 @@ try {
     if ($runBrowserOnly) {
         Write-Host "Starting external runtime for browser dev..."
         $env:TKOPS_RUNTIME_HOST = $RuntimeHost
-        $env:TKOPS_RUNTIME_PORT = "$RuntimePort"
+        $env:TKOPS_RUNTIME_PORT = "$resolvedRuntimePort"
         $env:TKOPS_RUNTIME_TOKEN = $RuntimeToken
         $env:TKOPS_RUNTIME_MANAGED = "0"
         $runtimeProcess = Start-Process -FilePath $python -ArgumentList "apps\py-runtime\src\main.py" -WorkingDirectory $repoRoot -PassThru
@@ -160,10 +210,10 @@ try {
 
     Write-Host "Starting desktop host..."
     Ensure-DesktopBuildEnv
-    $env:VITE_RUNTIME_URL = "http://${RuntimeHost}:${RuntimePort}"
+    $env:VITE_RUNTIME_URL = "http://${RuntimeHost}:${resolvedRuntimePort}"
     $env:VITE_RUNTIME_TOKEN = $RuntimeToken
     $env:TKOPS_RUNTIME_HOST = $RuntimeHost
-    $env:TKOPS_RUNTIME_PORT = "$RuntimePort"
+    $env:TKOPS_RUNTIME_PORT = "$resolvedRuntimePort"
     $env:TKOPS_RUNTIME_TOKEN = $RuntimeToken
     $env:TKOPS_RUNTIME_MANAGED = if ($runBrowserOnly) { "0" } else { "1" }
 

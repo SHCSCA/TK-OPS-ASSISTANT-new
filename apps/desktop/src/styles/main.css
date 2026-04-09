@@ -1093,14 +1093,14 @@ th {
   width: max(100%, var(--shell-min-width));
   min-width: var(--shell-min-width);
   height: 100%;
-  --titlebar-height: calc(72px * var(--shell-scale));
-  --statusbar-height: calc(46px * var(--shell-scale));
-  --sidebar-width: calc(292px * var(--shell-scale));
+  --titlebar-height: calc(64px * var(--shell-scale));
+  --statusbar-height: calc(40px * var(--shell-scale));
+  --sidebar-width: calc(272px * var(--shell-scale));
   --sidebar-collapsed-width: calc(84px * var(--shell-scale));
-  --detail-width: calc(320px * var(--shell-scale));
-  --page-gutter: calc(28px * var(--shell-scale));
-  --page-section-gap: calc(22px * var(--shell-scale));
-  --panel-padding: calc(20px * var(--shell-scale));
+  --detail-width: calc(296px * var(--shell-scale));
+  --page-gutter: calc(22px * var(--shell-scale));
+  --page-section-gap: calc(18px * var(--shell-scale));
+  --panel-padding: calc(16px * var(--shell-scale));
 }
 
 .shell-canvas .app-shell {
@@ -1169,14 +1169,22 @@ th {
   display: block;
 }
 
+.shell-canvas .title-bar__actions {
+  gap: calc(8px * var(--shell-scale));
+}
+
 .shell-canvas .shell-search-bar {
-  flex: 1 1 clamp(320px, 35vw, 560px);
-  min-width: 240px;
-  max-width: 560px;
+  flex: 1 1 clamp(280px, 31vw, 520px);
+  min-width: 216px;
+  max-width: 520px;
+  gap: calc(8px * var(--shell-scale));
+  padding: calc(8px * var(--shell-scale)) calc(12px * var(--shell-scale));
 }
 
 .shell-canvas .shell-search-bar input {
   min-width: 0;
+  font-size: calc(12px * var(--shell-scale));
+  line-height: 1.2;
 }
 
 .shell-canvas .title-bar__actions > .icon-button,
@@ -1187,15 +1195,68 @@ th {
 }
 
 .shell-canvas .responsive-note {
-  max-width: 320px;
+  max-width: 260px;
 }
 
 .shell-canvas .account-cell {
-  max-width: 186px;
+  max-width: 172px;
 }
 
 .shell-canvas .account-cell__text .subtle {
   display: block;
+}
+
+.shell-canvas .brand-stack strong,
+.shell-canvas .account-cell__text strong {
+  font-size: calc(12px * var(--shell-scale));
+  line-height: 1.15;
+}
+
+.shell-canvas .brand-stack .eyebrow,
+.shell-canvas .account-cell__text .subtle,
+.shell-canvas .responsive-note {
+  font-size: calc(10px * var(--shell-scale));
+  line-height: 1.2;
+}
+
+.shell-canvas .title-bar__actions > .icon-button,
+.shell-canvas .title-bar__actions > .secondary-button {
+  min-height: calc(34px * var(--shell-scale));
+  font-size: calc(11px * var(--shell-scale));
+}
+
+.shell-canvas .title-bar__actions > .icon-button {
+  min-width: calc(34px * var(--shell-scale));
+  padding: 0;
+}
+
+.shell-canvas .title-bar__actions > .secondary-button {
+  padding-inline: calc(10px * var(--shell-scale));
+}
+
+.shell-canvas .status-bar .status-text,
+.shell-canvas .status-bar .status-chip {
+  min-height: calc(22px * var(--shell-scale));
+  padding: 0 calc(8px * var(--shell-scale));
+  font-size: calc(10px * var(--shell-scale));
+  line-height: 1.1;
+}
+
+.shell-canvas .sidebar__footer strong {
+  margin: calc(4px * var(--shell-scale)) 0 calc(6px * var(--shell-scale));
+  font-size: calc(11px * var(--shell-scale));
+  line-height: 1.25;
+}
+
+.shell-canvas .sidebar__footer .eyebrow {
+  font-size: calc(10px * var(--shell-scale));
+  letter-spacing: 0.06em;
+}
+
+.shell-canvas .sidebar__footer-copy {
+  font-size: calc(10px * var(--shell-scale));
+  line-height: 1.45;
+  overflow-wrap: anywhere;
 }
 
 .shell-canvas .topbar-overflow-panel {
@@ -1235,6 +1296,86 @@ th {
   font-size: calc(20px * var(--shell-scale));
 }
 
+.shell-canvas .detail-panel {
+  padding: calc(16px * var(--shell-scale)) calc(14px * var(--shell-scale));
+}
+
+.shell-canvas .detail-panel .detail-root {
+  gap: calc(14px * var(--shell-scale));
+}
+
+.shell-canvas .detail-panel .panel {
+  padding: calc(14px * var(--shell-scale));
+}
+
+.shell-canvas .detail-panel .panel__header {
+  align-items: flex-start;
+  gap: calc(10px * var(--shell-scale));
+  margin-bottom: calc(10px * var(--shell-scale));
+}
+
+.shell-canvas .detail-panel .panel__header > div,
+.shell-canvas .detail-panel .status-strip {
+  min-width: 0;
+}
+
+.shell-canvas .detail-panel .panel__header strong,
+.shell-canvas .detail-panel .board-card strong {
+  display: block;
+  font-size: calc(13px * var(--shell-scale));
+  line-height: 1.3;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.shell-canvas .detail-panel .board-card {
+  padding: calc(12px * var(--shell-scale));
+}
+
+.shell-canvas .detail-panel .panel__header .subtle,
+.shell-canvas .detail-panel .board-card .subtle,
+.shell-canvas .detail-panel .audit-item__copy {
+  font-size: calc(10px * var(--shell-scale));
+  line-height: 1.45;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.shell-canvas .detail-panel .detail-actions {
+  gap: calc(8px * var(--shell-scale));
+}
+
+.shell-canvas .detail-panel .detail-actions > button {
+  min-height: calc(34px * var(--shell-scale));
+  padding-inline: calc(10px * var(--shell-scale));
+  font-size: calc(11px * var(--shell-scale));
+  line-height: 1.25;
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.shell-canvas .detail-panel .status-chip,
+.shell-canvas .detail-panel .pill {
+  max-width: 100%;
+  min-height: calc(20px * var(--shell-scale));
+  padding: 0 calc(8px * var(--shell-scale));
+  font-size: calc(10px * var(--shell-scale));
+  line-height: 1.15;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  text-align: center;
+}
+
 .shell-canvas .metric-value,
 .shell-canvas .metric-nowrap,
 .shell-canvas .dashboard-trend-metric__value,
@@ -1257,10 +1398,10 @@ th {
 
 .shell-canvas [data-account-detail-kind] .data-points,
 .shell-canvas [data-device-detail-kind] .data-points {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-  margin-bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 10px;
 }
 
 .shell-canvas [data-account-detail-kind] .data-point,
@@ -1268,13 +1409,15 @@ th {
 .shell-canvas [data-account-detail-kind] .detail-item,
 .shell-canvas [data-device-detail-kind] .detail-item {
   display: flex;
-  flex-direction: column;
-  gap: 6px;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
   min-width: 0;
-  padding: 12px 14px;
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
-  background: color-mix(in srgb, var(--surface-primary) 94%, transparent);
+  padding: 8px 0;
+  border: 0;
+  border-bottom: 1px solid var(--border-subtle);
+  border-radius: 0;
+  background: transparent;
 }
 
 .shell-canvas [data-account-detail-kind] .detail-list,
@@ -1287,37 +1430,77 @@ th {
 
 .shell-canvas [data-account-detail-kind] .detail-item--stacked strong,
 .shell-canvas [data-device-detail-kind] .detail-item--stacked strong,
+.shell-canvas [data-account-detail-kind] .data-point .subtle,
+.shell-canvas [data-account-detail-kind] .detail-item .subtle,
+.shell-canvas [data-device-detail-kind] .data-point .subtle,
+.shell-canvas [data-device-detail-kind] .detail-item .subtle,
 .shell-canvas [data-account-detail-kind] .audit-item__copy,
 .shell-canvas [data-device-detail-kind] .audit-item__copy {
   white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
   word-break: break-word;
   overflow-wrap: anywhere;
+  line-height: 1.4;
+}
+
+.shell-canvas [data-account-detail-kind] .data-point .subtle,
+.shell-canvas [data-account-detail-kind] .detail-item .subtle,
+.shell-canvas [data-device-detail-kind] .data-point .subtle,
+.shell-canvas [data-device-detail-kind] .detail-item .subtle {
+  flex: 0 0 92px;
+  min-width: 0;
+  font-size: calc(10px * var(--shell-scale));
+}
+
+.shell-canvas [data-account-detail-kind] .data-point strong,
+.shell-canvas [data-account-detail-kind] .detail-item strong,
+.shell-canvas [data-device-detail-kind] .data-point strong,
+.shell-canvas [data-device-detail-kind] .detail-item strong {
+  flex: 1 1 auto;
+  min-width: 0;
+  text-align: right;
 }
 
 .shell-canvas [data-account-detail-kind] .account-detail__actions,
 .shell-canvas [data-device-detail-kind] .account-detail__actions {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
+  gap: 8px;
 }
 
 .shell-canvas [data-account-detail-kind] .account-detail__actions > button,
 .shell-canvas [data-device-detail-kind] .account-detail__actions > button {
   width: 100%;
   min-width: 0;
+  min-height: calc(34px * var(--shell-scale));
+  padding-inline: calc(10px * var(--shell-scale));
+  font-size: calc(11px * var(--shell-scale));
+  line-height: 1.25;
 }
 
 .shell-canvas [data-account-detail-kind] .audit-item,
 .shell-canvas [data-device-detail-kind] .audit-item {
   display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 12px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
   min-width: 0;
-  padding: 12px 14px;
+  padding: 10px 12px;
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);
   background: color-mix(in srgb, var(--surface-primary) 94%, transparent);
+}
+
+.shell-canvas [data-account-detail-kind] .audit-item > div,
+.shell-canvas [data-device-detail-kind] .audit-item > div {
+  width: 100%;
+}
+
+.shell-canvas [data-account-detail-kind] .audit-item .pill,
+.shell-canvas [data-device-detail-kind] .audit-item .pill {
+  align-self: flex-start;
+  max-width: 100%;
 }
 
 .binding-account-grid {

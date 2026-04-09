@@ -4,6 +4,7 @@ import { defineStore } from 'pinia';
 import { router } from '../../app/router';
 import { shellRouteManifest } from '../../app/router/routeManifest';
 import { loadHostShellInfo, notifyAppShellReady, type HostShellInfo } from '../host/hostCommands';
+import { setRuntimeBaseUrlOverride } from '../runtime/config';
 import { runtimeApi } from '../runtime/runtimeApi';
 import { mapRuntimeStatus, mapThemeMode } from '../runtime/runtimePresentation';
 import type {
@@ -294,9 +295,9 @@ const MAX_SEARCH_RESULTS = 10;
 
 const WIDTH_FULL = 1180;
 const WIDTH_MIN_LAYOUT = 960;
-const SHELL_SCALE_BASE_WIDTH = 1500;
+const SHELL_SCALE_BASE_WIDTH = 1600;
 const SHELL_SCALE_MIN = 0.85;
-const SHELL_SCALE_MAX = 0.96;
+const SHELL_SCALE_MAX = 1.0;
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
@@ -1406,9 +1407,12 @@ export const useShellStore = defineStore('shell', () => {
     updateLayout(window.innerWidth || 1280);
 
     try {
-      const [hostResult, healthResult, licenseResult, dashboardResult, notificationsResult, currentVersionResult, checkVersionResult, settingsResult] =
+      const hostShellInfo = await loadHostShellInfo();
+      hostInfo.value = hostShellInfo;
+      setRuntimeBaseUrlOverride(hostShellInfo.runtimeEndpoint);
+
+      const [healthResult, licenseResult, dashboardResult, notificationsResult, currentVersionResult, checkVersionResult, settingsResult] =
         await Promise.allSettled([
-          loadHostShellInfo(),
           runtimeApi.getHealth(),
           runtimeApi.getLicenseStatus(),
           runtimeApi.getDashboardOverview(),
@@ -1418,9 +1422,6 @@ export const useShellStore = defineStore('shell', () => {
           runtimeApi.getSettings(),
         ]);
 
-      if (hostResult.status === 'fulfilled') {
-        hostInfo.value = hostResult.value;
-      }
       if (healthResult.status === 'fulfilled') {
         runtimeHealth.value = healthResult.value;
       }
@@ -1448,14 +1449,14 @@ export const useShellStore = defineStore('shell', () => {
         syncThemeFromRuntime(settingsResult.value.preferences?.theme || settingsResult.value.theme);
       }
 
-      const failedCritical = [hostResult, healthResult].filter((result) => result.status === 'rejected');
-      if (failedCritical.length > 0) {
-        const firstError = failedCritical[0] as PromiseRejectedResult;
-        const errorMessage = firstError.reason instanceof Error ? firstError.reason.message : String(firstError.reason || '未知错误');
-        bootError.value = `壳层初始化存在异常：${errorMessage}`;
+      if (healthResult.status === 'rejected') {
+        const healthError = healthResult.reason instanceof Error ? healthResult.reason.message : String(healthResult.reason || '未知错误');
+        const hostError = hostShellInfo.lastError?.trim();
+        bootError.value = `壳层初始化存在异常：${hostError || healthError}`;
       }
     } catch (cause) {
-      bootError.value = cause instanceof Error ? cause.message : '初始化失败';
+      const errorMessage = cause instanceof Error ? cause.message : '初始化失败';
+      bootError.value = `壳层初始化存在异常：${errorMessage}`;
     } finally {
       markCurrentRouteVisited();
       updateSearchResults();

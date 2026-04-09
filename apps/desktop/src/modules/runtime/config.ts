@@ -1,7 +1,16 @@
 const fallbackBaseUrl = 'http://127.0.0.1:8765';
 const fallbackRuntimeToken = 'dev-token';
 
+let runtimeBaseUrlOverride = '';
+
+export function setRuntimeBaseUrlOverride(value: string | null | undefined): void {
+  runtimeBaseUrlOverride = value?.trim() || '';
+}
+
 export function getRuntimeBaseUrl(): string {
+  if (runtimeBaseUrlOverride) {
+    return runtimeBaseUrlOverride;
+  }
   const value = import.meta.env.VITE_RUNTIME_URL?.trim();
   return value || fallbackBaseUrl;
 }

@@ -157,9 +157,9 @@ def test_vue_shell_scale_and_font_tokens_are_tuned_for_denser_desktop_layout() -
     main_css = (ROOT / "apps" / "desktop" / "src" / "styles" / "main.css").read_text(encoding="utf-8")
 
     for snippet in [
-        "const SHELL_SCALE_BASE_WIDTH = 1500;",
+        "const SHELL_SCALE_BASE_WIDTH = 1600;",
         "const SHELL_SCALE_MIN = 0.85;",
-        "const SHELL_SCALE_MAX = 0.96;",
+        "const SHELL_SCALE_MAX = 1.0;",
         "return clamp(layoutViewportWidth / SHELL_SCALE_BASE_WIDTH, SHELL_SCALE_MIN, SHELL_SCALE_MAX);",
         "--shell-font-body: 12px;",
         "--shell-font-subtle: 11px;",
@@ -169,6 +169,26 @@ def test_vue_shell_scale_and_font_tokens_are_tuned_for_denser_desktop_layout() -
         "--shell-font-stat-compact: 20px;",
     ]:
         assert snippet in shell_store + "\n" + main_css
+
+
+def test_vue_shared_shell_selectors_keep_topbar_and_detail_panel_compact() -> None:
+    main_css = (ROOT / "apps" / "desktop" / "src" / "styles" / "main.css").read_text(encoding="utf-8")
+
+    required_snippets = [
+        ".shell-canvas .title-bar__actions {",
+        ".shell-canvas .shell-search-bar {",
+        ".shell-canvas .sidebar__footer strong {",
+        ".shell-canvas .sidebar__footer-copy {",
+        ".shell-canvas .detail-panel .panel__header strong,",
+        ".shell-canvas .detail-panel .detail-actions > button {",
+        ".shell-canvas .detail-panel .status-chip,",
+        ".shell-canvas [data-account-detail-kind] .data-points,",
+        ".shell-canvas [data-account-detail-kind] .audit-item > div,",
+        ".shell-canvas [data-device-detail-kind] .audit-item .pill {",
+    ]
+
+    for snippet in required_snippets:
+        assert snippet in main_css
 
 
 def test_video_timeline_styles_follow_theme_tokens() -> None:

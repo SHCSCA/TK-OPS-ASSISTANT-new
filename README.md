@@ -1,6 +1,6 @@
 # TK-OPS Desktop
 
-当前发布版本：`1.3.3`
+当前发布版本：`1.3.4`
 
 ## 项目现状
 
@@ -85,7 +85,7 @@ scripts\preflight-gate.ps1 -Full
 
 - [发布前门禁清单](docs/releases/preflight-checklist.md)
 - [发布回滚手册](docs/releases/rollback-playbook.md)
-- [v1.3.3 发布记录](docs/releases/2026-04-08-v1.3.3.md)
+- [v1.3.4 发布记录](docs/releases/2026-04-09-v1.3.4.md)
 
 产物默认输出到：
 
